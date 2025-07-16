@@ -8,11 +8,9 @@ import "./globals.css";
 SplashScreen.preventAutoHideAsync();
 
 const LayoutWrapper = () => {
-
   return (
       <Stack screenOptions={{ headerShown: false }}/>
   );
-
 };
 
 export default function RootLayout() {
