@@ -88,7 +88,7 @@ const CustomButton = ({ flatListRef, flatListIndex, dataLength, x }: Props) => {
             index: flatListIndex.value + 1,
           });
         } else {
-          router.back();
+          router.push('/auth/login');
         }
       }}
     >
