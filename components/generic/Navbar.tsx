@@ -7,9 +7,10 @@ type NavbarProps = {
   title: string;
   showBack?: boolean;
   showSearch?: boolean;
+  showNotification?: boolean;
 };
 
-export default function Navbar({ title, showBack = false, showSearch = false }: NavbarProps) {
+export default function Navbar({ title, showBack = false, showSearch = false, showNotification = false}: NavbarProps) {
   const navigation = useNavigation();
 
   return (
@@ -40,9 +41,12 @@ export default function Navbar({ title, showBack = false, showSearch = false }: 
             <Search size={24} color="#171717" />
           </TouchableOpacity>
         )}
+        {showNotification && (
+
         <TouchableOpacity onPress={() => console.log('Notification pressed')}>
           <Bell size={24} color="#171717" />
         </TouchableOpacity>
+        )}
       </View>
     </View>
   );
