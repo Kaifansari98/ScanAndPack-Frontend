@@ -1,6 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native'
-import React from 'react'
 import Navbar from '@/components/generic/Navbar'
+import React from 'react'
+import { StyleSheet, View } from 'react-native'
 
 export default function DashboardTabScreen() {
   return (
