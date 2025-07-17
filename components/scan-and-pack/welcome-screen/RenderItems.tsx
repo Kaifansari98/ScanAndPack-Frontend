@@ -74,7 +74,7 @@ export default function RenderItems({ item, index, x }: Props) {
         />
       </Animated.View>
       <Text
-        className={`text-center text-[44px] mb-[10px] mx-[20px] font-montserrat-bold`}
+        className={`text-left text-4xl mb-[10px] mx-[20px] font-montserrat-bold pr-3`}
         style={{ color: item.textColor }}
       >
         {item.text}
