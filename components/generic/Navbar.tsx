@@ -25,7 +25,7 @@ export default function Navbar({ title, showBack = false, showSearch = false }: 
           </TouchableOpacity>
         )}
         <Text
-          className={`text-xl font-montserrat-semibold text-sapLight-text ${
+          className={`text-2xl font-montserrat-semibold text-sapLight-text ${
             showBack ? 'ml-3' : 'ml-0'
           }`}
         >
