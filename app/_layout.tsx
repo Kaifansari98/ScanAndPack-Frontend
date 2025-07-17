@@ -10,7 +10,7 @@ SplashScreen.preventAutoHideAsync();
 
 const LayoutWrapper = () => {
   return (
-    <SafeAreaView className="flex-1">
+    <SafeAreaView className="flex-1" edges={["top"]}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="auth" options={{ headerShown: false }}/>
       </Stack>

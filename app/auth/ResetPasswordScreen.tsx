@@ -1,11 +1,10 @@
-import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { Eye, EyeOff } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { Image, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
 
-export default function LoginScreen() {
+export default function ResetPasswordScreen() {
   // Animation values
   const imageOpacity = useSharedValue(0);
   const imageScale = useSharedValue(0.8);
@@ -15,10 +14,8 @@ export default function LoginScreen() {
   const buttonTranslateY = useSharedValue(30);
 
   // State for password visibility
-  const [showPassword, setShowPassword] = useState(false);
-
-  // Navigation hook
-  const navigation = useNavigation();
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   // Router for navigation
   const router = useRouter();
@@ -60,7 +57,7 @@ export default function LoginScreen() {
           {/* Logo Image */}
           <Animated.View style={[animatedImageStyle, styles.imageContainer]}>
             <Image
-              source={require('../../assets/images/LoginScreen/Login.png')}
+              source={require('../../assets/images/LoginScreen/ResetPassword.png')}
               style={styles.logo}
               resizeMode="contain"
             />
@@ -68,37 +65,49 @@ export default function LoginScreen() {
 
           {/* Title */}
           <Text className="text-3xl font-montserrat-semibold text-sapLight-text mb-10">
-            Let's Get Started
+            Reset Password
           </Text>
 
           {/* Input Fields */}
           <Animated.View style={[animatedInputStyle, styles.inputContainer]}>
             <Text className="text-sapLight-text font-montserrat-medium text-sm mb-2">
-              Phone Number
-            </Text>
-            <TextInput
-              className="bg-sapLight-card rounded-2xl px-5 py-4 mb-5 text-base border border-gray-200 font-montserrat"
-              placeholder="+91 8676765656"
-              placeholderTextColor="#A0A0A0"
-              keyboardType="phone-pad"
-              style={styles.input}
-            />
-            <Text className="text-sapLight-text font-montserrat-medium text-sm mb-2">
-              Password
+              Current Password
             </Text>
             <View className="relative">
               <TextInput
                 className="bg-sapLight-card rounded-2xl px-5 py-4 mb-5 text-base border border-gray-200 font-montserrat"
                 placeholder="••••••••"
                 placeholderTextColor="#A0A0A0"
-                secureTextEntry={!showPassword}
+                secureTextEntry={!showCurrentPassword}
                 style={styles.input}
               />
               <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
+                onPress={() => setShowCurrentPassword(!showCurrentPassword)}
                 className="absolute right-4 top-4"
               >
-                {showPassword ? (
+                {showCurrentPassword ? (
+                  <EyeOff size={20} color="#A0A0A0" />
+                ) : (
+                  <Eye size={20} color="#A0A0A0" />
+                )}
+              </TouchableOpacity>
+            </View>
+            <Text className="text-sapLight-text font-montserrat-medium text-sm mb-2">
+              New Password
+            </Text>
+            <View className="relative">
+              <TextInput
+                className="bg-sapLight-card rounded-2xl px-5 py-4 mb-5 text-base border border-gray-200 font-montserrat"
+                placeholder="••••••••"
+                placeholderTextColor="#A0A0A0"
+                secureTextEntry={!showNewPassword}
+                style={styles.input}
+              />
+              <TouchableOpacity
+                onPress={() => setShowNewPassword(!showNewPassword)}
+                className="absolute right-4 top-4"
+              >
+                {showNewPassword ? (
                   <EyeOff size={20} color="#A0A0A0" />
                 ) : (
                   <Eye size={20} color="#A0A0A0" />
@@ -107,19 +116,16 @@ export default function LoginScreen() {
             </View>
           </Animated.View>
 
-          {/* Login Button */}
+          {/* Change Password Button */}
           <Animated.View style={[animatedButtonStyle, styles.buttonContainer]}>
-            <TouchableOpacity
-              className="bg-sapLight-button rounded-2xl py-4 px-6 w-full shadow-lg mt-4"
-              onPress={() => router.push('../dashboard/dashboard')}
-            >
+            <TouchableOpacity className="bg-sapLight-button rounded-2xl py-4 px-6 w-full shadow-lg mt-4">
               <Text className="text-sapLight-background text-center font-montserrat-semibold text-lg">
-                Sign In
+                Change Password
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity>
-              <Text className="text-sapLight-button text-center mt-6 text-sm font-montserrat-medium tracking-wide" onPress={() => router.push('./ResetPasswordScreen')}>
-                Reset Password?
+            <TouchableOpacity onPress={() => router.push('/auth/login')}>
+              <Text className="text-sapLight-button text-center mt-6 text-sm font-montserrat-medium tracking-wide">
+                Get back to Login Screen
               </Text>
             </TouchableOpacity>
           </Animated.View>
