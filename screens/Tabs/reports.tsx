@@ -5,7 +5,7 @@ import Navbar from '@/components/generic/Navbar'
 export default function ReportsTabScreen() {
   return (
     <View className="flex-1 bg-sapLight-background">
-      <Navbar title="Reports" showBack={false} showSearch={false} />
+      <Navbar title="Reports" showBack={false} showSearch={false} showNotification={true}/>
     </View>
   )
 }
