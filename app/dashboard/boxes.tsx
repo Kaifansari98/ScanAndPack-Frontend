@@ -1,9 +1,10 @@
 import Navbar from '@/components/generic/Navbar';
-import AddBoxModal from '@/components/modals/AddBoxModal';
+import { AddBoxModal } from '@/components/modals/AddBoxModal';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowUpRight, Download, Plus } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
 
@@ -25,6 +26,7 @@ interface Box {
       status: string;
       qty: number;
       name: string;
+      category: string;
       unitId: string;
       ls: {
         l1: number;
@@ -36,7 +38,7 @@ interface Box {
 }
 
 // Sample boxes data
-const boxes: Box[] = [
+const initialBoxes: Box[] = [
   {
     name: 'Faraz Dining Table',
     items: [
@@ -44,7 +46,8 @@ const boxes: Box[] = [
         'Product 1': {
           status: 'Box Closed',
           qty: 10,
-          name: 'Smartphone',
+          name: 'Smartphone with Cases',
+          category: 'Mobile Phone',
           unitId: 'SP001',
           ls: { l1: 2300, l2: 5600, l3: 6799 },
         },
@@ -59,6 +62,7 @@ const boxes: Box[] = [
           status: 'In Progress',
           qty: 25,
           name: 'T-Shirts',
+          category: 'Clothing',
           unitId: 'TS002',
           ls: { l1: 1500, l2: 3200, l3: 4500 },
         },
@@ -66,13 +70,14 @@ const boxes: Box[] = [
     ],
   },
   {
-    name: 'Furtinure Essentials',
+    name: 'Furniture Essentials',
     items: [
       {
         'Product 1': {
           status: 'Box Closed',
           qty: 15,
           name: 'Novels',
+          category: 'Books',
           unitId: 'NV003',
           ls: { l1: 1000, l2: 2000, l3: 3000 },
         },
@@ -80,13 +85,14 @@ const boxes: Box[] = [
     ],
   },
   {
-    name: 'Woredrob Essentials',
+    name: 'Wardrobe Essentials',
     items: [
       {
         'Product 1': {
           status: 'In Progress',
           qty: 5,
           name: 'Chairs',
+          category: 'Furniture',
           unitId: 'CH004',
           ls: { l1: 5000, l2: 7500, l3: 9000 },
         },
@@ -101,6 +107,7 @@ const boxes: Box[] = [
           status: 'Box Closed',
           qty: 8,
           name: 'Microwaves',
+          category: 'Kitchen',
           unitId: 'MW005',
           ls: { l1: 3000, l2: 6000, l3: 8000 },
         },
@@ -111,6 +118,7 @@ const boxes: Box[] = [
 
 // Box Card Component
 function BoxCard({ box, index }: { box: Box; index: number }) {
+  const router = useRouter();
   // Animation values
   const cardOpacity = useSharedValue(0);
   const cardTranslateY = useSharedValue(30);
@@ -139,6 +147,13 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
     opacity: cardOpacity.value,
     transform: [{ translateY: cardTranslateY.value }, { scale: scale.value }],
   }));
+
+  const handleNavigate = () => {
+    router.push({
+      pathname: './boxItemsScreen',
+      params: { box: JSON.stringify(box) },
+    });
+  };
 
   return (
     <TouchableOpacity
@@ -177,11 +192,14 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
               </View>
               <View className='h-full flex-row items-end gap-2'>
                 <View className='p-2 bg-sapLight-card rounded-xl'>
-                  <Download color={'#555555'}/>
+                  <Download color={'#555555'} size={20} />
                 </View>
-                <View className='p-2 bg-sapLight-card rounded-xl'>
-                <ArrowUpRight color={'#555555'}/>
-                </View>
+                <TouchableOpacity
+                  onPress={handleNavigate}
+                  className='p-2 bg-sapLight-card rounded-xl'
+                >
+                  <ArrowUpRight color={'#555555'} size={20} />
+                </TouchableOpacity>
               </View>
             </View>
           </View>
@@ -195,7 +213,8 @@ export default function BoxesScreen() {
   const { project: projectString } = useLocalSearchParams<{ project: string }>();
   const project = JSON.parse(projectString) as Project;
 
-  const [modalVisible, setModalVisible] = useState(false);
+  const sheetRef = useRef<BottomSheetModal>(null);
+  const [boxes, setBoxes] = useState<Box[]>(initialBoxes);
 
   // Animation values for project card
   const cardOpacity = useSharedValue(0);
@@ -218,6 +237,11 @@ export default function BoxesScreen() {
     });
   }, []);
 
+  const onAdd = useCallback((name: string) => {
+    console.log('Added box:', name);
+    setBoxes(prev => [...prev, { name, items: [] }]);
+  }, []);
+
   // Animated styles for project card
   const animatedCardStyle = useAnimatedStyle(() => ({
     opacity: cardOpacity.value,
@@ -238,7 +262,7 @@ export default function BoxesScreen() {
     <View className="flex-1 bg-sapLight-background">
       <Navbar title={project.projectName} showBack={true} showSearch={true} />
       <View className="flex-1 mx-5 py-6">
-        {/* Project Card (Unchanged) */}
+        {/* Project Card */}
         <Animated.View style={[animatedCardStyle, styles.cardContainerr]}>
           <View className="bg-sapLight-card w-full rounded-3xl p-5 border border-gray-100">
             <View className="flex-row justify-between items-center mb-4">
@@ -256,7 +280,7 @@ export default function BoxesScreen() {
                 </Text>
               </View>
               <View>
-                <Text className=" processed-by-grok text-sapLight-infoText font-montserrat-medium text-sm">
+                <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
                   {project.date}
                 </Text>
               </View>
@@ -266,7 +290,7 @@ export default function BoxesScreen() {
                 {project.projectName}
               </Text>
             </View>
-            <View className="flex-row justify-between items-center">
+            <View className="flex-row justify KNOWN ISSUE: justify-between items-center">
               <View>
                 <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
                   Total Items
@@ -326,12 +350,12 @@ export default function BoxesScreen() {
       <View className="absolute bottom-8 left-5 right-5">
         <TouchableOpacity
           activeOpacity={0.9}
+          onPress={() => sheetRef.current?.present()}
           onPressIn={() => {
             addButtonScale.value = withSpring(0.95);
           }}
           onPressOut={() => {
             addButtonScale.value = withSpring(1);
-            setModalVisible(true); // open modal
           }}
         >
           <Animated.View style={animatedAddButtonStyle}>
@@ -347,7 +371,7 @@ export default function BoxesScreen() {
           </Animated.View>
         </TouchableOpacity>
       </View>
-      <AddBoxModal visible={modalVisible} onClose={() => setModalVisible(false)} />
+      <AddBoxModal ref={sheetRef} onSubmit={onAdd} />
     </View>
   );
 }
@@ -371,7 +395,7 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
   },
   listContainer: {
-    paddingBottom: 80, // Increased to accommodate fixed button
+    paddingBottom: 80,
     paddingHorizontal: 4,
   },
   addButton: {
