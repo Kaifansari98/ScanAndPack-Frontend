@@ -5,7 +5,7 @@ import ReportsTabScreen from '@/screens/Tabs/reports';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { FolderOpenDot, Home, User, FileCheck2 } from 'lucide-react-native';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 // Tab Navigator
 const Tab = createBottomTabNavigator();

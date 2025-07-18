@@ -1,4 +1,5 @@
 import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { Bell, ChevronLeft, Search } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -16,7 +17,7 @@ export default function Navbar({
   showSearch = false,
   showNotification = false,
 }: NavbarProps) {
-  const navigation = useNavigation();
+  const router = useRouter();
 
   return (
     <View
@@ -26,7 +27,7 @@ export default function Navbar({
       {/* Back Icon and Title */}
       <View className="flex-row items-center flex-1">
         {showBack && (
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => router.back()}>
             <ChevronLeft size={24} color="#171717" />
           </TouchableOpacity>
         )}
@@ -50,7 +51,7 @@ export default function Navbar({
           </TouchableOpacity>
         )}
         {showNotification && (
-          <TouchableOpacity onPress={() => console.log('Notification pressed')}>
+          <TouchableOpacity onPress={() => router.push("/dashboards/notificaitons")}>
             <Bell size={24} color="#171717" />
           </TouchableOpacity>
         )}
@@ -65,7 +66,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.15,
     shadowRadius: 6,
-    elevation: 3,
+    elevation: 8,
   },
   title: {
     flexShrink: 1, // Important for ellipsis
