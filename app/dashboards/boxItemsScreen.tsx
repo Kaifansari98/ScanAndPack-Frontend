@@ -2,9 +2,10 @@ import Navbar from '@/components/generic/Navbar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams } from 'expo-router';
 import { ScanLine, Trash2 } from 'lucide-react-native';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
+import { QRScanner } from '../../components/generic/QRScanner';
 
 // Define Box interface
 interface Box {
@@ -94,7 +95,6 @@ function ItemCard({ item, index }: ItemCardProps) {
                 {item.details.name}
               </Text>
               <View className="flex-row items-start h-full gap-2">
-                
                 <TouchableOpacity onPress={handleDelete}>
                   <Trash2 color="#ef4444" size={20} />
                 </TouchableOpacity>
@@ -102,42 +102,46 @@ function ItemCard({ item, index }: ItemCardProps) {
             </View>
             <View className="flex-col items-start flex-1">
               <View className="rounded-full px-3 py-1 bg-green-100 mb-4">
-                  <Text className="text-green-700 font-montserrat-semibold text-xs">
-                    {item.details.category}
+                <Text className="text-green-700 font-montserrat-semibold text-xs">
+                  {item.details.category}
+                </Text>
+              </View>
+              <View className="w-full flex-row justify-between items-end">
+                <View className="">
+                  <View className="flex-row gap-4">
+                    <View className="flex-col">
+                      <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
+                        Length
+                      </Text>
+                      <Text className="text-sapLight-text font-montserrat-medium text-xl">
+                        {item.details.ls.l1}
+                      </Text>
+                    </View>
+                    <View className="flex-col">
+                      <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
+                        Width
+                      </Text>
+                      <Text className="text-sapLight-text font-montserrat-medium text-xl">
+                        {item.details.ls.l2}
+                      </Text>
+                    </View>
+                    <View className="flex-col">
+                      <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
+                        Thickness
+                      </Text>
+                      <Text className="text-sapLight-text font-montserrat-medium text-xl">
+                        {item.details.ls.l3}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <View className="items-center">
+                  <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
+                    Quantity
                   </Text>
-                </View>
-              <View className='w-full flex-row justify-between items-end'>
-                <View className=''>
-                <View className='flex-row gap-4'>
-                <View className='flex-col'>
-                    <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                     Length
-                    </Text>
-                    <Text className="text-sapLight-text font-montserrat-medium text-xl">
-                    {item.details.ls.l1}
-                    </Text>
-                </View>
-                <View className='flex-col'>
-                    <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                    Width
-                    </Text>
-                    <Text className="text-sapLight-text font-montserrat-medium text-xl">
-                    {item.details.ls.l2}
-                    </Text>
-                </View>
-                <View className='flex-col'>
-                    <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                    Thickness
-                    </Text>
-                    <Text className="text-sapLight-text font-montserrat-medium text-xl">
-                    {item.details.ls.l3}
-                    </Text>
-                </View>
-                </View>
-                </View>
-                <View className=' items-center'>
-                    <Text className='text-sapLight-infoText font-montserrat-medium text-sm'>Quantity</Text>
-                    <Text className='text-sapLight-text font-montserrat-medium text-3xl'>{item.details.qty}</Text>
+                  <Text className="text-sapLight-text font-montserrat-medium text-3xl">
+                    {item.details.qty}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -151,6 +155,7 @@ function ItemCard({ item, index }: ItemCardProps) {
 export default function BoxItemsScreen() {
   const { box: boxString } = useLocalSearchParams<{ box: string }>();
   const box = JSON.parse(boxString) as Box;
+  const [showScanner, setShowScanner] = useState(false);
 
   // Flatten items for FlatList
   const flatItems = box.items.flatMap(itemObj =>
@@ -182,49 +187,59 @@ export default function BoxItemsScreen() {
     transform: [{ scale: scanButtonScale.value }],
   }));
 
-  const handleScan = () => {
-    console.log('Scan Product button pressed');
+  const handleScan = (data: string) => {
+    console.log('Scanned data:', data);
+    setShowScanner(false); // ✅ close from parent
   };
 
   return (
     <View className="flex-1 bg-sapLight-background">
-      <Navbar title={box.name} showBack={true} showSearch={true} />
-      <View className="flex-1 mx-2">
-        {/* Items Section */}
-        <View className="mt-6 bg-white/50 rounded-2xl pb-18">
-          <FlatList
-            data={flatItems}
-            renderItem={({ item, index }) => <ItemCard item={item} index={index} />}
-            keyExtractor={(item) => item.details.unitId}
-            contentContainerStyle={styles.listContainer}
-            showsVerticalScrollIndicator={false}
-          />
-        </View>
-      </View>
-      <View className="absolute bottom-8 left-5 right-5">
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={handleScan}
-          onPressIn={() => {
-            scanButtonScale.value = withSpring(0.95);
-          }}
-          onPressOut={() => {
-            scanButtonScale.value = withSpring(1);
-          }}
-        >
-          <Animated.View style={animatedScanButtonStyle}>
-            <LinearGradient
-              colors={['#000000', '#222222']}
-              style={styles.scanButton}
+      {showScanner ? (
+        <QRScanner
+          onScan={handleScan}
+          onClose={() => setShowScanner(false)}
+        />
+      ) : (
+        <>
+          <Navbar title={box.name} showBack={true} showSearch={true} />
+          <View className="flex-1 mx-2">
+            {/* Items Section */}
+            <View className="mt-6 bg-white/50 rounded-2xl pb-18">
+              <FlatList
+                data={flatItems}
+                renderItem={({ item, index }) => <ItemCard item={item} index={index} />}
+                keyExtractor={(item) => item.details.unitId}
+                contentContainerStyle={styles.listContainer}
+                showsVerticalScrollIndicator={false}
+              />
+            </View>
+          </View>
+          <View className="absolute bottom-8 left-5 right-5">
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => setShowScanner(true)}
+              onPressIn={() => {
+                scanButtonScale.value = withSpring(0.95);
+              }}
+              onPressOut={() => {
+                scanButtonScale.value = withSpring(1);
+              }}
             >
-              <ScanLine size={28} color="#fff" />
-              <Text className="text-white font-montserrat-bold text-lg ml-3">
-                Scan Product
-              </Text>
-            </LinearGradient>
-          </Animated.View>
-        </TouchableOpacity>
-      </View>
+              <Animated.View style={animatedScanButtonStyle}>
+                <LinearGradient
+                  colors={['#000000', '#222222']}
+                  style={styles.scanButton}
+                >
+                  <ScanLine size={28} color="#fff" />
+                  <Text className="text-white font-montserrat-bold text-lg ml-3">
+                    Scan Product
+                  </Text>
+                </LinearGradient>
+              </Animated.View>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
     </View>
   );
 }
