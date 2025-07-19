@@ -191,7 +191,7 @@ export default function BoxItemsScreen() {
       <Navbar title={box.name} showBack={true} showSearch={true} />
       <View className="flex-1 mx-2">
         {/* Items Section */}
-        <View className="mt-6 bg-white/50 rounded-2xl pb-72">
+        <View className="mt-6 bg-white/50 rounded-2xl pb-18">
           <FlatList
             data={flatItems}
             renderItem={({ item, index }) => <ItemCard item={item} index={index} />}

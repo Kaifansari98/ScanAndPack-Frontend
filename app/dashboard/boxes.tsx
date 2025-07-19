@@ -261,7 +261,7 @@ export default function BoxesScreen() {
   return (
     <View className="flex-1 bg-sapLight-background">
       <Navbar title={project.projectName} showBack={true} showSearch={true} />
-      <View className="flex-1 mx-5 py-6">
+      <View className="flex-1 mx-4 py-6">
         {/* Project Card */}
         <Animated.View style={[animatedCardStyle, styles.cardContainerr]}>
           <View className="bg-sapLight-card w-full rounded-3xl p-5 border border-gray-100">
