@@ -19,8 +19,15 @@ export default function WelcomeScreen() {
   }: {
     viewableItems: ViewToken[];
   }) => {
-    if (viewableItems[0].index !== null) {
-      flatListIndex.value = viewableItems[0].index;
+    if (viewableItems && viewableItems.length > 0) {
+      const firstItem = viewableItems[0];
+      if (
+        firstItem &&
+        firstItem.index !== null &&
+        firstItem.index !== undefined
+      ) {
+        flatListIndex.value = firstItem.index;
+      }
     }
   };
 
