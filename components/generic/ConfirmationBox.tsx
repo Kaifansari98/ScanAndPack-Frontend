@@ -1,14 +1,18 @@
+import React from "react";
 import {
-  StyleSheet,
+  Modal,
+  View,
   Text,
   TouchableOpacity,
-  View,
-  Modal,
   Dimensions,
 } from "react-native";
-import React from "react";
 import { BadgeInfo } from "lucide-react-native";
-import Animated, { FadeInLeft, FadeInUp, FadeOutDown } from "react-native-reanimated";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  FadeInUp,
+  FadeOutDown,
+} from "react-native-reanimated";
 
 const { width } = Dimensions.get("window");
 
@@ -32,69 +36,58 @@ const ConfirmationBox = ({
   visible,
 }: Props) => {
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View
-        style={styles.overly}
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+    >
+      <Animated.View
+        entering={FadeIn.duration(200)}
+        exiting={FadeOut.duration(150)}
+        className="flex-1 justify-center items-center bg-black/40 px-4"
       >
         <Animated.View
-          style={styles.modalCard}
+          entering={FadeInUp.duration(250)}
+          exiting={FadeOutDown.duration(200)}
+          className="bg-sapLight-background rounded-2xl py-6 px-5 items-center w-[85%] shadow-md elevation-10"
+          style={{ width: width * 0.85 }}
         >
-          <View className="items-center mb-4">
+          <View className="mb-3">
             <BadgeInfo size={64} color="#6B7280" strokeWidth={1.5} />
           </View>
 
-          <Text className="text-2xl font-montserrat-bold text-center text-sapLight-text mb-2">
+          <Text className="text-2xl text-center text-sapLight-text font-montserrat-bold mb-2">
             {title}
           </Text>
 
-          <Text className="text-base text-center text-sapLight-infoText mb-[10px]">
+          <Text className="text-base text-center text-sapLight-infoText font-montserrat-medium mb-5">
             {description}
           </Text>
 
-          <View className="flex-row justify-between gap-4">
+          <View className="flex-row gap-3 w-full">
             <TouchableOpacity
-              className="flex-1 py-3 rounded-xl border border-sapLight-primary items-center"
               onPress={onCancel}
+              className="flex-1 py-3 rounded-xl border border-sapLight-text items-center"
             >
-              <Text className="text-sapLight-primary font-montserrat-medium text-base">
+              <Text className="text-sapLight-text text-base font-montserrat-medium">
                 {cancelText}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              className="flex-1 py-3 rounded-xl bg-black items-center"
               onPress={onConfirm}
+              className="flex-1 py-3 rounded-xl bg-sapLight-button items-center"
             >
-              <Text className="text-sapLight-background font-montserrat-semibold text-base">
+              <Text className="text-sapLight-foreground text-base font-montserrat-semibold">
                 {confirmText}
               </Text>
             </TouchableOpacity>
           </View>
         </Animated.View>
-      </View>
+      </Animated.View>
     </Modal>
   );
 };
 
 export default ConfirmationBox;
-
-const styles = StyleSheet.create({
-  modalCard: {
-    width: width * 0.8,
-    padding: 20,
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 6,
-  },
-  overly: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.4)", // 80% opacity black
-    paddingHorizontal: 16,
-  },
-});

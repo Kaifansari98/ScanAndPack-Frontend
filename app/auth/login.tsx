@@ -111,7 +111,7 @@ export default function LoginScreen() {
           <Animated.View style={[animatedButtonStyle, styles.buttonContainer]}>
             <TouchableOpacity
               className="bg-sapLight-button rounded-2xl py-4 px-6 w-full shadow-lg mt-4"
-              onPress={() => router.push('../dashboard/dashboard')}
+              onPress={() => router.push('../dashboards/dashboard')}
             >
               <Text className="text-sapLight-background text-center font-montserrat-semibold text-lg">
                 Sign In
