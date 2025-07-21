@@ -18,7 +18,7 @@ export default function DashboardScreen() {
           backgroundColor: '#F5F5F5',
           borderTopColor: '#E5E5E5',
           borderTopWidth: 1,
-          height: 90,
+          height: 70,
           paddingBottom: 5,
           paddingTop: 5,
         },
