@@ -11,6 +11,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Platform,
 } from "react-native";
 import Animated, {
   Easing,
@@ -384,7 +385,7 @@ export default function BoxesScreen() {
           />
         </View>
       </View>
-      <View className="absolute bottom-8 left-5 right-5">
+      <View  style={styles.addBoxBtn} >
         <TouchableOpacity
           activeOpacity={0.9}
           onPress={() => sheetRef.current?.present()}
@@ -448,4 +449,10 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
+  addBoxBtn: {
+    position:'absolute',
+    bottom: Platform.OS === 'ios' ? 25 : 16,
+    right: 18,
+    left: 18,
+  }
 });

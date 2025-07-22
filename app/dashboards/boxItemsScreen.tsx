@@ -1,11 +1,25 @@
-import Navbar from '@/components/generic/Navbar';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams } from 'expo-router';
-import { ScanLine, Trash2 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
-import { QRScanner } from '../../components/generic/QRScanner';
+import Navbar from "@/components/generic/Navbar";
+import { LinearGradient } from "expo-linear-gradient";
+import { useLocalSearchParams } from "expo-router";
+import { ScanLine, Trash2 } from "lucide-react-native";
+import React, { useEffect, useState } from "react";
+import {
+  FlatList,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+import { QRScanner } from "../../components/generic/QRScanner";
 
 // Define Box interface
 interface Box {
@@ -54,14 +68,20 @@ function ItemCard({ item, index }: ItemCardProps) {
 
   // Trigger animations on mount
   useEffect(() => {
-    cardOpacity.value = withDelay(index * 100, withTiming(1, {
-      duration: 600,
-      easing: Easing.out(Easing.cubic),
-    }));
-    cardTranslateY.value = withDelay(index * 100, withSpring(0, {
-      damping: 15,
-      stiffness: 120,
-    }));
+    cardOpacity.value = withDelay(
+      index * 100,
+      withTiming(1, {
+        duration: 600,
+        easing: Easing.out(Easing.cubic),
+      })
+    );
+    cardTranslateY.value = withDelay(
+      index * 100,
+      withSpring(0, {
+        damping: 15,
+        stiffness: 120,
+      })
+    );
   }, [index]);
 
   // Animated styles
@@ -86,7 +106,7 @@ function ItemCard({ item, index }: ItemCardProps) {
     >
       <Animated.View style={[animatedCardStyle, styles.cardContainer]}>
         <LinearGradient
-          colors={['#ffffff', '#f8fafc']}
+          colors={["#ffffff", "#f8fafc"]}
           style={styles.cardGradient}
         >
           <View className="w-full p-5">
@@ -158,10 +178,10 @@ export default function BoxItemsScreen() {
   const [showScanner, setShowScanner] = useState(false);
 
   // Flatten items for FlatList
-  const flatItems = box.items.flatMap(itemObj =>
+  const flatItems = box.items.flatMap((itemObj) =>
     Object.entries(itemObj).map(([product, details]) => ({
       product,
-      details
+      details,
     }))
   );
 
@@ -188,17 +208,14 @@ export default function BoxItemsScreen() {
   }));
 
   const handleScan = (data: string) => {
-    console.log('Scanned data:', data);
+    console.log("Scanned data:", data);
     setShowScanner(false); // ✅ close from parent
   };
 
   return (
     <View className="flex-1 bg-sapLight-background">
       {showScanner ? (
-        <QRScanner
-          onScan={handleScan}
-          onClose={() => setShowScanner(false)}
-        />
+        <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />
       ) : (
         <>
           <Navbar title={box.name} showBack={true} showSearch={true} />
@@ -207,14 +224,16 @@ export default function BoxItemsScreen() {
             <View className="mt-6 bg-white/50 rounded-2xl pb-18">
               <FlatList
                 data={flatItems}
-                renderItem={({ item, index }) => <ItemCard item={item} index={index} />}
+                renderItem={({ item, index }) => (
+                  <ItemCard item={item} index={index} />
+                )}
                 keyExtractor={(item) => item.details.unitId}
                 contentContainerStyle={styles.listContainer}
                 showsVerticalScrollIndicator={false}
               />
             </View>
           </View>
-          <View className="absolute bottom-8 left-5 right-5">
+          <View style={styles.scanBtn}>
             <TouchableOpacity
               activeOpacity={0.9}
               onPress={() => setShowScanner(true)}
@@ -227,7 +246,7 @@ export default function BoxItemsScreen() {
             >
               <Animated.View style={animatedScanButtonStyle}>
                 <LinearGradient
-                  colors={['#000000', '#222222']}
+                  colors={["#000000", "#222222"]}
                   style={styles.scanButton}
                 >
                   <ScanLine size={28} color="#fff" />
@@ -250,25 +269,31 @@ const styles = StyleSheet.create({
   },
   cardGradient: {
     borderRadius: 20,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: "#e5e7eb",
   },
   listContainer: {
     paddingBottom: 80,
     paddingHorizontal: 4,
   },
   scanButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 50,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  scanBtn: {
+    position: "absolute",
+    bottom: Platform.OS === "ios" ? 25 : 16,
+    right: 18,
+    left: 18,
   },
 });

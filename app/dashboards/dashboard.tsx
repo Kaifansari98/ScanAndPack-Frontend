@@ -5,7 +5,7 @@ import ReportsTabScreen from '@/screens/Tabs/reports';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { FolderOpenDot, Home, User, FileCheck2 } from 'lucide-react-native';
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
 // Tab Navigator
 const Tab = createBottomTabNavigator();
@@ -18,7 +18,8 @@ export default function DashboardScreen() {
           backgroundColor: '#F5F5F5',
           borderTopColor: '#E5E5E5',
           borderTopWidth: 1,
-          height: 70,
+          height: Platform.OS === 'ios' ? 85 : 70,
+          
           paddingBottom: 5,
           paddingTop: 5,
         },
