@@ -7,6 +7,7 @@ export default function DashboardLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="dashboard" options={{ headerShown: false }} />
         <Stack.Screen name="boxes" options={{ headerShown: false }} />
+        <Stack.Screen name="notificaitons" options={{ headerShown: false }}/>
       </Stack>
     </View>
   );

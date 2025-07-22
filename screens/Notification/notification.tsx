@@ -7,7 +7,13 @@ import {
   View,
   Platform,
 } from "react-native";
-import React, { useEffect } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Navbar from "@/components/generic/Navbar";
 import { ChevronRightIcon } from "lucide-react-native";
 import Animated, {
@@ -18,7 +24,9 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-
+import BottomSheet, { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { NotificationBottomSheet } from "@/components/bottomSheet/NotificationBottomSheet";
+import Loader from "@/components/generic/Loader";
 // Notification item interface
 interface NotificationItem {
   id: number;
@@ -33,75 +41,84 @@ const notifications: NotificationItem[] = [
   {
     id: 1,
     name: "Ronald Weasley",
-    message: "You have a new message from Ronald Weasley.",
-    time: "18-07-2025, 03:00 PM", // Just now (few minutes ago)
+    message:
+      "Ronald Weasley has sent you a new message regarding the upcoming Quidditch strategy session. Please review it before tomorrow's practice.",
+    time: "18-07-2025, 03:00 PM",
     image: require("../../assets/images/Profile/profile.png"),
   },
   {
     id: 2,
     name: "Harry Potter",
-    message: "You have a new message from Harry Potter.",
-    time: "18-07-2025, 01:30 PM", // 1–2 hours ago
+    message:
+      "Harry Potter just shared a new document with you outlining the defense tactics for the next Dumbledore’s Army meet-up. Kindly check it at your earliest convenience.",
+    time: "18-07-2025, 01:30 PM",
     image: require("../../assets/images/Profile/profile.png"),
   },
   {
     id: 3,
     name: "Hermione Granger",
-    message: "You have a new message from Hermione Granger.",
-    time: "17-07-2025, 09:15 PM", // yesterday
+    message:
+      "Hermione Granger has replied to your query about the new library rules and has included several helpful resources on spell theory. Don't forget to reply.",
+    time: "17-07-2025, 09:15 PM",
     image: require("../../assets/images/Profile/profile.png"),
   },
   {
     id: 4,
     name: "Draco Malfoy",
-    message: "You have a new message from Draco Malfoy.",
-    time: "14-07-2025, 02:45 PM", // few days ago
+    message:
+      "Draco Malfoy mentioned you in a comment regarding the upcoming House Cup debate. He wants to discuss points privately beforehand.",
+    time: "14-07-2025, 02:45 PM",
     image: require("../../assets/images/Profile/profile.png"),
   },
   {
     id: 5,
     name: "Luna Lovegood",
-    message: "You have a new message from Luna Lovegood.",
-    time: "18-07-2025, 18:44 AM", // 10 days ago
+    message:
+      "Luna Lovegood sent you a beautifully illustrated note with some fascinating insights about magical creatures — she suggests you read it under moonlight!",
+    time: "18-07-2025, 06:44 AM",
     image: require("../../assets/images/Profile/profile.png"),
   },
   {
     id: 6,
     name: "Neville Longbottom",
-    message: "You have a new message from Neville Longbottom.",
-    time: "28-06-2025, 12:30 PM", // 20+ days ago
+    message:
+      "Neville Longbottom has sent you updates about the Herbology project you’re collaborating on. He’s also shared some rare plant samples’ details.",
+    time: "28-06-2025, 12:30 PM",
     image: require("../../assets/images/Profile/profile.png"),
   },
   {
     id: 7,
     name: "Sirius Black",
-    message: "You have a new message from Sirius Black.",
-    time: "18-06-2025, 05:50 PM", // 1 month ago
+    message:
+      "Sirius Black wants to meet regarding Order of the Phoenix business. It's confidential, so respond only via the secure Floo Network.",
+    time: "18-06-2025, 05:50 PM",
     image: require("../../assets/images/Profile/profile.png"),
   },
   {
     id: 8,
     name: "Severus Snape",
-    message: "You have a new message from Severus Snape.",
-    time: "01-06-2025, 10:10 AM", // 1.5 month ago
+    message:
+      "Professor Snape has reviewed your last potion submission. He insists you revisit chapters 6 through 9 for proper concentration techniques.",
+    time: "01-06-2025, 10:10 AM",
     image: require("../../assets/images/Profile/profile.png"),
   },
   {
     id: 9,
     name: "Albus Dumbledore",
-    message: "You have a new message from Albus Dumbledore.",
-    time: "12-03-2025, 09:40 AM", // several months ago
+    message:
+      "Albus Dumbledore has shared his reflections on the latest prophecy. He suggests a private discussion at your earliest availability.",
+    time: "12-03-2025, 09:40 AM",
     image: require("../../assets/images/Profile/profile.png"),
   },
   {
     id: 10,
     name: "Minerva McGonagall",
-    message: "You have a new message from Minerva McGonagall.",
-    time: "01-01-2025, 02:00 PM", // start of year
+    message:
+      "Professor McGonagall has sent a schedule revision for next week's transfiguration classes. Please verify your availability before confirming.",
+    time: "01-01-2025, 02:00 PM",
     image: require("../../assets/images/Profile/profile.png"),
   },
 ];
-
 
 // Time-ago utility
 const getTimeAgo = (timestamp: string): string => {
@@ -125,7 +142,8 @@ const getTimeAgo = (timestamp: string): string => {
 
     if (diffMins < 1) return "Just now";
     if (diffMins < 60) return `${diffMins} min ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+    if (diffHours < 24)
+      return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
     if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
 
     return parsedDate.toLocaleDateString("en-GB", {
@@ -142,9 +160,11 @@ const getTimeAgo = (timestamp: string): string => {
 function NotificationCard({
   item,
   index,
+  onPress,
 }: {
   item: NotificationItem;
   index: number;
+  onPress: (item: NotificationItem) => void;
 }) {
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(20);
@@ -164,7 +184,10 @@ function NotificationCard({
 
   return (
     <Animated.View style={[animatedStyle, styles.cardWrapper]}>
-      <View className="bg-sapLight-card p-3 rounded-2xl flex-row items-center gap-2">
+      <TouchableOpacity
+        onPress={() => onPress(item)}
+        className="bg-sapLight-card p-3 rounded-2xl flex-row items-center gap-2"
+      >
         <View className="w-14 h-14 rounded-full overflow-hidden">
           <Image
             className="w-full h-full object-cover"
@@ -185,9 +208,7 @@ function NotificationCard({
               <Text className="text-sm text-sapLight-infoText">
                 {getTimeAgo(item.time)}
               </Text>
-              <TouchableOpacity>
-                <ChevronRightIcon width={20} height={20} color={"#555555"} />
-              </TouchableOpacity>
+              <ChevronRightIcon width={20} height={20} color={"#555555"} />
             </View>
           </View>
           <Text
@@ -198,12 +219,21 @@ function NotificationCard({
             {item.message}
           </Text>
         </View>
-      </View>
+      </TouchableOpacity>
     </Animated.View>
   );
 }
 
 export default function NotificationScreen() {
+  const sheetRef = useRef<BottomSheetModal>(null);
+  const [selectedItem, setSelectedItems] = useState<NotificationItem | null>(
+    null
+  );
+
+  const handleBottomSheet = (item: NotificationItem) => {
+    setSelectedItems(item);
+    sheetRef.current?.present();
+  };
   return (
     <View className="flex-1 bg-sapLight-background">
       <Navbar title="Notifications" showBack={true} />
@@ -211,11 +241,16 @@ export default function NotificationScreen() {
         data={notifications}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item, index }) => (
-          <NotificationCard item={item} index={index} />
+          <NotificationCard
+            item={item}
+            index={index}
+            onPress={handleBottomSheet}
+          />
         )}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
       />
+      <NotificationBottomSheet ref={sheetRef} selectedItem={selectedItem} />
     </View>
   );
 }

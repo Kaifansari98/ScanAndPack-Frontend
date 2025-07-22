@@ -14,7 +14,7 @@ const LayoutWrapper = () => {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <BottomSheetModalProvider>
-    <SafeAreaView className="flex-1" edges={["top"]}>
+    <SafeAreaView className="flex-1">
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" options={{ headerShown: false }}/>
       </Stack>

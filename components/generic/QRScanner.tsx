@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 12,
-    elevation: 20,
+    // elevation: 20,
   },
   frameBorder: {
     ...StyleSheet.absoluteFillObject,
