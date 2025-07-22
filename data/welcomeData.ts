@@ -14,21 +14,21 @@ const data: OnboardingData[] = [
     animation: require('../assets/animations/lottie1.json'),
     text: 'Lets Get Started with Scan And Pack',
     textColor: '#000000',
-    backgroundColor: '#F2F2F5',
+    backgroundColor: '#fff',
   },
   {
     id: 2,
     animation: require('../assets/animations/lottie2.json'),
     text: 'With us Exprecience the Simplicity',
     textColor: '#000000',
-    backgroundColor: '#D1D1D6',
+    backgroundColor: '#fff',
   },
   {
     id: 3,
     animation: require('../assets/animations/lottie3.json'),
     text: 'Enroll with the Smartest way of Production',
     textColor: '#000000',
-    backgroundColor: '#A3A3AE',
+    backgroundColor: '#fff',
   },
 ];
 
