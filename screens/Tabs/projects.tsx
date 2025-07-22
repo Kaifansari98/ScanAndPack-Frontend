@@ -113,6 +113,7 @@ function ProjectCard({ project, index }: { project: Project; index: number }) {
       ]}
       className="bg-sapLight-card w-full rounded-3xl p-5 border border-gray-100"
     >
+      
       <View className="flex-row justify-between items-center mb-4">
         {/* Top Left: Status */}
         <View
