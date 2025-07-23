@@ -21,6 +21,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import Loader from "@/components/generic/Loader";
 
 interface ProjectCardProps {
   project: {
@@ -185,9 +186,7 @@ export default function ProfileTabScreen() {
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-sapLight-background">
-        <Text className="text-sapLight-text text-base font-montserrat-medium">
-          Loading Projects...
-        </Text>
+        <Loader/>
       </View>
     );
   }
