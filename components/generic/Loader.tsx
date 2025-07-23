@@ -1,5 +1,5 @@
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import React from "react";
+import React, { useEffect } from "react";
 import LottieView from "lottie-react-native";
 
 const Loader = () => {
