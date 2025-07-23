@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import React, { useState } from "react";
 import Navbar from "@/components/generic/Navbar";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Bell,
   ChevronRight,
@@ -26,10 +27,13 @@ export default function ProfileTabScreen() {
 
   // Animated Styles
 
-  const handleConfirmLogout = () => {
+  const { logout } = useAuth(); // Get the logout function from context
+
+  const handleConfirmLogout = async () => {
     setLogoutVisible(false);
-    setTimeout(() => {
-      router.push("/auth/login");
+    setTimeout(async () => {
+      await logout(); // Clear Redux + Storage
+      router.replace("/auth/login"); // Navigate to login and reset history
     }, 300);
   };
 

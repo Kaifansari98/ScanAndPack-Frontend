@@ -6,6 +6,8 @@ import { useCallback } from "react";
 import { Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Provider } from 'react-redux';
+import { store } from '@/redux/store';
 import "./globals.css";
 
 SplashScreen.preventAutoHideAsync();
@@ -18,9 +20,11 @@ const LayoutWrapper = () => {
           className="flex-1"
           edges={Platform.OS === "ios" ? ["top"] : undefined}
         >
+          <Provider store={store}>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" options={{ headerShown: false }} />
           </Stack>
+          </Provider>
         </SafeAreaView>
       </BottomSheetModalProvider>
     </GestureHandlerRootView>

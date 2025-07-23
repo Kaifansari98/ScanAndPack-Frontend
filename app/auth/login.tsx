@@ -4,6 +4,8 @@ import { Eye, EyeOff } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { Image, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
+import axios from '@/lib/axios';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function LoginScreen() {
   // Animation values
@@ -13,6 +15,26 @@ export default function LoginScreen() {
   const inputTranslateY = useSharedValue(30);
   const buttonOpacity = useSharedValue(0);
   const buttonTranslateY = useSharedValue(30);
+
+  const { login } = useAuth();
+  const [contact, setContact] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleLogin = async () => {
+    try {
+      const res = await axios.post('/auth/login', {
+        user_contact: contact,
+        password,
+      });
+  
+      const { token, user } = res.data;
+      await login(user, token);
+  
+      router.push('/dashboards/dashboard');
+    } catch (err: any) {
+      console.error(err.response?.data || err.message);
+    }
+  };  
 
   // State for password visibility
   const [showPassword, setShowPassword] = useState(false);
@@ -68,7 +90,7 @@ export default function LoginScreen() {
 
           {/* Title */}
           <Text className="text-3xl font-montserrat-semibold text-sapLight-text mb-10">
-            Let's Get Started
+            Lets Get Started
           </Text>
 
           {/* Input Fields */}
@@ -82,6 +104,8 @@ export default function LoginScreen() {
               placeholderTextColor="#A0A0A0"
               keyboardType="phone-pad"
               style={styles.input}
+              value={contact}
+              onChangeText={setContact}
             />
             <Text className="text-sapLight-text font-montserrat-medium text-sm mb-2">
               Password
@@ -93,6 +117,8 @@ export default function LoginScreen() {
                 placeholderTextColor="#A0A0A0"
                 secureTextEntry={!showPassword}
                 style={styles.input}
+                value={password}
+                onChangeText={setPassword}
               />
               <TouchableOpacity
                 onPress={() => setShowPassword(!showPassword)}
@@ -111,7 +137,7 @@ export default function LoginScreen() {
           <Animated.View style={[animatedButtonStyle, styles.buttonContainer]}>
             <TouchableOpacity
               className="bg-sapLight-button rounded-2xl py-4 px-6 w-full shadow-lg mt-4"
-              onPress={() => router.push('../dashboards/dashboard')}
+              onPress={handleLogin}
             >
               <Text className="text-sapLight-background text-center font-montserrat-semibold text-lg">
                 Sign In

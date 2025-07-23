@@ -5,12 +5,30 @@ import ReportsTabScreen from '@/screens/Tabs/reports';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { FolderOpenDot, Home, User, FileCheck2 } from 'lucide-react-native';
 import React from 'react';
-import { Platform, StyleSheet } from 'react-native';
+import { Platform, StyleSheet, ActivityIndicator, View } from 'react-native';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/redux/store';
+import { Redirect } from 'expo-router'
 
 // Tab Navigator
 const Tab = createBottomTabNavigator();
 
 export default function DashboardScreen() {
+
+  const { token, isLoading } = useSelector((state: RootState) => state.auth);
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-white">
+        <ActivityIndicator size="large" color="#000" />
+      </View>
+    );
+  }
+
+  if (!token) {
+    return <Redirect href="/auth/login" />;
+  }
+
   return (
     <Tab.Navigator
       screenOptions={{
