@@ -20,8 +20,11 @@ import {
 } from "lucide-react-native";
 import ConfirmationBox from "@/components/generic/ConfirmationBox";
 import { useRouter } from "expo-router";
+import { useSelector } from "react-redux";
+import { RootState } from "@/redux/store";
 
 export default function ProfileTabScreen() {
+  const User = useSelector((state: RootState) => state.auth.user);
   const [logoutVisible, setLogoutVisible] = useState(false);
   const router = useRouter();
 
@@ -50,10 +53,10 @@ export default function ProfileTabScreen() {
               source={require("../../assets/images/Profile/profile.png")}
             />
             <Text className="text-3xl text-center font-montserrat-bold text-sapLight-text mt-2">
-              Kaif Ansari
+              {User?.user_name}
             </Text>
             <Text className="text-2xl text-center font-montserrat-medium text-sapLight-infoText">
-              +91 9843382748
+              {User?.user_contact}
             </Text>
           </View>
 

@@ -5,7 +5,7 @@ type User = {
   user_contact: string;
   vendor_id?: string;
   user_type: string;
-  // Add more fields as per your backend response
+  user_name: string;
 };
 
 type AuthState = {
