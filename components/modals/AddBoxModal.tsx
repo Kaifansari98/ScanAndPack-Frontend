@@ -75,6 +75,8 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
   );
 });
 
+AddBoxModal.displayName = "AddBoxModal";
+
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
