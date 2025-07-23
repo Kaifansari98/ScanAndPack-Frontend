@@ -2,8 +2,8 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
 const instance = axios.create({
-  baseURL: 'https://localhost:7777/api', // base backend URL
-//baseURL: 'http://192.168.1.5:7777/api', // change it with your ip address
+  baseURL: 'http://192.168.1.5:7777/api', // base backend URL
+//baseURL: 'http://localhost:7777/api', // change it with your ip address
 });
 
 // Attach token before every request
@@ -16,3 +16,6 @@ instance.interceptors.request.use(async (config) => {
 });
 
 export default instance;
+
+// macOS?IOS    : ifconfig | grep inet
+// win?Android  : ipconfig
