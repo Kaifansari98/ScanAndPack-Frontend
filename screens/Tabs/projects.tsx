@@ -92,7 +92,6 @@ function ProjectCard({ project, index }: ProjectCardProps) {
         </Text>
         <TouchableOpacity
           onPress={() => {
-            console.log("Navigating with project data :- ", project); // 👈 Add this line
             router.push({
               pathname: "/dashboards/boxes",
               params: { project: JSON.stringify(project) },

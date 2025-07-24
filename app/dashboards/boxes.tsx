@@ -43,6 +43,9 @@ interface Box {
   box_status: "packed" | "unpacked" | string;
   items_count: number;
   details: any;
+  project_id: number;
+  vendor_id: number;
+  client_id: number;
 }
 
 // Box Card Component
@@ -93,9 +96,19 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
   }));
 
   const handleNavigate = () => {
+    const payload = {
+      name: box.name,
+      project_id: box.project_id,
+      vendor_id: box.vendor_id,
+      client_id: box.client_id,
+      id: box.id,
+    };
+  
     router.push({
       pathname: "./boxItemsScreen",
-      params: { box: JSON.stringify(box) },
+      params: {
+        payload: JSON.stringify(payload),
+      },
     });
   };
 
@@ -159,8 +172,6 @@ export default function BoxesScreen() {
   const { project: projectString } = useLocalSearchParams<{ project: string }>();
   const project = useMemo(() => JSON.parse(projectString) as Project, [projectString]);
 
-  console.log('Project data:', project);
-
   const sheetRef = useRef<BottomSheetModal>(null);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [loading, setLoading] = useState(true);
@@ -178,6 +189,9 @@ export default function BoxesScreen() {
           box_status: box.box_status,
           items_count: box.items_count,
           details: box.details,
+          project_id: box.project_id,
+          vendor_id: box.vendor_id,
+          client_id: box.client_id,
         }));
         setBoxes(formatted);
       } catch (error) {
