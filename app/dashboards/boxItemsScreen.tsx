@@ -4,6 +4,8 @@ import { useLocalSearchParams } from "expo-router";
 import { ScanLine, Trash2 } from "lucide-react-native";
 import axios from "@/lib/axios";
 import React, { useEffect, useState } from "react";
+import { useSelector } from 'react-redux';
+import { RootState } from '@/redux/store';
 import {
   FlatList,
   Platform,
@@ -51,6 +53,17 @@ export default function BoxItemsScreen() {
   const [scanItems, setScanItems] = useState<ScanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const scanButtonScale = useSharedValue(1);
+
+  const user = useSelector((state: RootState) => state.auth.user);
+
+  useEffect(() => {
+    if (user) {
+      console.log("User Data:", {
+        id: user.id,
+        user_name: user.user_name,
+      });
+    }
+  }, [user]);
 
   // Parse payload safely
   let box: Box | null = null;
@@ -110,10 +123,44 @@ export default function BoxItemsScreen() {
     transform: [{ scale: scanButtonScale.value }],
   }));
 
-  const handleScan = (data: string) => {
-    console.log("Scanned data:", data);
+  const handleScan = async (scannedData: string) => {
+    console.log("Scanned data:", scannedData);
     setShowScanner(false);
+  
+    if (!box || !user?.id) {
+      console.error("Missing box or user info");
+      return;
+    }
+  
+    const payload = {
+      project_id: box.project_id,
+      vendor_id: box.vendor_id,
+      client_id: box.client_id,
+      unique_id: scannedData,
+      box_id: box.id,
+      created_by: user.id,
+      status: "packed",
+    };
+  
+    try {
+      const response = await axios.post("/scan-items/scan-and-pack/add", payload);
+      console.log("Scan packed successfully:", response.data);
+  
+      // Refetch items to show updated list
+      const { data } = await axios.post("/scan-items/by-fields", {
+        project_id: box.project_id,
+        vendor_id: box.vendor_id,
+        client_id: box.client_id,
+        box_id: box.id,
+      });
+  
+      const items = data?.data?.map((item: any) => item.project_item_details) ?? [];
+      setScanItems(items);
+    } catch (error: any) {
+      console.error("Error packing scanned item:", error?.response?.data || error.message);
+    }
   };
+  
 
   // Render error screen if box is invalid
   if (!box) {
