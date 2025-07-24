@@ -1,3 +1,4 @@
+// hooks/useAuth.ts
 import { useDispatch } from 'react-redux';
 import { setCredentials, logout as logoutAction } from '@/redux/slices/authSlice';
 import { saveSession, clearSession } from '@/utils/authStorage';
