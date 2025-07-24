@@ -110,7 +110,7 @@ export default function BoxItemsScreen() {
         });
         console.log("Request headers:", axios.defaults.headers);
       } catch (error) {
-        console.error("Failed to fetch scan items:", error);
+        console.log("Failed to fetch scan items:", error);
       } finally {
         setLoading(false);
       }
@@ -204,6 +204,7 @@ export default function BoxItemsScreen() {
           <LinearGradient
             colors={["#ffffff", "#f8fafc"]}
             style={styles.cardGradient}
+            
           >
             <View className="w-full p-5">
               <View className="flex-row items-center justify-between mb-4">
@@ -247,19 +248,19 @@ export default function BoxItemsScreen() {
   };
 
   return (
-    <View className="flex-1 bg-sapLight-background">
+    <View className="flex-1 bg-sapLight-background ">
       {showScanner ? (
         <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />
       ) : (
         <>
           <Navbar title={box.name} showBack showSearch />
-          <View className="flex-1 mx-2">
-            <View className="flex-1 mt-6 bg-white/50 rounded-2xl pb-18">
+          <View className="flex-1  px-4 ">
+            <View className="flex-1 mt-6 bg-white/50 rounded-2xl pb-24 ">
               {loading ? (
                 <View className="flex-1 justify-center items-center">
                   <Loader />
                 </View>
-              ) : scanItems.length > 0 ? (
+              ) : scanItems.length === 0 ? (
                 <View className="flex-1 justify-center items-center">
                   <LottieView
                     source={require("@/assets/animations/emptyBox.json")} // 👈 Use correct path here
@@ -323,6 +324,7 @@ function TextBlock({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   cardContainer: {
     marginBottom: 16,
+    
   },
   cardGradient: {
     borderRadius: 20,
