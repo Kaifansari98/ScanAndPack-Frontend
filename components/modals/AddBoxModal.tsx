@@ -1,22 +1,76 @@
+import axios from '@/lib/axios';
 import { BottomSheetBackdrop, BottomSheetModal, BottomSheetTextInput, BottomSheetView } from '@gorhom/bottom-sheet';
 import { X } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+interface Project {
+  id: number;
+  vendor_id: number;
+  project_details_id: number | null;
+  projectName: string;
+  totalNoItems: number;
+  unpackedItems: number;
+  packedItems: number;
+  status: "packed" | "unpacked";
+  date: string;
+}
+
 interface AddBoxModalProps {
   ref: React.Ref<BottomSheetModal>;
   onSubmit: (boxName: string) => void;
+  project: Project;
 }
 
-export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(({ onSubmit }, ref) => {
+export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(({ onSubmit, project }, ref) => {
   const snapPoints = useMemo(() => ['50%', '80%'], []);
   const [boxName, setBoxName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleAdd = () => {
-    if (!boxName.trim()) return;
-    console.log('Entered box name:', boxName.trim());
-    setBoxName('');
-    ref && (ref as any).current.dismiss();
+  const handleAdd = async () => {
+    if (!boxName.trim()) {
+      setError('Box name is required');
+      return;
+    }
+  
+    try {
+      setLoading(true);
+      const payload = {
+        project_id: project.id,
+        project_details_id: project.project_details_id,
+        vendor_id: project.vendor_id,
+        client_id: 1,
+        box_name: boxName.trim(),
+        box_status: 'unpacked',
+        created_by: 1,
+      };
+
+      if (!project.project_details_id) {
+        setError('Project details ID is missing');
+        return;
+      }
+    
+      console.log('Sending POST to /api/boxes with payload:', payload);
+      const response = await axios.post('/boxes', payload, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+  
+      console.log('Box created successfully:', response.data);
+      onSubmit(boxName.trim());
+      setBoxName('');
+      setError(null);
+      (ref as any).current.dismiss();
+      setLoading(false);
+    } catch (err: any) {
+      setLoading(false);
+      console.error('Failed to create box:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+      });
+      setError(`Failed to create box: ${err.response?.data?.message || err.message}`);
+    }
   };
 
   return (
@@ -42,6 +96,7 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
             <X size={24} color="#000" />
           </TouchableOpacity>
         </View>
+        {error && <Text style={styles.error}>{error}</Text>}
 
         {/* Image */}
         <Image source={require('@/assets/images/projects/Boxes.jpg')} style={styles.image} />
@@ -66,14 +121,16 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
           <TouchableOpacity style={styles.cancelBtn} onPress={() => (ref as any).current.dismiss()}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.addBtn} onPress={handleAdd}>
-            <Text style={styles.addText}>Add</Text>
-          </TouchableOpacity>
+          <TouchableOpacity style={[styles.addBtn, loading && { opacity: 0.6 }]} onPress={handleAdd} disabled={loading}>
+  <Text style={styles.addText}>{loading ? 'Adding...' : 'Add'}</Text>
+</TouchableOpacity>
         </View>
       </BottomSheetView>
     </BottomSheetModal>
   );
 });
+
+AddBoxModal.displayName = "AddBoxModal";
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
@@ -88,4 +145,5 @@ const styles = StyleSheet.create({
   cancelText: { textAlign: 'center', fontFamily: 'Montserrat-Bold', color: '#000' },
   addBtn: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#000', marginLeft: 8, borderColor: '#000', borderWidth: 1, },
   addText: { textAlign: 'center', fontFamily: 'Montserrat-Bold', color: '#fff' },
+  error: { fontSize: 13, color: 'red', marginBottom: 12, fontFamily: 'Montserrat-Medium' },
 });

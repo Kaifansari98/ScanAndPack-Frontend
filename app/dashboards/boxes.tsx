@@ -1,17 +1,18 @@
 import Navbar from "@/components/generic/Navbar";
 import { AddBoxModal } from "@/components/modals/AddBoxModal";
+import axios from '@/lib/axios';
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowUpRight, Download, Plus } from "lucide-react-native";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  Platform,
 } from "react-native";
 import Animated, {
   Easing,
@@ -24,6 +25,9 @@ import Animated, {
 
 // Define Project interface
 interface Project {
+  id: number;
+  vendor_id: number;
+  project_details_id: number | null; // Add project_details_id
   projectName: string;
   totalNoItems: number;
   unpackedItems: number;
@@ -34,101 +38,12 @@ interface Project {
 
 // Define Box interface
 interface Box {
+  id: number;
   name: string;
-  items: {
-    [product: string]: {
-      status: string;
-      qty: number;
-      name: string;
-      category: string;
-      unitId: string;
-      ls: {
-        l1: number;
-        l2: number;
-        l3: number;
-      };
-    };
-  }[];
+  box_status: "packed" | "unpacked" | string;
+  items_count: number;
+  details: any;
 }
-
-// Sample boxes data
-const initialBoxes: Box[] = [
-  {
-    name: "Faraz Dining Table",
-    items: [
-      {
-        "Product 1": {
-          status: "Box Closed",
-          qty: 10,
-          name: "Smartphone with Cases",
-          category: "Mobile Phone",
-          unitId: "SP001",
-          ls: { l1: 2300, l2: 5600, l3: 6799 },
-        },
-      },
-    ],
-  },
-  {
-    name: "Musical Instruments",
-    items: [
-      {
-        "Product 1": {
-          status: "In Progress",
-          qty: 25,
-          name: "T-Shirts",
-          category: "Clothing",
-          unitId: "TS002",
-          ls: { l1: 1500, l2: 3200, l3: 4500 },
-        },
-      },
-    ],
-  },
-  {
-    name: "Furniture Essentials",
-    items: [
-      {
-        "Product 1": {
-          status: "Box Closed",
-          qty: 15,
-          name: "Novels",
-          category: "Books",
-          unitId: "NV003",
-          ls: { l1: 1000, l2: 2000, l3: 3000 },
-        },
-      },
-    ],
-  },
-  {
-    name: "Wardrobe Essentials",
-    items: [
-      {
-        "Product 1": {
-          status: "In Progress",
-          qty: 5,
-          name: "Chairs",
-          category: "Furniture",
-          unitId: "CH004",
-          ls: { l1: 5000, l2: 7500, l3: 9000 },
-        },
-      },
-    ],
-  },
-  {
-    name: "Office Products",
-    items: [
-      {
-        "Product 1": {
-          status: "Box Closed",
-          qty: 8,
-          name: "Microwaves",
-          category: "Kitchen",
-          unitId: "MW005",
-          ls: { l1: 3000, l2: 6000, l3: 8000 },
-        },
-      },
-    ],
-  },
-];
 
 // Box Card Component
 function BoxCard({ box, index }: { box: Box; index: number }) {
@@ -138,17 +53,18 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
   const cardTranslateY = useSharedValue(30);
   const scale = useSharedValue(1);
 
-  const status = box.items[0]["Product 1"].status;
+  const status = box.box_status || "In Progress";
+
   const bgClass =
-    status === "Box Closed"
+    status === "packed"
       ? "bg-green-100"
-      : status === "In Progress"
+      : status === "unpacked"
         ? "bg-orange-100"
         : "bg-gray-200";
   const textClass =
-    status === "Box Closed"
+    status === "packed"
       ? "text-green-700"
-      : status === "In Progress"
+      : status === "unpacked"
         ? "text-yellow-800"
         : "text-gray-700";
 
@@ -217,7 +133,7 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
                   Items Count
                 </Text>
                 <Text className="text-sapLight-text font-montserrat-semibold text-2xl">
-                  {box.items.length}
+                  {box.items_count}
                 </Text>
               </View>
               <View className="h-full flex-row items-end gap-2">
@@ -240,13 +156,39 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
 }
 
 export default function BoxesScreen() {
-  const { project: projectString } = useLocalSearchParams<{
-    project: string;
-  }>();
-  const project = JSON.parse(projectString) as Project;
+  const { project: projectString } = useLocalSearchParams<{ project: string }>();
+  const project = useMemo(() => JSON.parse(projectString) as Project, [projectString]);
+
+  console.log('Project data:', project);
 
   const sheetRef = useRef<BottomSheetModal>(null);
-  const [boxes, setBoxes] = useState<Box[]>(initialBoxes);
+  const [boxes, setBoxes] = useState<Box[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBoxes = async () => {
+      try {
+        setLoading(true);
+        const res = await axios.get(
+          `/boxes/vendor/${project.vendor_id}/project/${project.id}`
+        );
+        const formatted = res.data.map((box: any) => ({
+          id: box.id,
+          name: box.box_name,
+          box_status: box.box_status,
+          items_count: box.items_count,
+          details: box.details,
+        }));
+        setBoxes(formatted);
+      } catch (error) {
+        console.error("Failed to fetch boxes:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchBoxes();
+  }, [project.id, project.vendor_id]);
 
   // Animation values for project card
   const cardOpacity = useSharedValue(0);
@@ -271,8 +213,26 @@ export default function BoxesScreen() {
 
   const onAdd = useCallback((name: string) => {
     console.log("Added box:", name);
-    setBoxes((prev) => [...prev, { name, items: [] }]);
-  }, []);
+    const fetchBoxes = async () => {
+      try {
+        setLoading(true);
+        const res = await axios.get(`/boxes/vendor/${project.vendor_id}/project/${project.id}`);
+        const formatted = res.data.map((box: any) => ({
+          id: box.id,
+          name: box.box_name,
+          box_status: box.box_status,
+          items_count: box.items_count,
+          details: box.details,
+        }));
+        setBoxes(formatted);
+      } catch (error) {
+        console.error("Failed to fetch boxes:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBoxes();
+  }, [project.id, project.vendor_id]);
 
   // Animated styles for project card
   const animatedCardStyle = useAnimatedStyle(() => ({
@@ -292,7 +252,7 @@ export default function BoxesScreen() {
 
   return (
     <View className="flex-1 bg-sapLight-background">
-      <Navbar title={project.projectName} showBack={true} showSearch={true} />
+      <Navbar title={project.projectName} showBack={true} showSearch={false} />
       <View className="flex-1 mx-4 py-6">
         {/* Project Card */}
         <Animated.View
@@ -302,14 +262,14 @@ export default function BoxesScreen() {
           <View className="flex-row justify-between items-center mb-4">
             <View
               className={`rounded-full px-3 py-1 ${
-                project.status === "packed" ? "bg-green-100" : "bg-red-100"
+                project.status === "packed" ? "bg-blue-100" : "bg-blue-100"
               }`}
             >
               <Text
                 className={`text-sm font-montserrat-semibold ${
                   project.status === "packed"
-                    ? "text-green-700"
-                    : "text-red-700"
+                    ? "text-blue-700"
+                    : "text-blue-700"
                 }`}
               >
                 {project.status.charAt(0).toUpperCase() +
@@ -374,15 +334,19 @@ export default function BoxesScreen() {
               Boxes
             </Text>
           </Animated.View>
-          <FlatList
-            data={boxes}
-            renderItem={({ item, index }) => (
-              <BoxCard box={item} index={index} />
-            )}
-            keyExtractor={(item) => item.name}
-            contentContainerStyle={styles.listContainer}
-            showsVerticalScrollIndicator={false}
-          />
+          {loading ? (
+            <Text className="text-center text-gray-500 mt-6">Loading...</Text>
+          ) : (
+            <FlatList
+              data={boxes}
+              renderItem={({ item, index }) => (
+                <BoxCard box={item} index={index} />
+              )}
+              keyExtractor={(item) => item.id.toString()}
+              contentContainerStyle={styles.listContainer}
+              showsVerticalScrollIndicator={false}
+            />
+          )}
         </View>
       </View>
       <View  style={styles.addBoxBtn} >
@@ -409,7 +373,7 @@ export default function BoxesScreen() {
           </Animated.View>
         </TouchableOpacity>
       </View>
-      <AddBoxModal ref={sheetRef} onSubmit={onAdd} />
+      <AddBoxModal ref={sheetRef} onSubmit={onAdd} project={project} />
     </View>
   );
 }
