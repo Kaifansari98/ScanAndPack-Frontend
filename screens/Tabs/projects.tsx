@@ -95,14 +95,21 @@ function ProjectCard({ project, index }: ProjectCardProps) {
           </View>
         </View>
 
-        <View className="w-full flex-row items-center justify-between mb-4">
-          <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
-            {project.projectName}
-          </Text>
-          <View>
-            <ChevronRight size={22} color="#171717" />
-          </View>
-        </View>
+      <View className="w-full flex-row items-center justify-between mb-4">
+        <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
+          {project.projectName}
+        </Text>
+        <TouchableOpacity
+          onPress={() => {
+            router.push({
+              pathname: "/dashboards/boxes",
+              params: { project: JSON.stringify(project) },
+            });
+          }}
+        >
+          <ChevronRight size={22} color="#171717" />
+        </TouchableOpacity>
+      </View>
 
         <View className="flex-row justify-between items-center">
           <View>
