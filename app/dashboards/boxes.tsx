@@ -25,8 +25,9 @@ import Animated, {
 
 // Define Project interface
 interface Project {
-  id: number,
-  vendor_id: number,
+  id: number;
+  vendor_id: number;
+  project_details_id: number | null; // Add project_details_id
   projectName: string;
   totalNoItems: number;
   unpackedItems: number;
@@ -158,6 +159,8 @@ export default function BoxesScreen() {
   const { project: projectString } = useLocalSearchParams<{ project: string }>();
   const project = useMemo(() => JSON.parse(projectString) as Project, [projectString]);
 
+  console.log('Project data:', project);
+
   const sheetRef = useRef<BottomSheetModal>(null);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [loading, setLoading] = useState(true);
@@ -172,7 +175,7 @@ export default function BoxesScreen() {
         const formatted = res.data.map((box: any) => ({
           id: box.id,
           name: box.box_name,
-          box_status: box.box_status, // <-- add this
+          box_status: box.box_status,
           items_count: box.items_count,
           details: box.details,
         }));
@@ -183,9 +186,9 @@ export default function BoxesScreen() {
         setLoading(false);
       }
     };
-  
+    
     fetchBoxes();
-  }, [project]);
+  }, [project.id, project.vendor_id]);
 
   // Animation values for project card
   const cardOpacity = useSharedValue(0);
@@ -210,8 +213,26 @@ export default function BoxesScreen() {
 
   const onAdd = useCallback((name: string) => {
     console.log("Added box:", name);
-    // setBoxes((prev) => [...prev, { name, items: [] }]);
-  }, []);
+    const fetchBoxes = async () => {
+      try {
+        setLoading(true);
+        const res = await axios.get(`/boxes/vendor/${project.vendor_id}/project/${project.id}`);
+        const formatted = res.data.map((box: any) => ({
+          id: box.id,
+          name: box.box_name,
+          box_status: box.box_status,
+          items_count: box.items_count,
+          details: box.details,
+        }));
+        setBoxes(formatted);
+      } catch (error) {
+        console.error("Failed to fetch boxes:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBoxes();
+  }, [project.id, project.vendor_id]);
 
   // Animated styles for project card
   const animatedCardStyle = useAnimatedStyle(() => ({
@@ -352,7 +373,7 @@ export default function BoxesScreen() {
           </Animated.View>
         </TouchableOpacity>
       </View>
-      <AddBoxModal ref={sheetRef} onSubmit={onAdd} />
+      <AddBoxModal ref={sheetRef} onSubmit={onAdd} project={project} />
     </View>
   );
 }

@@ -1,10 +1,10 @@
+import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
+import axios from "@/lib/axios";
+import { RootState } from "@/redux/store";
 import { useRouter } from "expo-router";
 import { ChevronRight } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
-import { RootState } from "@/redux/store";
-import axios from "@/lib/axios";
 import {
   FlatList,
   Platform,
@@ -21,7 +21,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import Loader from "@/components/generic/Loader";
+import { useSelector } from "react-redux";
 
 interface ProjectCardProps {
   project: {
@@ -91,12 +91,13 @@ function ProjectCard({ project, index }: ProjectCardProps) {
           {project.projectName}
         </Text>
         <TouchableOpacity
-          onPress={() =>
+          onPress={() => {
+            console.log("Navigating with project data :- ", project); // 👈 Add this line
             router.push({
               pathname: "/dashboards/boxes",
               params: { project: JSON.stringify(project) },
-            })
-          }
+            });
+          }}
         >
           <ChevronRight size={22} color="#171717" />
         </TouchableOpacity>
@@ -158,6 +159,7 @@ export default function ProfileTabScreen() {
         const formatted = response.data.map((proj: any) => ({
           id: proj.id,
           vendor_id: proj.vendor_id,
+          project_details_id: proj.details[0]?.id ?? null,
           projectName: proj.project_name,
           totalNoItems: proj.details[0]?.total_items ?? 0,
           unpackedItems: proj.details[0]?.total_unpacked ?? 0,
