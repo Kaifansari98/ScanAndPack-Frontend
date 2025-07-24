@@ -3,6 +3,7 @@ import Navbar from "@/components/generic/Navbar";
 import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
 import { useRouter } from "expo-router";
+import LottieView from "lottie-react-native";
 import { ChevronRight } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
@@ -95,21 +96,21 @@ function ProjectCard({ project, index }: ProjectCardProps) {
           </View>
         </View>
 
-      <View className="w-full flex-row items-center justify-between mb-4">
-        <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
-          {project.projectName}
-        </Text>
-        <TouchableOpacity
-          onPress={() => {
-            router.push({
-              pathname: "/dashboards/boxes",
-              params: { project: JSON.stringify(project) },
-            });
-          }}
-        >
-          <ChevronRight size={22} color="#171717" />
-        </TouchableOpacity>
-      </View>
+        <View className="w-full flex-row items-center justify-between mb-4">
+          <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
+            {project.projectName}
+          </Text>
+          <TouchableOpacity
+            onPress={() => {
+              router.push({
+                pathname: "/dashboards/boxes",
+                params: { project: JSON.stringify(project) },
+              });
+            }}
+          >
+            <ChevronRight size={22} color="#171717" />
+          </TouchableOpacity>
+        </View>
 
         <View className="flex-row justify-between items-center">
           <View>
@@ -220,6 +221,17 @@ export default function ProfileTabScreen() {
         keyExtractor={(item, index) => item.projectName + index}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={{flex: 1, justifyContent:'center', alignItems: 'center'}}>
+            <LottieView 
+              source={require("@/assets/animations/projectEmpty.json")}
+              style={styles.lottie}
+              autoPlay
+              loop={false}
+            />
+
+            </View>
+      }
       />
     </View>
   );
@@ -227,6 +239,7 @@ export default function ProfileTabScreen() {
 
 const styles = StyleSheet.create({
   listContainer: {
+    flex: 1,
     padding: 20,
     paddingTop: 24,
   },
@@ -237,4 +250,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 10,
   },
+  lottie: {
+    width: 220,
+    height: 220,
+  }
 });

@@ -179,13 +179,6 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
 }
 
 export default function BoxesScreen() {
-  const { project: projectString } = useLocalSearchParams<{
-    project: string;
-  }>();
-  const project = useMemo(
-    () => JSON.parse(projectString) as Project,
-    [projectString]
-  );
   const { project: projectString } = useLocalSearchParams<{ project: string }>();
   const project = useMemo(() => JSON.parse(projectString) as Project, [projectString]);
 
@@ -365,7 +358,7 @@ export default function BoxesScreen() {
         </Animated.View>
 
         {/* Boxes Section */}
-        <View className=" flex-1 mt-6 rounded-2xl ">
+        <View className="flex-1 mt-6 rounded-2xl ">
           <Animated.View style={animatedTitleStyle}>
             <Text className="text-sapLight-text font-montserrat-semibold text-3xl mb-4 pb-2">
               Boxes
@@ -392,10 +385,10 @@ export default function BoxesScreen() {
                   <LottieView
                     source={require("@/assets/animations/emptyBox.json")} // 👈 Use correct path here
                     autoPlay
-                    loop
+                    loop={false}
                     style={styles.lottie}
                   />
-                  <Text className="text-sapLight-infoText font-montserrat">Empty box</Text>
+                  <Text className="text-sapLight-infoText font-montserrat capitalize">0 Boxes Found </Text>
                 </View>
               }
             />
@@ -463,6 +456,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
   listContainer: {
+    flex: 1,
     paddingBottom: 80,
     paddingHorizontal: 4,
   },
