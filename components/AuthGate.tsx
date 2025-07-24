@@ -34,7 +34,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   // ⏱️ Optional artificial delay for UX polish
   useEffect(() => {
-    const timer = setTimeout(() => setDelayPassed(true), 3000);
+    const timer = setTimeout(() => setDelayPassed(true), 0);
     return () => clearTimeout(timer);
   }, []);
 

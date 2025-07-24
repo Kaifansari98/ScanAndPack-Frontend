@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from "react-native";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Navbar from "@/components/generic/Navbar";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -22,23 +22,30 @@ import ConfirmationBox from "@/components/generic/ConfirmationBox";
 import { useRouter } from "expo-router";
 import { useSelector } from "react-redux";
 import { RootState } from "@/redux/store";
+import Loader from "@/components/generic/Loader"; // Ensure this exists
 
 export default function ProfileTabScreen() {
   const User = useSelector((state: RootState) => state.auth.user);
   const [logoutVisible, setLogoutVisible] = useState(false);
   const router = useRouter();
-
-  // Animated Styles
-
-  const { logout } = useAuth(); // Get the logout function from context
+  const { logout } = useAuth();
 
   const handleConfirmLogout = async () => {
     setLogoutVisible(false);
     setTimeout(async () => {
-      await logout(); // Clear Redux + Storage
-      router.replace("/auth/login"); // Navigate to login and reset history
+      await logout();
+      router.replace("/auth/login");
     }, 300);
   };
+
+  // 🔄 Show loader if User is not yet available
+  if (!User) {
+    return (
+      <View className="flex-1 justify-center items-center bg-sapLight-background">
+        <Loader />
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-sapLight-background">
@@ -46,17 +53,17 @@ export default function ProfileTabScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         <View className="px-kpx gap-10 pb-5">
-          {/* Info Profile */}
+          {/* Profile Info */}
           <View style={[styles.infoContainer]}>
             <Image
               style={styles.profileLogo}
               source={require("../../assets/images/Profile/profile.png")}
             />
             <Text className="text-3xl text-center font-montserrat-bold text-sapLight-text mt-2">
-              {User?.user_name}
+              {User.user_name}
             </Text>
             <Text className="text-2xl text-center font-montserrat-medium text-sapLight-infoText">
-              {User?.user_contact}
+              {User.user_contact}
             </Text>
           </View>
 
@@ -164,7 +171,7 @@ export default function ProfileTabScreen() {
         </View>
       </ScrollView>
 
-      {/* Confirmation Modal */}
+      {/* Logout Confirmation Modal */}
       <ConfirmationBox
         visible={logoutVisible}
         title="Logout"

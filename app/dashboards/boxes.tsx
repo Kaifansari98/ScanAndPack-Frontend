@@ -1,11 +1,22 @@
+import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
 import { AddBoxModal } from "@/components/modals/AddBoxModal";
-import axios from '@/lib/axios';
-import { BottomSheetModal } from "@gorhom/bottom-sheet";
+import axios from "@/lib/axios";
+import {
+  BottomSheetModal,
+  TouchableWithoutFeedback,
+} from "@gorhom/bottom-sheet";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import LottieView from "lottie-react-native";
 import { ArrowUpRight, Download, Plus } from "lucide-react-native";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   FlatList,
   Platform,
@@ -109,61 +120,64 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
         scale.value = withSpring(1);
       }}
     >
-      <Animated.View style={[animatedCardStyle, styles.cardContainer]}>
-        <LinearGradient
-          colors={["#ffffff", "#f8fafc"]}
-          style={styles.cardGradient}
-        >
-          <View className="w-full p-5">
-            <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
-                {box.name}
-              </Text>
-              <View className={`rounded-full px-3 py-1 ${bgClass}`}>
-                <Text
-                  className={`font-montserrat-semibold text-xs ${textClass}`}
-                >
-                  {status}
+      <TouchableWithoutFeedback onPress={handleNavigate}>
+        <Animated.View style={[animatedCardStyle, styles.cardContainer]}>
+          <View style={styles.cardGradient}>
+            <View className="w-full p-5">
+              <View className="flex-row items-center justify-between mb-4">
+                <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
+                  {box.name}
                 </Text>
-              </View>
-            </View>
-            <View className="flex-row justify-between items-center">
-              <View>
-                <Text className="text-sapLight-infoText font-montserrat-medium text-sm mb-1">
-                  Items Count
-                </Text>
-                <Text className="text-sapLight-text font-montserrat-semibold text-2xl">
-                  {box.items_count}
-                </Text>
-              </View>
-              <View className="h-full flex-row items-end gap-2">
-                <View className="p-2 bg-sapLight-card rounded-xl">
-                  <Download color={"#555555"} size={20} />
+                <View className={`rounded-full px-3 py-1 ${bgClass}`}>
+                  <Text
+                    className={`font-montserrat-semibold text-xs ${textClass}`}
+                  >
+                    {status}
+                  </Text>
                 </View>
-                <TouchableOpacity
-                  onPress={handleNavigate}
-                  className="p-2 bg-sapLight-card rounded-xl"
-                >
-                  <ArrowUpRight color={"#555555"} size={20} />
-                </TouchableOpacity>
+              </View>
+              <View className="flex-row justify-between items-center">
+                <View>
+                  <Text className="text-sapLight-infoText font-montserrat-medium text-sm mb-1">
+                    Items Count
+                  </Text>
+                  <Text className="text-sapLight-text font-montserrat-semibold text-2xl">
+                    {box.items_count}
+                  </Text>
+                </View>
+                <View className="h-full flex-row items-end gap-2">
+                  <View className="p-2 bg-sapLight-card rounded-xl">
+                    <Download color={"#555555"} size={20} />
+                  </View>
+                  <TouchableOpacity
+                    onPress={handleNavigate}
+                    className="p-2 bg-sapLight-card rounded-xl"
+                  >
+                    <ArrowUpRight color={"#555555"} size={20} />
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </View>
-        </LinearGradient>
-      </Animated.View>
+        </Animated.View>
+      </TouchableWithoutFeedback>
     </TouchableOpacity>
   );
 }
 
 export default function BoxesScreen() {
-  const { project: projectString } = useLocalSearchParams<{ project: string }>();
-  const project = useMemo(() => JSON.parse(projectString) as Project, [projectString]);
-
-  console.log('Project data:', project);
+  const { project: projectString } = useLocalSearchParams<{
+    project: string;
+  }>();
+  const project = useMemo(
+    () => JSON.parse(projectString) as Project,
+    [projectString]
+  );
 
   const sheetRef = useRef<BottomSheetModal>(null);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creatingBox, setCreatingBox] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchBoxes = async () => {
@@ -186,7 +200,7 @@ export default function BoxesScreen() {
         setLoading(false);
       }
     };
-    
+
     fetchBoxes();
   }, [project.id, project.vendor_id]);
 
@@ -211,28 +225,33 @@ export default function BoxesScreen() {
     });
   }, []);
 
-  const onAdd = useCallback((name: string) => {
-    console.log("Added box:", name);
-    const fetchBoxes = async () => {
-      try {
-        setLoading(true);
-        const res = await axios.get(`/boxes/vendor/${project.vendor_id}/project/${project.id}`);
-        const formatted = res.data.map((box: any) => ({
-          id: box.id,
-          name: box.box_name,
-          box_status: box.box_status,
-          items_count: box.items_count,
-          details: box.details,
-        }));
-        setBoxes(formatted);
-      } catch (error) {
-        console.error("Failed to fetch boxes:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchBoxes();
-  }, [project.id, project.vendor_id]);
+  const onAdd = useCallback(
+    (name: string) => {
+      console.log("Added box:", name);
+      const fetchBoxes = async () => {
+        try {
+          setLoading(true);
+          const res = await axios.get(
+            `/boxes/vendor/${project.vendor_id}/project/${project.id}`
+          );
+          const formatted = res.data.map((box: any) => ({
+            id: box.id,
+            name: box.box_name,
+            box_status: box.box_status,
+            items_count: box.items_count,
+            details: box.details,
+          }));
+          setBoxes(formatted);
+        } catch (error) {
+          console.error("Failed to fetch boxes:", error);
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchBoxes();
+    },
+    [project.id, project.vendor_id]
+  );
 
   // Animated styles for project card
   const animatedCardStyle = useAnimatedStyle(() => ({
@@ -328,14 +347,16 @@ export default function BoxesScreen() {
         </Animated.View>
 
         {/* Boxes Section */}
-        <View className="mt-6 bg-white/50 rounded-2xl pb-72">
+        <View className=" flex-1 mt-6 rounded-2xl ">
           <Animated.View style={animatedTitleStyle}>
             <Text className="text-sapLight-text font-montserrat-semibold text-3xl mb-4 pb-2">
               Boxes
             </Text>
           </Animated.View>
           {loading ? (
-            <Text className="text-center text-gray-500 mt-6">Loading...</Text>
+            <View className="flex-1 justify-center items-center">
+              <Loader />
+            </View>
           ) : (
             <FlatList
               data={boxes}
@@ -343,13 +364,27 @@ export default function BoxesScreen() {
                 <BoxCard box={item} index={index} />
               )}
               keyExtractor={(item) => item.id.toString()}
-              contentContainerStyle={styles.listContainer}
+              contentContainerStyle={[
+                styles.listContainer,
+                boxes.length === 0 && { flex: 1, justifyContent: "center" },
+              ]}
               showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <LottieView
+                    source={require("@/assets/animations/emptyBox.json")} // 👈 Use correct path here
+                    autoPlay
+                    loop
+                    style={styles.lottie}
+                  />
+                  <Text className="text-sapLight-infoText font-montserrat">Empty box</Text>
+                </View>
+              }
             />
           )}
         </View>
       </View>
-      <View  style={styles.addBoxBtn} >
+      <View style={styles.addBoxBtn}>
         <TouchableOpacity
           activeOpacity={0.9}
           onPress={() => sheetRef.current?.present()}
@@ -373,7 +408,19 @@ export default function BoxesScreen() {
           </Animated.View>
         </TouchableOpacity>
       </View>
-      <AddBoxModal ref={sheetRef} onSubmit={onAdd} project={project} />
+      {creatingBox && (
+        <View style={styles.loaderOverlly}>
+          <Loader />
+        </View>
+      )}
+      {!creatingBox && (
+        <AddBoxModal
+          ref={sheetRef}
+          onSubmit={onAdd}
+          project={project}
+          setCreatingBox={setCreatingBox}
+        />
+      )}
     </View>
   );
 }
@@ -395,6 +442,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "#e5e7eb",
+    backgroundColor: "#ffffff",
   },
   listContainer: {
     paddingBottom: 80,
@@ -414,9 +462,29 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   addBoxBtn: {
-    position:'absolute',
-    bottom: Platform.OS === 'ios' ? 25 : 16,
+    position: "absolute",
+    bottom: Platform.OS === "ios" ? 25 : 16,
     right: 18,
     left: 18,
-  }
+  },
+  loaderOverlly: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9999,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  lottie: {
+    width: 220,
+    height: 220,
+  },
 });

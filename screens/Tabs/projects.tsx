@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import Animated, {
@@ -65,81 +66,82 @@ function ProjectCard({ project, index }: ProjectCardProps) {
   }));
 
   return (
-    <Animated.View
-      style={[
-        animatedCardStyle,
-        styles.cardContainer,
-        Platform.OS === "ios" ? { marginBottom: 16 } : { marginBottom: 20 },
-      ]}
-      className="bg-sapLight-card w-full rounded-3xl p-5 border border-gray-100"
+    <TouchableWithoutFeedback
+      onPress={() => {
+        router.push({
+          pathname: "/dashboards/boxes",
+          params: { project: JSON.stringify(project) },
+        });
+      }}
     >
-      <View className="flex-row justify-between items-center mb-4">
-        <View className="rounded-full px-3 py-1 bg-blue-100">
-          <Text className="text-sm font-montserrat-semibold text-blue-700">
-            {project.status}
-          </Text>
-        </View>
-        <View>
-          <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-            {project.date}
-          </Text>
-        </View>
-      </View>
-
-      <View className="w-full flex-row items-center justify-between mb-4">
-        <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
-          {project.projectName}
-        </Text>
-        <TouchableOpacity
-          onPress={() => {
-            console.log("Navigating with project data :- ", project); // 👈 Add this line
-            router.push({
-              pathname: "/dashboards/boxes",
-              params: { project: JSON.stringify(project) },
-            });
-          }}
-        >
-          <ChevronRight size={22} color="#171717" />
-        </TouchableOpacity>
-      </View>
-
-      <View className="flex-row justify-between items-center">
-        <View>
-          <Text className="text-sapLight-text font-montserrat-medium text-sm">
-            Total Items
-          </Text>
-          <Text className="text-sapLight-text font-montserrat-semibold text-xl">
-            {project.totalNoItems.toLocaleString()}
-          </Text>
-        </View>
-
-        <View className="flex-row space-x-6 gap-4">
-          <View className="flex-col items-center">
-            <View className="flex-row items-center">
-              <View className="w-2 h-2 rounded-full mr-2 bg-green-400" />
-              <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                Packed
-              </Text>
-            </View>
-            <Text className="text-sapLight-text font-montserrat-semibold text-base">
-              {project.packedItems.toLocaleString()}
+      <Animated.View
+        style={[
+          animatedCardStyle,
+          styles.cardContainer,
+          Platform.OS === "ios" ? { marginBottom: 16 } : { marginBottom: 20 },
+        ]}
+        className="bg-sapLight-card w-full rounded-3xl p-5 border border-gray-100"
+      >
+        <View className="flex-row justify-between items-center mb-4">
+          <View className="rounded-full px-3 py-1 bg-blue-100">
+            <Text className="text-sm font-montserrat-semibold text-blue-700">
+              {project.status}
             </Text>
           </View>
-
-          <View className="items-center flex-col">
-            <View className="flex-row items-center">
-              <View className="w-2 h-2 rounded-full mr-2 bg-red-400" />
-              <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                Unpacked
-              </Text>
-            </View>
-            <Text className="text-sapLight-text font-montserrat-semibold text-base">
-              {project.unpackedItems.toLocaleString()}
+          <View>
+            <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
+              {project.date}
             </Text>
           </View>
         </View>
-      </View>
-    </Animated.View>
+
+        <View className="w-full flex-row items-center justify-between mb-4">
+          <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
+            {project.projectName}
+          </Text>
+          <View>
+            <ChevronRight size={22} color="#171717" />
+          </View>
+        </View>
+
+        <View className="flex-row justify-between items-center">
+          <View>
+            <Text className="text-sapLight-text font-montserrat-medium text-sm">
+              Total Items
+            </Text>
+            <Text className="text-sapLight-text font-montserrat-semibold text-xl">
+              {project.totalNoItems.toLocaleString()}
+            </Text>
+          </View>
+
+          <View className="flex-row space-x-6 gap-4">
+            <View className="flex-col items-center">
+              <View className="flex-row items-center">
+                <View className="w-2 h-2 rounded-full mr-2 bg-green-400" />
+                <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
+                  Packed
+                </Text>
+              </View>
+              <Text className="text-sapLight-text font-montserrat-semibold text-base">
+                {project.packedItems.toLocaleString()}
+              </Text>
+            </View>
+
+            <View className="items-center flex-col">
+              <View className="flex-row items-center">
+                <View className="w-2 h-2 rounded-full mr-2 bg-red-400" />
+                <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
+                  Unpacked
+                </Text>
+              </View>
+              <Text className="text-sapLight-text font-montserrat-semibold text-base">
+                {project.unpackedItems.toLocaleString()}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Animated.View>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -166,7 +168,9 @@ export default function ProfileTabScreen() {
           packedItems: proj.details[0]?.total_packed ?? 0,
           status: proj.project_status,
           date: proj.details[0]?.estimated_completion_date
-            ? new Date(proj.details[0].estimated_completion_date).toLocaleDateString("en-GB", {
+            ? new Date(
+                proj.details[0].estimated_completion_date
+              ).toLocaleDateString("en-GB", {
                 day: "2-digit",
                 month: "short",
                 year: "numeric",
@@ -188,7 +192,7 @@ export default function ProfileTabScreen() {
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-sapLight-background">
-        <Loader/>
+        <Loader />
       </View>
     );
   }
