@@ -2,7 +2,7 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
 const instance = axios.create({
-  baseURL: 'http://192.168.1.7:7777/api', // base backend URL
+  baseURL: 'http://192.168.1.5:7777/api', // base backend URL
 //baseURL: 'http://localhost:7777/api', // change it with your ip address
 });
 
