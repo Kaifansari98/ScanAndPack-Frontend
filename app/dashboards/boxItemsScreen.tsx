@@ -23,6 +23,8 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { QRScanner } from "../../components/generic/QRScanner";
+import Loader from "@/components/generic/Loader";
+import LottieView from "lottie-react-native";
 
 interface Box {
   name: string;
@@ -44,7 +46,9 @@ interface ScanItem {
 
 export default function BoxItemsScreen() {
   // Move all hooks to the top
-  const { payload: payloadString } = useLocalSearchParams<{ payload: string }>();
+  const { payload: payloadString } = useLocalSearchParams<{
+    payload: string;
+  }>();
   const [showScanner, setShowScanner] = useState(false);
   const [scanItems, setScanItems] = useState<ScanItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,18 +91,26 @@ export default function BoxItemsScreen() {
 
         console.log(data);
 
-        const items = data?.data?.map((item: any) => item.project_item_details) ?? [];
+        const items =
+          data?.data?.map((item: any) => item.project_item_details) ?? [];
         setScanItems(items);
-        console.log("Request URL:", axios.getUri({ url: "/scan-items/by-fields", method: "POST", baseURL: axios.defaults.baseURL }));
-console.log("Request payload:", {
-  project_id: box.project_id,
-  vendor_id: box.vendor_id,
-  client_id: box.client_id,
-  box_id: box.id,
-});
-console.log("Request headers:", axios.defaults.headers);
+        console.log(
+          "Request URL:",
+          axios.getUri({
+            url: "/scan-items/by-fields",
+            method: "POST",
+            baseURL: axios.defaults.baseURL,
+          })
+        );
+        console.log("Request payload:", {
+          project_id: box.project_id,
+          vendor_id: box.vendor_id,
+          client_id: box.client_id,
+          box_id: box.id,
+        });
+        console.log("Request headers:", axios.defaults.headers);
       } catch (error) {
-        console.error("Failed to fetch scan items:", error);
+        console.log("Failed to fetch scan items:", error);
       } finally {
         setLoading(false);
       }
@@ -189,17 +201,26 @@ console.log("Request headers:", axios.defaults.headers);
         onPressOut={() => (scale.value = withSpring(1))}
       >
         <Animated.View style={[animatedCardStyle, styles.cardContainer]}>
-          <LinearGradient colors={["#ffffff", "#f8fafc"]} style={styles.cardGradient}>
+          <LinearGradient
+            colors={["#ffffff", "#f8fafc"]}
+            style={styles.cardGradient}
+            
+          >
             <View className="w-full p-5">
               <View className="flex-row items-center justify-between mb-4">
                 <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
                   {item.item_name}
                 </Text>
-                <TouchableOpacity onPress={() => console.log(`Delete ${item.item_name}`)}>
+                <TouchableOpacity
+                  onPress={() => console.log(`Delete ${item.item_name}`)}
+                >
                   <Trash2 color="#ef4444" size={20} />
                 </TouchableOpacity>
               </View>
-              <View className="rounded-full px-3 py-1 bg-green-100 mb-4">
+              <View
+                className="rounded-full px-3 py-1 bg-green-100 mb-4"
+                style={{ alignSelf: "flex-start" }}
+              >
                 <Text className="text-green-700 font-montserrat-semibold text-xs">
                   {item.category}
                 </Text>
@@ -227,27 +248,38 @@ console.log("Request headers:", axios.defaults.headers);
   };
 
   return (
-    <View className="flex-1 bg-sapLight-background">
+    <View className="flex-1 bg-sapLight-background ">
       {showScanner ? (
         <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />
       ) : (
         <>
           <Navbar title={box.name} showBack showSearch />
-          <View className="flex-1 mx-2">
-            <View className="mt-6 bg-white/50 rounded-2xl pb-18">
-            {loading ? (
-              <Text className="text-center py-4">Loading...</Text>
-            ) : scanItems.length === 0 ? (
-              <Text className="text-center py-4 text-sapLight-text font-montserrat-medium text-lg">
-                No items found for this box
-              </Text>
-            ) : (
-              <FlatList
-                data={scanItems}
-                renderItem={({ item, index }) => <RenderItem item={item} index={index} />}
-                keyExtractor={(item, index) => `${item.unique_id}-${index}`}
-              />
-            )}
+          <View className="flex-1  px-4 ">
+            <View className="flex-1 mt-6 bg-white/50 rounded-2xl pb-24 ">
+              {loading ? (
+                <View className="flex-1 justify-center items-center">
+                  <Loader />
+                </View>
+              ) : scanItems.length === 0 ? (
+                <View className="flex-1 justify-center items-center">
+                  <LottieView
+                    source={require("@/assets/animations/emptyBox.json")} // 👈 Use correct path here
+                    autoPlay
+                    loop={false}
+                 
+                    style={styles.lottie}
+                  />
+                  <Text className="text-sapLight-infoText font-montserrat">Box is Empty</Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={scanItems}
+                  renderItem={({ item, index }) => (
+                    <RenderItem item={item} index={index} />
+                  )}
+                  keyExtractor={(item, index) => `${item.unique_id}-${index}`}
+                />
+              )}
             </View>
           </View>
           <View style={styles.scanBtn}>
@@ -258,7 +290,10 @@ console.log("Request headers:", axios.defaults.headers);
               onPressOut={() => (scanButtonScale.value = withSpring(1))}
             >
               <Animated.View style={animatedScanButtonStyle}>
-                <LinearGradient colors={["#000000", "#222222"]} style={styles.scanButton}>
+                <LinearGradient
+                  colors={["#000000", "#222222"]}
+                  style={styles.scanButton}
+                >
                   <ScanLine size={28} color="#fff" />
                   <Text className="text-white font-montserrat-bold text-lg ml-3">
                     Scan Product
@@ -276,8 +311,12 @@ console.log("Request headers:", axios.defaults.headers);
 function TextBlock({ label, value }: { label: string; value: string }) {
   return (
     <View>
-      <Text className="text-sapLight-infoText font-montserrat-medium text-sm">{label}</Text>
-      <Text className="text-sapLight-text font-montserrat-medium text-xl">{value}</Text>
+      <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
+        {label}
+      </Text>
+      <Text className="text-sapLight-text font-montserrat-medium text-xl">
+        {value}
+      </Text>
     </View>
   );
 }
@@ -285,6 +324,7 @@ function TextBlock({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   cardContainer: {
     marginBottom: 16,
+    
   },
   cardGradient: {
     borderRadius: 20,
@@ -310,5 +350,9 @@ const styles = StyleSheet.create({
     bottom: Platform.OS === "ios" ? 25 : 16,
     right: 18,
     left: 18,
+  },
+  lottie: {
+    width: 220,
+    height: 220,
   },
 });
