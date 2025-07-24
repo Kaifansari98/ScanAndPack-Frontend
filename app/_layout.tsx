@@ -1,5 +1,5 @@
 import { ToastProvider } from "@/components/Notification/ToastProvider";
-import { store } from "@/redux/store";
+import { RootState, store } from "@/redux/store";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
@@ -8,13 +8,14 @@ import { useCallback } from "react";
 import { Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Provider } from "react-redux";
+import { Provider, useSelector } from "react-redux";
 import "./globals.css";
 
 SplashScreen.preventAutoHideAsync();
 
 
 const LayoutWrapper = () => {
+  
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <BottomSheetModalProvider>
