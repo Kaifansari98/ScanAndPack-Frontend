@@ -7,7 +7,7 @@ import {
   TouchableWithoutFeedback,
 } from "@gorhom/bottom-sheet";
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import LottieView from "lottie-react-native";
 import { ArrowUpRight, Download, Plus } from "lucide-react-native";
 import React, {
@@ -114,7 +114,7 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
       client_id: box.client_id,
       id: box.id,
     };
-  
+
     router.push({
       pathname: "./boxItemsScreen",
       params: {
@@ -128,9 +128,11 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
       activeOpacity={0.8}
       onPressIn={() => {
         scale.value = withSpring(0.98);
+        console.log("Card presss..");
       }}
       onPressOut={() => {
         scale.value = withSpring(1);
+        console.log("Card Press out");
       }}
     >
       <TouchableWithoutFeedback onPress={handleNavigate}>
@@ -179,41 +181,48 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
 }
 
 export default function BoxesScreen() {
-  const { project: projectString } = useLocalSearchParams<{ project: string }>();
-  const project = useMemo(() => JSON.parse(projectString) as Project, [projectString]);
+  const { project: projectString } = useLocalSearchParams<{
+    project: string;
+  }>();
+  const project = useMemo(
+    () => JSON.parse(projectString) as Project,
+    [projectString]
+  );
 
   const sheetRef = useRef<BottomSheetModal>(null);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [loading, setLoading] = useState(true);
   const [creatingBox, setCreatingBox] = useState<boolean>(false);
 
-  useEffect(() => {
-    const fetchBoxes = async () => {
-      try {
-        setLoading(true);
-        const res = await axios.get(
-          `/boxes/vendor/${project.vendor_id}/project/${project.id}`
-        );
-        const formatted = res.data.map((box: any) => ({
-          id: box.id,
-          name: box.box_name,
-          box_status: box.box_status,
-          items_count: box.items_count,
-          details: box.details,
-          project_id: box.project_id,
-          vendor_id: box.vendor_id,
-          client_id: box.client_id,
-        }));
-        setBoxes(formatted);
-      } catch (error) {
-        console.error("Failed to fetch boxes:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchBoxes = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get(
+        `/boxes/vendor/${project.vendor_id}/project/${project.id}`
+      );
+      const formatted = res.data.map((box: any) => ({
+        id: box.id,
+        name: box.box_name,
+        box_status: box.box_status,
+        items_count: box.items_count,
+        details: box.details,
+        project_id: box.project_id,
+        vendor_id: box.vendor_id,
+        client_id: box.client_id,
+      }));
+      setBoxes(formatted);
+    } catch (error) {
+      console.error("Failed to fetch boxes:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchBoxes();
-  }, [project.id, project.vendor_id]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchBoxes(); // Refetch boxes on screen focus
+    }, [project.id, project.vendor_id])
+  );
 
   // Animation values for project card
   const cardOpacity = useSharedValue(0);
@@ -388,7 +397,9 @@ export default function BoxesScreen() {
                     loop={false}
                     style={styles.lottie}
                   />
-                  <Text className="text-sapLight-infoText font-montserrat capitalize">0 Boxes Found </Text>
+                  <Text className="text-sapLight-infoText font-montserrat capitalize">
+                    0 Boxes Found{" "}
+                  </Text>
                 </View>
               }
             />
