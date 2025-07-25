@@ -2,10 +2,10 @@ import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
 import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import LottieView from "lottie-react-native";
 import { ChevronRight } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   FlatList,
   Platform,
@@ -158,7 +158,8 @@ export default function ProfileTabScreen() {
   const [projects, setProjects] = useState<ProjectCardProps["project"][]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const [refreshing, setRefreshing] = useState(false);
+
     const fetchProjects = async () => {
       try {
         const vendorId = user?.vendor_id;
@@ -194,8 +195,11 @@ export default function ProfileTabScreen() {
       }
     };
 
-    fetchProjects();
-  }, [user?.vendor_id]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchProjects();
+    }, [user?.vendor_id])
+  );
 
   if (loading) {
     return (
@@ -204,6 +208,12 @@ export default function ProfileTabScreen() {
       </View>
     );
   }
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchProjects();
+    setRefreshing(false);
+  };  
 
   return (
     <View className="flex-1 bg-sapLight-background">
@@ -221,6 +231,8 @@ export default function ProfileTabScreen() {
         keyExtractor={(item, index) => item.projectName + index}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         ListEmptyComponent={
           <View style={{flex: 1, justifyContent:'center', alignItems: 'center'}}>
             <LottieView 
@@ -229,9 +241,8 @@ export default function ProfileTabScreen() {
               autoPlay
               loop={false}
             />
-
-            </View>
-      }
+          </View>
+        }
       />
     </View>
   );

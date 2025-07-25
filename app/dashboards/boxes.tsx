@@ -128,11 +128,11 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
       activeOpacity={0.8}
       onPressIn={() => {
         scale.value = withSpring(0.98);
-        console.log("Card presss..");
+        // console.log("Card presss..");
       }}
       onPressOut={() => {
         scale.value = withSpring(1);
-        console.log("Card Press out");
+        // console.log("Card Press out");
       }}
     >
       <TouchableWithoutFeedback onPress={handleNavigate}>
@@ -247,7 +247,7 @@ export default function BoxesScreen() {
 
   const onAdd = useCallback(
     (name: string) => {
-      console.log("Added box:", name);
+      // console.log("Added box:", name);
       const fetchBoxes = async () => {
         try {
           setLoading(true);

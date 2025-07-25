@@ -63,14 +63,14 @@ export default function BoxItemsScreen() {
 
   const user = useSelector((state: RootState) => state.auth.user);
 
-  useEffect(() => {
-    if (user) {
-      console.log("User Data:", {
-        id: user.id,
-        user_name: user.user_name,
-      });
-    }
-  }, [user]);
+  // useEffect(() => {
+  //   if (user) {
+  //     console.log("User Data:", {
+  //       id: user.id,
+  //       user_name: user.user_name,
+  //     });
+  //   }
+  // }, [user]);
 
   // Parse payload safely
   let box: Box | null = null;
@@ -96,7 +96,7 @@ export default function BoxItemsScreen() {
           box_id: box.id,
         });
 
-        console.log(data);
+        // console.log(data);
 
         const items =
           data?.data?.map((item: any) => ({
@@ -104,21 +104,21 @@ export default function BoxItemsScreen() {
             id: item.id,
           })) ?? [];
         setScanItems(items);
-        console.log(
-          "Request URL:",
-          axios.getUri({
-            url: "/scan-items/by-fields",
-            method: "POST",
-            baseURL: axios.defaults.baseURL,
-          })
-        );
-        console.log("Request payload:", {
-          project_id: box.project_id,
-          vendor_id: box.vendor_id,
-          client_id: box.client_id,
-          box_id: box.id,
-        });
-        console.log("Request headers:", axios.defaults.headers);
+        // console.log(
+        //   "Request URL:",
+        //   axios.getUri({
+        //     url: "/scan-items/by-fields",
+        //     method: "POST",
+        //     baseURL: axios.defaults.baseURL,
+        //   })
+        // );
+        // console.log("Request payload:", {
+        //   project_id: box.project_id,
+        //   vendor_id: box.vendor_id,
+        //   client_id: box.client_id,
+        //   box_id: box.id,
+        // });
+        // console.log("Request headers:", axios.defaults.headers);
       } catch (error) {
         console.log("Failed to fetch scan items:", error);
       } finally {
