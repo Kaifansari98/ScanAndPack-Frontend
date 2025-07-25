@@ -162,7 +162,11 @@ export default function BoxItemsScreen() {
         box_id: box.id,
       });
   
-      const items = data?.data?.map((item: any) => item.project_item_details) ?? [];
+      const items = data?.data?.map((item: any) => ({
+        ...item.project_item_details,
+        id: item.id,
+      })) ?? [];
+      
       setScanItems(items);
     } catch (error: any) {
       console.error("Error packing scanned item:", error?.response?.data || error.message);
@@ -185,8 +189,11 @@ export default function BoxItemsScreen() {
           box_id: box.id,
         });
   
-        const items =
-          data?.data?.map((item: any) => item.project_item_details) ?? [];
+        const items = data?.data?.map((item: any) => ({
+          ...item.project_item_details,
+          id: item.id,
+        })) ?? [];
+        
         setScanItems(items);
       }
     } catch (error) {
@@ -315,7 +322,7 @@ export default function BoxItemsScreen() {
                   renderItem={({ item, index }) => (
                     <RenderItem item={item} index={index} />
                   )}
-                  keyExtractor={(item, index) => `${item.unique_id}-${index}`}
+                  keyExtractor={(item) => item.id.toString()}
                 />
               )}
             </View>
