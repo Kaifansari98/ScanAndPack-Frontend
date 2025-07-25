@@ -287,7 +287,7 @@ export default function BoxItemsScreen() {
                     Quantity
                   </Text>
                   <Text className="text-sapLight-text font-montserrat-medium text-3xl">
-                    {item.qty}
+                    {/* {item.qty} */} 1
                   </Text>
                 </View>
               </View>
@@ -304,7 +304,7 @@ export default function BoxItemsScreen() {
         <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />
       ) : (
         <>
-          <Navbar title={box.name} showBack showSearch />
+          <Navbar title={box.name} showBack showSearch={false} />
           <View className="flex-1  px-4 ">
             <View className="flex-1 mt-6 bg-white/50 rounded-2xl pb-24 ">
               {loading ? (
