@@ -26,6 +26,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSelector } from 'react-redux';
 import { QRScanner } from "../../components/generic/QRScanner";
+import { useToast } from "@/components/Notification/ToastProvider";
 
 interface Box {
   name: string;
@@ -51,6 +52,7 @@ export default function BoxItemsScreen() {
   const { payload: payloadString } = useLocalSearchParams<{
     payload: string;
   }>();
+  const {showToast} = useToast();
   const [showScanner, setShowScanner] = useState(false);
   const [scanItems, setScanItems] = useState<ScanItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,7 +154,8 @@ export default function BoxItemsScreen() {
   
     try {
       const response = await axios.post("/scan-items/scan-and-pack/add", payload);
-      console.log("Scan packed successfully:", response.data);
+      // console.log("Scan packed successfully:", response.data);
+      showToast('success', "Item Added Successfully")
   
       // Refetch items to show updated list
       const { data } = await axios.post("/scan-items/by-fields", {
@@ -169,7 +172,9 @@ export default function BoxItemsScreen() {
       
       setScanItems(items);
     } catch (error: any) {
-      console.error("Error packing scanned item:", error?.response?.data || error.message);
+      const errorMessage = error?.response?.data?.error || error?.message || "Something went wrong";
+      // console.error("Error packing scanned item:", errorMessage);
+      showToast('error', errorMessage);
     }
   };
 
@@ -179,6 +184,7 @@ export default function BoxItemsScreen() {
     try {
       await axios.delete(`/scan-items/scan-and-pack/delete/${selectedItemId}`);
       console.log(`Item with id ${selectedItemId} deleted`);
+      showToast('success', "Item deleted succussfully")
   
       // Refresh item list
       if (box) {
