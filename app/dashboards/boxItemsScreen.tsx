@@ -1,11 +1,13 @@
+import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
+import axios from "@/lib/axios";
+import { RootState } from '@/redux/store';
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams } from "expo-router";
+import LottieView from "lottie-react-native";
 import { ScanLine, Trash2 } from "lucide-react-native";
-import axios from "@/lib/axios";
 import React, { useEffect, useState } from "react";
-import { useSelector } from 'react-redux';
-import { RootState } from '@/redux/store';
+import ConfirmationBox from "@/components/generic/ConfirmationBox";
 import {
   FlatList,
   Platform,
@@ -22,9 +24,8 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import { useSelector } from 'react-redux';
 import { QRScanner } from "../../components/generic/QRScanner";
-import Loader from "@/components/generic/Loader";
-import LottieView from "lottie-react-native";
 
 interface Box {
   name: string;
@@ -35,6 +36,7 @@ interface Box {
 }
 
 interface ScanItem {
+  id: number;
   unique_id: string;
   qty: number;
   item_name: string;
@@ -53,6 +55,9 @@ export default function BoxItemsScreen() {
   const [scanItems, setScanItems] = useState<ScanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const scanButtonScale = useSharedValue(1);
+
+  const [confirmVisible, setConfirmVisible] = useState(false);
+  const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
 
   const user = useSelector((state: RootState) => state.auth.user);
 
@@ -92,7 +97,10 @@ export default function BoxItemsScreen() {
         console.log(data);
 
         const items =
-          data?.data?.map((item: any) => item.project_item_details) ?? [];
+          data?.data?.map((item: any) => ({
+            ...item.project_item_details,
+            id: item.id,
+          })) ?? [];
         setScanItems(items);
         console.log(
           "Request URL:",
@@ -160,7 +168,34 @@ export default function BoxItemsScreen() {
       console.error("Error packing scanned item:", error?.response?.data || error.message);
     }
   };
+
+  const handleDeleteItem = async () => {
+    if (!selectedItemId) return;
   
+    try {
+      await axios.delete(`/scan-items/scan-and-pack/delete/${selectedItemId}`);
+      console.log(`Item with id ${selectedItemId} deleted`);
+  
+      // Refresh item list
+      if (box) {
+        const { data } = await axios.post("/scan-items/by-fields", {
+          project_id: box.project_id,
+          vendor_id: box.vendor_id,
+          client_id: box.client_id,
+          box_id: box.id,
+        });
+  
+        const items =
+          data?.data?.map((item: any) => item.project_item_details) ?? [];
+        setScanItems(items);
+      }
+    } catch (error) {
+      console.error("Failed to delete scan item:", error);
+    } finally {
+      setSelectedItemId(null);
+      setConfirmVisible(false);
+    }
+  };
 
   // Render error screen if box is invalid
   if (!box) {
@@ -212,7 +247,10 @@ export default function BoxItemsScreen() {
                   {item.item_name}
                 </Text>
                 <TouchableOpacity
-                  onPress={() => console.log(`Delete ${item.item_name}`)}
+                  onPress={() => {
+                    setSelectedItemId(item.id); 
+                    setConfirmVisible(true);
+                  }}
                 >
                   <Trash2 color="#ef4444" size={20} />
                 </TouchableOpacity>
@@ -304,6 +342,16 @@ export default function BoxItemsScreen() {
           </View>
         </>
       )}
+      <ConfirmationBox
+        visible={confirmVisible}
+        title="Delete Item?"
+        description="Are you sure you want to delete this scanned item?"
+        onCancel={() => {
+          setSelectedItemId(null);
+          setConfirmVisible(false);
+        }}
+        onConfirm={handleDeleteItem}
+      />
     </View>
   );
 }
