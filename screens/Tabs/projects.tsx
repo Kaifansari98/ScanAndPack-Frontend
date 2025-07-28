@@ -4,7 +4,7 @@ import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
 import { useRouter, useFocusEffect } from "expo-router";
 import LottieView from "lottie-react-native";
-import { ChevronRight } from "lucide-react-native";
+import { ChevronRight, Download } from "lucide-react-native";
 import React, { useEffect, useState, useCallback } from "react";
 import {
   FlatList,
@@ -24,9 +24,16 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSelector } from "react-redux";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system";
+import { ScanAndPackUrl } from "@/utils/getAssetUrls";
 
 interface ProjectCardProps {
   project: {
+    id: number;
+    vendor_id: number;
+    client_id: number;
     projectName: string;
     totalNoItems: number;
     unpackedItems: number;
@@ -43,6 +50,106 @@ function ProjectCard({ project, index }: ProjectCardProps) {
 
   const cardOpacity = useSharedValue(0);
   const cardTranslateY = useSharedValue(30);
+
+  const fetchBoxDetails = async () => {
+    try {
+      const permissionResponse = await Sharing.isAvailableAsync();
+      if (!permissionResponse) {
+        console.error("❌ Sharing is not available on this device");
+        return;
+      }
+
+      const res = await axios.get(
+        `/boxes/details/vendor/${project.vendor_id}/project/${project.id}/client/${project.client_id}/boxes`
+      );
+      console.log('📦 Full Box Details =>', JSON.stringify(res.data, null, 2));
+
+      // Extract data for PDF
+      const { vendor, project: projectDetails, boxes } = res.data;
+
+      // HTML content for PDF
+      const htmlContent = `
+        <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+              .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+              .logo { width: 120px; }
+              .vendor-details { text-align: right; }
+              .vendor-details h2 { margin: 0; font-size: 18px; }
+              .vendor-details p { margin: 5px 0; font-size: 14px; }
+              .details { margin-bottom: 20px; }
+              .details p { margin: 5px 0; font-size: 16px; font-weight: bold; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
+              th { background-color: #f2f2f2; font-weight: bold; }
+              .table-container { margin-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <img src="${ScanAndPackUrl(vendor.logo)}" class="logo" alt="Logo" />
+              <div class="vendor-details">
+                <h2>${vendor.vendor_name.replace(/&/g, '&amp;')}</h2>
+                <p>Contact: ${vendor.primary_contact_number}</p>
+                <p>Email: ${vendor.primary_contact_email}</p>
+                <p>Date: ${new Date().toLocaleDateString()}</p>
+              </div>
+            </div>
+            <div class="details">
+              <p>Project Name: ${projectDetails.project_name.replace(/&/g, '&amp;')}</p>
+            </div>
+            <div class="table-container">
+              <table>
+                <tr>
+                  <th>Sr No.</th>
+                  <th>Box Name</th>
+                  <th>Items</th>
+                </tr>
+                ${boxes
+                  .map((box: any, index: number) => `
+                    <tr>
+                      <td>${index + 1}</td>
+                      <td>${box.box_name.replace(/&/g, '&amp;')}</td>
+                      <td>${box.total_items}</td>
+                    </tr>
+                  `)
+                  .join('')}
+              </table>
+            </div>
+          </body>
+        </html>
+      `;
+
+      const safeProjectName = projectDetails.project_name.replace(/[^a-zA-Z0-9-_]/g, "_");
+      const fileName = `${safeProjectName}-Boxes.pdf`;
+
+      // Generate PDF
+      const { uri } = await Print.printToFileAsync({
+        html: htmlContent,
+        base64: false,
+      });
+      console.log("Original PDF location:", uri);
+
+      // Move to document directory
+      const newPath = FileSystem.documentDirectory + fileName;
+      console.log("Moving to:", newPath);
+
+      await FileSystem.moveAsync({
+        from: uri,
+        to: newPath,
+      });
+
+      // Share the PDF
+      await Sharing.shareAsync(newPath, {
+        mimeType: "application/pdf",
+        dialogTitle: `Share ${fileName}`,
+        UTI: "com.adobe.pdf",
+      });
+    } catch (err) {
+      console.error("❌ Failed to fetch box details or generate PDF:", err);
+    }
+  };
 
   useEffect(() => {
     cardOpacity.value = withDelay(
@@ -100,16 +207,17 @@ function ProjectCard({ project, index }: ProjectCardProps) {
           <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
             {project.projectName}
           </Text>
+          <View className="w-full flex-row items-center justify-between mb-4">
+          <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
+            {project.projectName}
+          </Text>
           <TouchableOpacity
-            onPress={() => {
-              router.push({
-                pathname: "/dashboards/boxes",
-                params: { project: JSON.stringify(project) },
-              });
-            }}
+            onPress={fetchBoxDetails}
+            className="p-2 rounded-lg"
           >
-            <ChevronRight size={22} color="#171717" />
+            <Download size={22} color="#555555" />
           </TouchableOpacity>
+        </View>
         </View>
 
         <View className="flex-row justify-between items-center">
@@ -170,6 +278,7 @@ export default function ProfileTabScreen() {
         const formatted = response.data.map((proj: any) => ({
           id: proj.id,
           vendor_id: proj.vendor_id,
+          client_id: proj.client_id,
           project_details_id: proj.details[0]?.id ?? null,
           projectName: proj.project_name,
           totalNoItems: proj.details[0]?.total_items ?? 0,
@@ -186,6 +295,8 @@ export default function ProfileTabScreen() {
               })
             : "N/A",
         }));
+
+        
 
         setProjects(formatted);
       } catch (error) {
