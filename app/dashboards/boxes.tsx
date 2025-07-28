@@ -200,6 +200,7 @@ export default function BoxesScreen() {
       const res = await axios.get(
         `/boxes/vendor/${project.vendor_id}/project/${project.id}`
       );
+      console.log(res.data);
       const formatted = res.data.map((box: any) => ({
         id: box.id,
         name: box.box_name,
