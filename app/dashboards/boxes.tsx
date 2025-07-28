@@ -8,10 +8,7 @@ import {
 } from "@gorhom/bottom-sheet";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import * as Sharing from "expo-sharing";
 import LottieView from "lottie-react-native";
-import * as FileSystem from "expo-file-system";
-import { ScanAndPackUrl } from "@/utils/getAssetUrls";
 import { ArrowUpRight, Download, Plus } from "lucide-react-native";
 import React, {
   useCallback,
@@ -20,7 +17,14 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  FlatList,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -29,13 +33,12 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import * as Print from "expo-print";
 
 // Define Project interface
 interface Project {
   id: number;
   vendor_id: number;
-  project_details_id: number | null;
+  project_details_id: number | null; // Add project_details_id
   projectName: string;
   totalNoItems: number;
   unpackedItems: number;
@@ -43,8 +46,6 @@ interface Project {
   status: "packed" | "unpacked";
   date: string;
 }
-
-const ImageUrl = 'http://localhost:7777/assets/scan-and-pack/'
 
 // Define Box interface
 interface Box {
@@ -65,114 +66,6 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
   const cardOpacity = useSharedValue(0);
   const cardTranslateY = useSharedValue(30);
   const scale = useSharedValue(1);
-
-  const fetchBoxDetails = async ({ vendor_id, project_id, client_id, id }: Box) => {
-    try {
-      const permissionResponse = await Sharing.isAvailableAsync();
-      if (!permissionResponse) {
-        console.error("❌ Sharing is not available on this device");
-        return;
-      }
-
-      const res = await axios.get(
-        `/boxes/details/vendor/${vendor_id}/project/${project_id}/client/${client_id}/box/${id}`
-      );
-      console.log('📦 Full Box Details =>', JSON.stringify(res.data, null, 2));
-  
-      // Extract data for PDF
-      const { vendor, box: boxDetails, items } = res.data;
-
-      console.log(ScanAndPackUrl(vendor.logo));
-  
-      // HTML content for PDF
-      const htmlContent = `
-        <html>
-          <head>
-            <style>
-              body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-              .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-              .logo { width: 120px; }
-              .vendor-details { text-align: right; }
-              .vendor-details h2 { margin: 0; font-size: 18px; }
-              .vendor-details p { margin: 5px 0; font-size: 14px; }
-              .details { margin-bottom: 20px; }
-              .details p { margin: 5px 0; font-size: 16px; font-weight: bold; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
-              th { background-color: #f2f2f2; font-weight: bold; }
-              .table-container { margin-top: 20px; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <img src="${ScanAndPackUrl(vendor.logo)}" class="logo" alt="Logo" />
-              <div class="vendor-details">
-                <h2>${vendor.vendor_name.replace(/&/g, '&amp;')}</h2>
-                <p>Contact: ${vendor.primary_contact_number}</p>
-                <p>Email: ${vendor.primary_contact_email}</p>
-                <p>Date: ${new Date().toLocaleDateString()}</p>
-              </div>
-            </div>
-            <div class="details">
-              <p>Project Name: ${boxDetails.project.project_name.replace(/&/g, '&amp;')}</p>
-              <p>Box Name: ${boxDetails.box_name.replace(/&/g, '&amp;')}</p>
-            </div>
-            <div class="table-container">
-              <table>
-                <tr>
-                  <th>Sr No.</th>
-                  <th>Item Name</th>
-                  <th>Category</th>
-                  <th>Qty</th>
-                </tr>
-                ${items
-                  .map((item: any, index: number) => `
-                    <tr>
-                      <td>${index + 1}</td>
-                      <td>${item.projectItem.item_name.replace(/&/g, '&amp;')}</td>
-                      <td>${item.projectItem.category.replace(/&/g, '&amp;')}</td>
-                      <td>${item.qty}</td>
-                    </tr>
-                  `)
-                  .join('')}
-              </table>
-            </div>
-          </body>
-        </html>
-      `;
-
-      const safeProjectName = boxDetails.project.project_name.replace(/[^a-zA-Z0-9-_]/g, "_");
-      const safeBoxName = boxDetails.box_name.replace(/[^a-zA-Z0-9-_]/g, "_");
-      const fileName = `${safeProjectName}-${safeBoxName}.pdf`;
-
-      // Generate PDF (still lands in cacheDirectory)
-      const { uri } = await Print.printToFileAsync({
-        html: htmlContent,
-        base64: false,
-      });
-
-      console.log("Original PDF location:", uri); // Will show something in Cache
-
-      // Construct path in DocumentDirectory
-      const newPath = FileSystem.documentDirectory + fileName;
-      console.log("Moving to:", newPath); // This MUST be in documentDirectory
-
-      // Move it
-      await FileSystem.moveAsync({
-        from: uri,
-        to: newPath,
-      });
-
-      // Share it
-      await Sharing.shareAsync(newPath, {
-        mimeType: "application/pdf",
-        dialogTitle: `Share ${fileName}`,
-        UTI: "com.adobe.pdf",
-      });
-    } catch (err) {
-      console.error("❌ Failed to fetch box details or generate PDF:", err);
-    }
-  };
 
   const status = box.box_status || "In Progress";
 
@@ -235,9 +128,11 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
       activeOpacity={0.8}
       onPressIn={() => {
         scale.value = withSpring(0.98);
+        // console.log("Card presss..");
       }}
       onPressOut={() => {
         scale.value = withSpring(1);
+        // console.log("Card Press out");
       }}
     >
       <TouchableWithoutFeedback onPress={handleNavigate}>
@@ -266,12 +161,9 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
                   </Text>
                 </View>
                 <View className="h-full flex-row items-end gap-2">
-                  <TouchableOpacity
-                    onPress={() => fetchBoxDetails(box)}
-                    className="p-2 bg-sapLight-card rounded-xl"
-                  >
+                  <View className="p-2 bg-sapLight-card rounded-xl">
                     <Download color={"#555555"} size={20} />
-                  </TouchableOpacity>
+                  </View>
                   <TouchableOpacity
                     onPress={handleNavigate}
                     className="p-2 bg-sapLight-card rounded-xl"
@@ -308,7 +200,6 @@ export default function BoxesScreen() {
       const res = await axios.get(
         `/boxes/vendor/${project.vendor_id}/project/${project.id}`
       );
-      console.log(res.data);
       const formatted = res.data.map((box: any) => ({
         id: box.id,
         name: box.box_name,
@@ -356,6 +247,7 @@ export default function BoxesScreen() {
 
   const onAdd = useCallback(
     (name: string) => {
+      // console.log("Added box:", name);
       const fetchBoxes = async () => {
         try {
           setLoading(true);
@@ -434,7 +326,7 @@ export default function BoxesScreen() {
               {project.projectName}
             </Text>
           </View>
-          <View className="flex-row justify-between items-center">
+          <View className="flex-row justify KNOWN ISSUE: justify-between items-center">
             <View>
               <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
                 Total Items
@@ -500,13 +392,13 @@ export default function BoxesScreen() {
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                   <LottieView
-                    source={require("@/assets/animations/emptyBox.json")}
+                    source={require("@/assets/animations/emptyBox.json")} // 👈 Use correct path here
                     autoPlay
                     loop={false}
                     style={styles.lottie}
                   />
                   <Text className="text-sapLight-infoText font-montserrat capitalize">
-                    0 Boxes Found
+                    0 Boxes Found{" "}
                   </Text>
                 </View>
               }
