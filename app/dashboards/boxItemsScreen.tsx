@@ -304,7 +304,13 @@ export default function BoxItemsScreen() {
         <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />
       ) : (
         <>
-          <Navbar title={box.name} showBack showSearch={false} />
+          <Navbar title={box.name} showBack showSearch={false} 
+            showPack={true}
+            onPackPress={() => {
+              console.log('Packing started...');
+              // custom logic here
+            }}
+          />
           <View className="flex-1  px-4 ">
             <View className="flex-1 mt-6 bg-white/50 rounded-2xl pb-24 ">
               {loading ? (

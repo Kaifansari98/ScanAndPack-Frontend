@@ -344,8 +344,8 @@ export default function ProfileTabScreen() {
         onRefresh={onRefresh}
         ListEmptyComponent={
           <View
-            style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-          >
+              style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+            >
             <LottieView
               source={require("@/assets/animations/projectEmpty.json")}
               style={styles.lottie}

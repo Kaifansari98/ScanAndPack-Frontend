@@ -1,4 +1,3 @@
-import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { Bell, ChevronLeft, Search } from 'lucide-react-native';
 import React from 'react';
@@ -9,6 +8,8 @@ type NavbarProps = {
   showBack?: boolean;
   showSearch?: boolean;
   showNotification?: boolean;
+  showPack?: boolean;
+  onPackPress?: () => void;
 };
 
 export default function Navbar({
@@ -16,6 +17,8 @@ export default function Navbar({
   showBack = false,
   showSearch = false,
   showNotification = false,
+  showPack = false,
+  onPackPress,
 }: NavbarProps) {
   const router = useRouter();
 
@@ -34,7 +37,7 @@ export default function Navbar({
         <Text
           numberOfLines={1}
           ellipsizeMode="tail"
-          className={`text-2xl font-montserrat-semibold text-sapLight-text ${
+          className={`text-xl font-montserrat-semibold text-sapLight-text ${
             showBack ? 'ml-3' : ''
           }`}
           style={styles.title}
@@ -43,7 +46,7 @@ export default function Navbar({
         </Text>
       </View>
 
-      {/* Search and Notification Icons */}
+      {/* Right Side Icons and Pack Button */}
       <View className="flex-row items-center space-x-6 gap-4 ml-4">
         {showSearch && (
           <TouchableOpacity onPress={() => console.log('Search pressed')}>
@@ -51,8 +54,16 @@ export default function Navbar({
           </TouchableOpacity>
         )}
         {showNotification && (
-          <TouchableOpacity onPress={() => router.push("/dashboards/notificaitons")}>
+          <TouchableOpacity onPress={() => router.push('/dashboards/notificaitons')}>
             <Bell size={24} color="#171717" />
+          </TouchableOpacity>
+        )}
+        {showPack && (
+          <TouchableOpacity
+            onPress={onPackPress}
+            className="bg-sapLight-button px-4 py-2 rounded-xl"
+          >
+            <Text className="text-white font-semibold">Mark as packed</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -69,7 +80,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   title: {
-    flexShrink: 1, // Important for ellipsis
-    maxWidth: '100%', // Prevent title from colliding with icons
+    flexShrink: 1,
+    maxWidth: '100%',
   },
 });
