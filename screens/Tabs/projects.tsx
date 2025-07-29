@@ -90,14 +90,14 @@ function ProjectCard({ project, index }: ProjectCardProps) {
             <div class="header">
               <img src="${ScanAndPackUrl(vendor.logo)}" class="logo" alt="Logo" />
               <div class="vendor-details">
-                <h2>${vendor.vendor_name.replace(/&/g, '&amp;')}</h2>
+                <h2>${vendor.vendor_name.replace(/&/g, "&amp;")}</h2>
                 <p>Contact: ${vendor.primary_contact_number}</p>
                 <p>Email: ${vendor.primary_contact_email}</p>
                 <p>Date: ${new Date().toLocaleDateString()}</p>
               </div>
             </div>
             <div class="details">
-              <p>Project Name: ${projectDetails.project_name.replace(/&/g, '&amp;')}</p>
+              <p>Project Name: ${projectDetails.project_name.replace(/&/g, "&amp;")}</p>
             </div>
             <div class="table-container">
               <table>
@@ -107,21 +107,26 @@ function ProjectCard({ project, index }: ProjectCardProps) {
                   <th>Items</th>
                 </tr>
                 ${boxes
-                  .map((box: any, index: number) => `
+                  .map(
+                    (box: any, index: number) => `
                     <tr>
                       <td>${index + 1}</td>
-                      <td>${box.box_name.replace(/&/g, '&amp;')}</td>
+                      <td>${box.box_name.replace(/&/g, "&amp;")}</td>
                       <td>${box.total_items}</td>
                     </tr>
-                  `)
-                  .join('')}
+                  `
+                  )
+                  .join("")}
               </table>
             </div>
           </body>
         </html>
       `;
 
-      const safeProjectName = projectDetails.project_name.replace(/[^a-zA-Z0-9-_]/g, "_");
+      const safeProjectName = projectDetails.project_name.replace(
+        /[^a-zA-Z0-9-_]/g,
+        "_"
+      );
       const fileName = `${safeProjectName}-Boxes.pdf`;
 
       // Generate PDF
@@ -263,43 +268,41 @@ export default function ProfileTabScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
 
-    const fetchProjects = async () => {
-      try {
-        const vendorId = user?.vendor_id;
-        if (!vendorId) return;
+  const fetchProjects = async () => {
+    try {
+      const vendorId = user?.vendor_id;
+      if (!vendorId) return;
 
-        const response = await axios.get(`/projects/vendor/${vendorId}`);
+      const response = await axios.get(`/projects/vendor/${vendorId}`);
 
-        const formatted = response.data.map((proj: any) => ({
-          id: proj.id,
-          vendor_id: proj.vendor_id,
-          client_id: proj.client_id,
-          project_details_id: proj.details[0]?.id ?? null,
-          projectName: proj.project_name,
-          totalNoItems: proj.details[0]?.total_items ?? 0,
-          unpackedItems: proj.details[0]?.total_unpacked ?? 0,
-          packedItems: proj.details[0]?.total_packed ?? 0,
-          status: proj.project_status,
-          date: proj.details[0]?.estimated_completion_date
-            ? new Date(
-                proj.details[0].estimated_completion_date
-              ).toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              })
-            : "N/A",
-        }));
+      const formatted = response.data.map((proj: any) => ({
+        id: proj.id,
+        vendor_id: proj.vendor_id,
+        client_id: proj.client_id,
+        project_details_id: proj.details[0]?.id ?? null,
+        projectName: proj.project_name,
+        totalNoItems: proj.details[0]?.total_items ?? 0,
+        unpackedItems: proj.details[0]?.total_unpacked ?? 0,
+        packedItems: proj.details[0]?.total_packed ?? 0,
+        status: proj.project_status,
+        date: proj.details[0]?.estimated_completion_date
+          ? new Date(
+              proj.details[0].estimated_completion_date
+            ).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "N/A",
+      }));
 
-        
-
-        setProjects(formatted);
-      } catch (error) {
-        console.error("Failed to fetch projects", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+      setProjects(formatted);
+    } catch (error) {
+      console.error("Failed to fetch projects", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -319,7 +322,7 @@ export default function ProfileTabScreen() {
     setRefreshing(true);
     await fetchProjects();
     setRefreshing(false);
-  };  
+  };
 
   return (
     <View className="flex-1 bg-sapLight-background">
@@ -340,8 +343,10 @@ export default function ProfileTabScreen() {
         refreshing={refreshing}
         onRefresh={onRefresh}
         ListEmptyComponent={
-          <View style={{flex: 1, justifyContent:'center', alignItems: 'center'}}>
-            <LottieView 
+          <View
+            style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+          >
+            <LottieView
               source={require("@/assets/animations/projectEmpty.json")}
               style={styles.lottie}
               autoPlay
@@ -370,5 +375,5 @@ const styles = StyleSheet.create({
   lottie: {
     width: 220,
     height: 220,
-  }
+  },
 });
