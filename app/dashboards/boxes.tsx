@@ -19,6 +19,8 @@ import {
   SquarePen,
   Trash2,
 } from "lucide-react-native";
+import { useSelector } from 'react-redux';
+import { RootState } from '@/redux/store';
 import React, {
   useCallback,
   useEffect,
@@ -166,6 +168,40 @@ function BoxCard({
               <Text className={`font-montserrat-semibold text-xs ${textClass}`}>
                 {status}
               </Text>
+                </View>
+                <TouchableOpacity onPress={handleDeletePress} className={`rounded-xl p-2 bg-sapLight-card`}>
+                  <Trash2 color={'#EF4444'} size={20}/>
+                </TouchableOpacity>
+              </View>
+              <View className="flex-row items-start justify-between mb-2 gap-1.5">
+                <Text className="text-sapLight-text font-montserrat-bold text-lg flex-1">
+                  {box.name}
+                </Text>
+              </View>
+              <View className="flex-row justify-between items-center">
+                <View>
+                  <Text className="text-sapLight-infoText font-montserrat-medium text-sm mb-1">
+                    Items Count
+                  </Text>
+                  <Text className="text-sapLight-text font-montserrat-semibold text-2xl">
+                    {box.items_count}
+                  </Text>
+                </View>
+                <View className="h-full flex-row items-end gap-2">
+                  <TouchableOpacity
+                    onPress={handleDownload}
+                    className="p-2 bg-sapLight-card rounded-xl"
+                  >
+                    <Download color={"#555555"} size={20} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => console.log("Edit Pressed")}
+                    className="p-2 bg-sapLight-card rounded-xl"
+                  >
+                    <SquarePen color={"#555555"} size={20} />
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
             <TouchableOpacity
               onPress={handleDeletePress}
@@ -224,6 +260,8 @@ export default function BoxesScreen() {
   const [creatingBox, setCreatingBox] = useState<boolean>(false);
 
   const downloadSheetRef = useRef<BottomSheetModal>(null);
+  const user = useSelector((state: RootState) => state.auth.user);
+  console.log(user?.id);
   const [selectedBox, setSelectedBox] = useState<Box | null>(null);
   const deleteSheetRef = useRef<BottomSheetModal>(null);
   const [selectedBoxForDelete, setSelectedBoxForDelete] = useState<Box | null>(
@@ -247,7 +285,7 @@ export default function BoxesScreen() {
         `/boxes/details/vendor/${vendor_id}/project/${project_id}/client/${client_id}/box/${id}`
       );
       console.log("📦 Full Box Details =>", JSON.stringify(res.data, null, 2));
-
+      
       // Extract data for PDF
       const { vendor, box: boxDetails, items } = res.data;
 
@@ -405,6 +443,19 @@ export default function BoxesScreen() {
       setLoading(false);
     }
   };
+
+  const handleDelete = async (box: Box) => {
+    try {
+      const res = await axios.delete(`/boxes/delete/${box.id}`, {
+        data: { deleted_by: user?.id },
+      });
+  
+      console.log("✅ Delete response:", res.data);
+      fetchBoxes(); // Refresh the list after deletion
+    } catch (error) {
+      console.error("❌ Failed to delete box:", error);
+    }
+  };  
 
   useFocusEffect(
     useCallback(() => {
