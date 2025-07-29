@@ -84,7 +84,7 @@ export default function LoginScreen() {
       await login(user, token);
       showToast("success", "Login Successfully");
 
-      router.push("/dashboards/dashboard");
+      router.replace("/dashboards/dashboard");
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message;
       showToast("error", msg);

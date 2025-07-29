@@ -12,10 +12,15 @@ import * as Sharing from "expo-sharing";
 import LottieView from "lottie-react-native";
 import * as FileSystem from "expo-file-system";
 import { ScanAndPackUrl } from "@/utils/getAssetUrls";
-import { ArrowUpRight, Download, Plus, SquarePen, Trash2 } from "lucide-react-native";
+import {
+  ArrowUpRight,
+  Download,
+  Plus,
+  SquarePen,
+  Trash2,
+} from "lucide-react-native";
 import { useSelector } from 'react-redux';
 import { RootState } from '@/redux/store';
-
 import React, {
   useCallback,
   useEffect,
@@ -71,8 +76,16 @@ interface Box {
 }
 
 // Box Card Component
-function BoxCard({ box, index, handleDownload, handleDelete }: { box: Box; index: number , 
-  handleDownload: () => void; handleDelete: () => void;
+function BoxCard({
+  box,
+  index,
+  handleDownload,
+  handleDeletePress,
+}: {
+  box: Box;
+  index: number;
+  handleDownload: () => void;
+  handleDeletePress: () => void;
 }) {
   const router = useRouter();
   // Animation values
@@ -126,6 +139,7 @@ function BoxCard({ box, index, handleDownload, handleDelete }: { box: Box; index
       vendor_id: box.vendor_id,
       client_id: box.client_id,
       id: box.id,
+      status: box.box_status
     };
 
     router.push({
@@ -147,17 +161,15 @@ function BoxCard({ box, index, handleDownload, handleDelete }: { box: Box; index
       }}
       onPress={handleNavigate}
     >
-        <Animated.View style={[animatedCardStyle, styles.cardContainer]}>
+      <Animated.View style={[animatedCardStyle, styles.cardContainer]}>
         <View style={styles.cardGradient} className="p-5">
-              <View className="w-full flex flex-row justify-between items-center mb-2">
-                <View className={`rounded-full px-3 py-1 ${bgClass}`}>
-                    <Text
-                      className={`font-montserrat-semibold text-xs ${textClass}`}
-                    >
-                      {status}
-                    </Text>
+          <View className="w-full flex flex-row justify-between items-center mb-2">
+            <View className={`rounded-full px-3 py-1 ${bgClass}`}>
+              <Text className={`font-montserrat-semibold text-xs ${textClass}`}>
+                {status}
+              </Text>
                 </View>
-                <TouchableOpacity onPress={handleDelete} className={`rounded-xl p-2 bg-sapLight-card`}>
+                <TouchableOpacity onPress={handleDeletePress} className={`rounded-xl p-2 bg-sapLight-card`}>
                   <Trash2 color={'#EF4444'} size={20}/>
                 </TouchableOpacity>
               </View>
@@ -191,7 +203,44 @@ function BoxCard({ box, index, handleDownload, handleDelete }: { box: Box; index
                 </View>
               </View>
             </View>
-        </Animated.View>
+            <TouchableOpacity
+              onPress={handleDeletePress}
+              className={`rounded-xl p-2 bg-sapLight-card`}
+            >
+              <Trash2 color={"#EF4444"} size={20} />
+            </TouchableOpacity>
+          </View>
+          <View className="flex-row items-start justify-between mb-2 gap-1.5">
+            <Text className="text-sapLight-text font-montserrat-bold text-lg flex-1">
+              {box.name}
+            </Text>
+          </View>
+          <View className="flex-row justify-between items-center">
+            <View>
+              <Text className="text-sapLight-infoText font-montserrat-medium text-sm mb-1">
+                Items Count
+              </Text>
+              <Text className="text-sapLight-text font-montserrat-semibold text-2xl">
+                {box.items_count}
+              </Text>
+            </View>
+            <View className="h-full flex-row items-end gap-2">
+              <TouchableOpacity
+                onPress={handleDownload}
+                className="p-2 bg-sapLight-card rounded-xl"
+              >
+                <Download color={"#555555"} size={20} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => console.log("Edit Pressed")}
+                className="p-2 bg-sapLight-card rounded-xl"
+              >
+                <SquarePen color={"#555555"} size={20} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Animated.View>
     </TouchableOpacity>
   );
 }
@@ -209,12 +258,15 @@ export default function BoxesScreen() {
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [loading, setLoading] = useState(true);
   const [creatingBox, setCreatingBox] = useState<boolean>(false);
-  const downloadSheetRef = useRef<BottomSheetModal>(null);
 
+  const downloadSheetRef = useRef<BottomSheetModal>(null);
   const user = useSelector((state: RootState) => state.auth.user);
   console.log(user?.id);
-
   const [selectedBox, setSelectedBox] = useState<Box | null>(null);
+  const deleteSheetRef = useRef<BottomSheetModal>(null);
+  const [selectedBoxForDelete, setSelectedBoxForDelete] = useState<Box | null>(
+    null
+  );
 
   const fetchBoxDetails = async ({
     vendor_id,
@@ -340,14 +392,33 @@ export default function BoxesScreen() {
   };
 
   const handleConfirmDownload = () => {
-  if (selectedBox) {
-    fetchBoxDetails(selectedBox);
-    downloadSheetRef.current?.close()
-  }
-};
-  const handleCancelDownload = () => {
-    console.log("Download Canceld");
+    if (selectedBox) {
+      fetchBoxDetails(selectedBox);
+      downloadSheetRef.current?.close();
+    }
   };
+
+  const handleCancelDownload = () => {
+    downloadSheetRef.current?.close();
+  };
+
+  const handleDelete = (box: Box) => {
+    setSelectedBoxForDelete(box);
+    deleteSheetRef.current?.present();
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedBoxForDelete) return;
+
+    console.log("Item deleted successfully😂🤣...")
+    deleteSheetRef.current?.close();
+
+  };
+
+  const handleCancelDelete = () => {
+    deleteSheetRef.current?.close();
+  };
+
   const fetchBoxes = async () => {
     try {
       setLoading(true);
@@ -553,7 +624,7 @@ export default function BoxesScreen() {
                   box={item}
                   index={index}
                   handleDownload={() => handleDownload(item)}
-                  handleDelete={() => handleDelete(item)}
+                  handleDeletePress={() => handleDelete(item)}
                 />
               )}
               keyExtractor={(item) => item.id.toString()}
@@ -625,6 +696,16 @@ export default function BoxesScreen() {
         confirmLabel="Yes, Download"
         onConfirm={handleConfirmDownload}
         onCancel={handleCancelDownload}
+      />
+
+      <ConfirmationBottomSheet
+        ref={deleteSheetRef}
+        title="Delete Box"
+        message={`Are you sure you want to delete "${selectedBoxForDelete?.name}"?`}
+        cancelLabel="Cancel"
+        confirmLabel="Yes, Delete"
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
       />
     </View>
   );

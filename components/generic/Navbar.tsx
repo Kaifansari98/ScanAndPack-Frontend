@@ -10,6 +10,7 @@ type NavbarProps = {
   showNotification?: boolean;
   showPack?: boolean;
   onPackPress?: () => void;
+  boxStatus?: string;
 };
 
 export default function Navbar({
@@ -19,6 +20,7 @@ export default function Navbar({
   showNotification = false,
   showPack = false,
   onPackPress,
+  boxStatus = "Mark as packed"
 }: NavbarProps) {
   const router = useRouter();
 
@@ -63,7 +65,7 @@ export default function Navbar({
             onPress={onPackPress}
             className="bg-sapLight-button px-4 py-2 rounded-xl"
           >
-            <Text className="text-white font-semibold">Mark as packed</Text>
+            <Text className="text-white font-semibold">{boxStatus}</Text>
           </TouchableOpacity>
         )}
       </View>

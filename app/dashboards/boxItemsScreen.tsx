@@ -1,13 +1,15 @@
+import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
 import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
+import { useToast } from "@/components/Notification/ToastProvider";
 import axios from "@/lib/axios";
-import { RootState } from '@/redux/store';
+import { RootState } from "@/redux/store";
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams } from "expo-router";
 import LottieView from "lottie-react-native";
 import { ScanLine, Trash2 } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
-import ConfirmationBox from "@/components/generic/ConfirmationBox";
+import React, { useEffect, useRef, useState } from "react";
 import {
   FlatList,
   Platform,
@@ -24,9 +26,8 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import { useSelector } from 'react-redux';
+import { useSelector } from "react-redux";
 import { QRScanner } from "../../components/generic/QRScanner";
-import { useToast } from "@/components/Notification/ToastProvider";
 
 interface Box {
   name: string;
@@ -52,14 +53,16 @@ export default function BoxItemsScreen() {
   const { payload: payloadString } = useLocalSearchParams<{
     payload: string;
   }>();
-  const {showToast} = useToast();
+  const { showToast } = useToast();
   const [showScanner, setShowScanner] = useState(false);
   const [scanItems, setScanItems] = useState<ScanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const scanButtonScale = useSharedValue(1);
-
-  const [confirmVisible, setConfirmVisible] = useState(false);
+  const [status, setStatus] = useState<string>("");
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
+  const deleteSheetRef = useRef<BottomSheetModal>(null);
+
+  const updateStatusSheetRef = useRef<BottomSheetModal>(null);
 
   const user = useSelector((state: RootState) => state.auth.user);
 
@@ -136,12 +139,12 @@ export default function BoxItemsScreen() {
   const handleScan = async (scannedData: string) => {
     console.log("Scanned data:", scannedData);
     setShowScanner(false);
-  
+
     if (!box || !user?.id) {
       console.error("Missing box or user info");
       return;
     }
-  
+
     const payload = {
       project_id: box.project_id,
       vendor_id: box.vendor_id,
@@ -151,12 +154,15 @@ export default function BoxItemsScreen() {
       created_by: user.id,
       status: "packed",
     };
-  
+
     try {
-      const response = await axios.post("/scan-items/scan-and-pack/add", payload);
+      const response = await axios.post(
+        "/scan-items/scan-and-pack/add",
+        payload
+      );
       // console.log("Scan packed successfully:", response.data);
-      showToast('success', "Item Added Successfully")
-  
+      showToast("success", "Item Added Successfully");
+
       // Refetch items to show updated list
       const { data } = await axios.post("/scan-items/by-fields", {
         project_id: box.project_id,
@@ -164,28 +170,33 @@ export default function BoxItemsScreen() {
         client_id: box.client_id,
         box_id: box.id,
       });
-  
-      const items = data?.data?.map((item: any) => ({
-        ...item.project_item_details,
-        id: item.id,
-      })) ?? [];
-      
+
+      const items =
+        data?.data?.map((item: any) => ({
+          ...item.project_item_details,
+          id: item.id,
+        })) ?? [];
+
       setScanItems(items);
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.error || error?.message || "Something went wrong";
+      const errorMessage =
+        error?.response?.data?.error ||
+        error?.message ||
+        "Something went wrong";
       // console.error("Error packing scanned item:", errorMessage);
-      showToast('error', errorMessage);
+      showToast("error", errorMessage);
     }
   };
 
-  const handleDeleteItem = async () => {
+  // Use in bottomSheet
+  const handleConfirmDeleteItem = async () => {
     if (!selectedItemId) return;
-  
+
     try {
       await axios.delete(`/scan-items/scan-and-pack/delete/${selectedItemId}`);
       console.log(`Item with id ${selectedItemId} deleted`);
-      showToast('success', "Item deleted succussfully")
-  
+      showToast("success", "Item deleted succussfully");
+
       // Refresh item list
       if (box) {
         const { data } = await axios.post("/scan-items/by-fields", {
@@ -194,19 +205,52 @@ export default function BoxItemsScreen() {
           client_id: box.client_id,
           box_id: box.id,
         });
-  
-        const items = data?.data?.map((item: any) => ({
-          ...item.project_item_details,
-          id: item.id,
-        })) ?? [];
-        
+
+        const items =
+          data?.data?.map((item: any) => ({
+            ...item.project_item_details,
+            id: item.id,
+          })) ?? [];
+
         setScanItems(items);
       }
     } catch (error) {
       console.error("Failed to delete scan item:", error);
     } finally {
       setSelectedItemId(null);
-      setConfirmVisible(false);
+      deleteSheetRef.current?.close();
+    }
+  };
+
+  // use in item
+  const handleDeleteItem = () => {
+    console.log("Open BottomSheet...");
+    deleteSheetRef.current?.present();
+  };
+
+  const handleUpdateStatus = () => {
+    console.log("Open BottomSheet...");
+    updateStatusSheetRef.current?.present();
+  };
+
+  const handleConfirmUpdateStatus = async () => {
+    if (!box?.id) return;
+    const newstatus = status === "unpacked" ? "packed" : "unpacked";
+
+    try {
+      const response = await axios.put(`/boxes/status/${newstatus}/${box?.id}`);
+      console.log(response.data);
+      showToast("success", `Box status updated to ${newstatus}`);
+      fetchBoxDetails();
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.error ||
+        error?.message ||
+        "Failed to update status";
+      showToast("error", errorMessage);
+      console.error("update status error:", errorMessage);
+    } finally {
+      updateStatusSheetRef.current?.close();
     }
   };
 
@@ -220,6 +264,23 @@ export default function BoxItemsScreen() {
       </View>
     );
   }
+  const fetchBoxDetails = async () => {
+    try {
+      const res = await axios.get(
+        `/boxes/details/vendor/${box.vendor_id}/project/${box.project_id}/client/${box.client_id}/box/${box.id}`
+      );
+      const newStatus = res.data.box.box_status;
+      setStatus(newStatus);
+      console.log(newStatus);
+    } catch (error) {
+      console.error("Failed to fetch box details:", error);
+      showToast("error", "Failed to load box details");
+    }
+  };
+
+  useEffect(() => {
+    fetchBoxDetails();
+  }, [loading]);
 
   const RenderItem = ({ item, index }: { item: ScanItem; index: number }) => {
     const cardOpacity = useSharedValue(0);
@@ -252,7 +313,6 @@ export default function BoxItemsScreen() {
           <LinearGradient
             colors={["#ffffff", "#f8fafc"]}
             style={styles.cardGradient}
-            
           >
             <View className="w-full p-5">
               <View className="flex-row items-center justify-between mb-4">
@@ -261,8 +321,15 @@ export default function BoxItemsScreen() {
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
-                    setSelectedItemId(item.id); 
-                    setConfirmVisible(true);
+                    if (status !== "packed") {
+                      setSelectedItemId(item.id);
+                      handleDeleteItem();
+                    } else {
+                      showToast(
+                        "warning",
+                        "The box is packed, Unpacked it to delete"
+                      );
+                    }
                   }}
                 >
                   <Trash2 color="#ef4444" size={20} />
@@ -304,12 +371,15 @@ export default function BoxItemsScreen() {
         <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />
       ) : (
         <>
-          <Navbar title={box.name} showBack showSearch={false} 
+          <Navbar
+            title={box.name}
+            showBack
+            showSearch={false}
             showPack={true}
-            onPackPress={() => {
-              console.log('Packing started...');
-              // custom logic here
-            }}
+            boxStatus={
+              status === "unpacked" ? "Mark as Packed" : "Mark as Unpacked"
+            }
+            onPackPress={handleUpdateStatus}
           />
           <View className="flex-1  px-4 ">
             <View className="flex-1 mt-6 bg-white/50 rounded-2xl pb-24 ">
@@ -323,10 +393,11 @@ export default function BoxItemsScreen() {
                     source={require("@/assets/animations/emptyBox.json")} // 👈 Use correct path here
                     autoPlay
                     loop={false}
-                 
                     style={styles.lottie}
                   />
-                  <Text className="text-sapLight-infoText font-montserrat">Box is Empty</Text>
+                  <Text className="text-sapLight-infoText font-montserrat">
+                    Box is Empty
+                  </Text>
                 </View>
               ) : (
                 <FlatList
@@ -342,7 +413,16 @@ export default function BoxItemsScreen() {
           <View style={styles.scanBtn}>
             <TouchableOpacity
               activeOpacity={0.9}
-              onPress={() => setShowScanner(true)}
+              onPress={() => {
+                if (status !== "packed") {
+                  setShowScanner(true)
+                } else {
+                  showToast(
+                    "warning",
+                    "The box is packed, Unpacked it to Add items"
+                  );
+                }
+              }}
               onPressIn={() => (scanButtonScale.value = withSpring(0.95))}
               onPressOut={() => (scanButtonScale.value = withSpring(1))}
             >
@@ -361,15 +441,25 @@ export default function BoxItemsScreen() {
           </View>
         </>
       )}
-      <ConfirmationBox
-        visible={confirmVisible}
+
+      <ConfirmationBottomSheet
+        ref={deleteSheetRef}
         title="Delete Item?"
-        description="Are you sure you want to delete this scanned item?"
-        onCancel={() => {
-          setSelectedItemId(null);
-          setConfirmVisible(false);
-        }}
-        onConfirm={handleDeleteItem}
+        message="Are you sure you want to delete this scanned items?"
+        confirmLabel="Yes. Delete"
+        cancelLabel="Cancel"
+        onConfirm={handleConfirmDeleteItem}
+        onCancel={() => deleteSheetRef.current?.close()}
+      />
+
+      <ConfirmationBottomSheet
+        ref={updateStatusSheetRef}
+        title="Update Status"
+        message="Are you sure you want to update Status"
+        cancelLabel="Cancel"
+        confirmLabel="Yes, Update"
+        onConfirm={handleConfirmUpdateStatus}
+        onCancel={() => updateStatusSheetRef.current?.close()}
       />
     </View>
   );
@@ -391,7 +481,6 @@ function TextBlock({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   cardContainer: {
     marginBottom: 16,
-    
   },
   cardGradient: {
     borderRadius: 20,
