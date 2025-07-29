@@ -13,6 +13,9 @@ import LottieView from "lottie-react-native";
 import * as FileSystem from "expo-file-system";
 import { ScanAndPackUrl } from "@/utils/getAssetUrls";
 import { ArrowUpRight, Download, Plus, SquarePen, Trash2 } from "lucide-react-native";
+import { useSelector } from 'react-redux';
+import { RootState } from '@/redux/store';
+
 import React, {
   useCallback,
   useEffect,
@@ -68,8 +71,8 @@ interface Box {
 }
 
 // Box Card Component
-function BoxCard({ box, index, handleDownload}: { box: Box; index: number , 
-  handleDownload: () => void;
+function BoxCard({ box, index, handleDownload, handleDelete }: { box: Box; index: number , 
+  handleDownload: () => void; handleDelete: () => void;
 }) {
   const router = useRouter();
   // Animation values
@@ -154,7 +157,7 @@ function BoxCard({ box, index, handleDownload}: { box: Box; index: number ,
                       {status}
                     </Text>
                 </View>
-                <TouchableOpacity onPress={() => console.log("Delete successfully..")} className={`rounded-xl p-2 bg-sapLight-card`}>
+                <TouchableOpacity onPress={handleDelete} className={`rounded-xl p-2 bg-sapLight-card`}>
                   <Trash2 color={'#EF4444'} size={20}/>
                 </TouchableOpacity>
               </View>
@@ -208,6 +211,9 @@ export default function BoxesScreen() {
   const [creatingBox, setCreatingBox] = useState<boolean>(false);
   const downloadSheetRef = useRef<BottomSheetModal>(null);
 
+  const user = useSelector((state: RootState) => state.auth.user);
+  console.log(user?.id);
+
   const [selectedBox, setSelectedBox] = useState<Box | null>(null);
 
   const fetchBoxDetails = async ({
@@ -227,7 +233,7 @@ export default function BoxesScreen() {
         `/boxes/details/vendor/${vendor_id}/project/${project_id}/client/${client_id}/box/${id}`
       );
       console.log("📦 Full Box Details =>", JSON.stringify(res.data, null, 2));
-
+      
       // Extract data for PDF
       const { vendor, box: boxDetails, items } = res.data;
 
@@ -328,10 +334,10 @@ export default function BoxesScreen() {
     }
   };
 
-const handleDownload = (box: Box) => {
-  setSelectedBox(box);
-  downloadSheetRef.current?.present();
-};
+  const handleDownload = (box: Box) => {
+    setSelectedBox(box);
+    downloadSheetRef.current?.present();
+  };
 
   const handleConfirmDownload = () => {
   if (selectedBox) {
@@ -366,6 +372,19 @@ const handleDownload = (box: Box) => {
       setLoading(false);
     }
   };
+
+  const handleDelete = async (box: Box) => {
+    try {
+      const res = await axios.delete(`/boxes/delete/${box.id}`, {
+        data: { deleted_by: user?.id },
+      });
+  
+      console.log("✅ Delete response:", res.data);
+      fetchBoxes(); // Refresh the list after deletion
+    } catch (error) {
+      console.error("❌ Failed to delete box:", error);
+    }
+  };  
 
   useFocusEffect(
     useCallback(() => {
@@ -534,6 +553,7 @@ const handleDownload = (box: Box) => {
                   box={item}
                   index={index}
                   handleDownload={() => handleDownload(item)}
+                  handleDelete={() => handleDelete(item)}
                 />
               )}
               keyExtractor={(item) => item.id.toString()}
