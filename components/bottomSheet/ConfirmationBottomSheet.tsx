@@ -56,15 +56,15 @@ export const ConfirmationBottomSheet = React.forwardRef<
             {message}
           </Text>
 
-          <View className="flex-row justify-between">
+          <View className="flex-row justify-between gap-4">
             <TouchableOpacity
-              className="flex-1 py-3 bg-sapLight-card rounded-xl mr-2 items-center"
+              className="flex-1 py-4 bg-sapLight-card rounded-xl items-center"
               onPress={onCancel}
             >
               <Text className="text-sapLight-text font-montserrat-semibold">{cancelLabel}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              className="flex-1 py-3 bg-red-600 rounded-xl ml-2 items-center d"
+              className="flex-1 py-4 bg-red-500 rounded-xl items-center d"
               onPress={onConfirm}
             >
               <Text className="text-sapLight-background font-montserrat-semibold">{confirmLabel}</Text>

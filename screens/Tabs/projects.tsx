@@ -4,7 +4,7 @@ import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
 import { useRouter, useFocusEffect } from "expo-router";
 import LottieView from "lottie-react-native";
-import { ChevronRight, Download } from "lucide-react-native";
+import { Download } from "lucide-react-native";
 import React, { useEffect, useState, useCallback } from "react";
 import {
   FlatList,
@@ -62,7 +62,7 @@ function ProjectCard({ project, index }: ProjectCardProps) {
       const res = await axios.get(
         `/boxes/details/vendor/${project.vendor_id}/project/${project.id}/client/${project.client_id}/boxes`
       );
-      // console.log("📦 Full Box Details =>", JSON.stringify(res.data, null, 2));
+      // console.log('📦 Full Box Details =>', JSON.stringify(res.data, null, 2));
 
       // Extract data for PDF
       const { vendor, project: projectDetails, boxes } = res.data;
@@ -208,7 +208,7 @@ function ProjectCard({ project, index }: ProjectCardProps) {
           </View>
         </View>
 
-        <View className="w-full flex-row items-center justify-between mb-4">
+          <View className="w-full flex-row items-center justify-between mb-4">
           <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
             {project.projectName}
           </Text>
