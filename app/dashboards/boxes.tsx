@@ -340,7 +340,7 @@ const handleDownload = (box: Box) => {
   }
 };
   const handleCancelDownload = () => {
-    console.log("Download Canceld");
+    downloadSheetRef.current?.close()
   };
   const fetchBoxes = async () => {
     try {

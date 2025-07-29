@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from "react-native";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import Navbar from "@/components/generic/Navbar";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -23,19 +23,30 @@ import { useRouter } from "expo-router";
 import { useSelector } from "react-redux";
 import { RootState } from "@/redux/store";
 import Loader from "@/components/generic/Loader"; // Ensure this exists
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
 
 export default function ProfileTabScreen() {
   const User = useSelector((state: RootState) => state.auth.user);
-  const [logoutVisible, setLogoutVisible] = useState(false);
+  const logoutSheetRef = useRef<BottomSheetModal>(null);
   const router = useRouter();
   const { logout } = useAuth();
 
   const handleConfirmLogout = async () => {
-    setLogoutVisible(false);
     setTimeout(async () => {
       await logout();
       router.replace("/auth/login");
     }, 300);
+    logoutSheetRef.current?.close()
+  
+  };
+
+  const handleLogout = () => {
+    logoutSheetRef.current?.present();
+  };
+
+  const handlecloseBottomSheet = () => {
+    logoutSheetRef.current?.close();
   };
 
   // 🔄 Show loader if User is not yet available
@@ -161,7 +172,7 @@ export default function ProfileTabScreen() {
           {/* Logout */}
           <View>
             <TouchableOpacity
-              onPress={() => setLogoutVisible(true)}
+              onPress={handleLogout}
               className="flex-row h-16 gap-4 items-center justify-start rounded-2xl"
             >
               <LogOut size={24} />
@@ -172,14 +183,15 @@ export default function ProfileTabScreen() {
       </ScrollView>
 
       {/* Logout Confirmation Modal */}
-      <ConfirmationBox
-        visible={logoutVisible}
+      <ConfirmationBottomSheet 
+      ref={logoutSheetRef}
         title="Logout"
-        description="Are you sure you want to logout?"
-        confirmText="Logout"
-        cancelText="Cancel"
+        message="Are you sure you want to logout?"
+        confirmLabel="Yes, Logout"
+        cancelLabel="Cancel"
         onConfirm={handleConfirmLogout}
-        onCancel={() => setLogoutVisible(false)}
+        onCancel={handlecloseBottomSheet}
+      
       />
     </View>
   );
