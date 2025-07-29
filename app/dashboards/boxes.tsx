@@ -12,7 +12,7 @@ import * as Sharing from "expo-sharing";
 import LottieView from "lottie-react-native";
 import * as FileSystem from "expo-file-system";
 import { ScanAndPackUrl } from "@/utils/getAssetUrls";
-import { ArrowUpRight, Download, Plus } from "lucide-react-native";
+import { ArrowUpRight, Download, Plus, SquarePen, Trash2 } from "lucide-react-native";
 import React, {
   useCallback,
   useEffect,
@@ -239,22 +239,26 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
       onPressOut={() => {
         scale.value = withSpring(1);
       }}
+      onPress={handleNavigate}
     >
-      <TouchableWithoutFeedback onPress={handleNavigate}>
         <Animated.View style={[animatedCardStyle, styles.cardContainer]}>
-          <View style={styles.cardGradient}>
-            <View className="w-full p-5">
-              <View className="flex-row items-center justify-between mb-4">
-                <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
+        <View style={styles.cardGradient} className="p-5">
+              <View className="w-full flex flex-row justify-between items-center mb-2">
+                <View className={`rounded-full px-3 py-1 ${bgClass}`}>
+                    <Text
+                      className={`font-montserrat-semibold text-xs ${textClass}`}
+                    >
+                      {status}
+                    </Text>
+                </View>
+                <View className={`rounded-xl p-2 bg-sapLight-card`}>
+                  <Trash2 color={'#EF4444'} size={20}/>
+                </View>
+              </View>
+              <View className="flex-row items-start justify-between mb-2 gap-1.5">
+                <Text className="text-sapLight-text font-montserrat-bold text-lg flex-1">
                   {box.name}
                 </Text>
-                <View className={`rounded-full px-3 py-1 ${bgClass}`}>
-                  <Text
-                    className={`font-montserrat-semibold text-xs ${textClass}`}
-                  >
-                    {status}
-                  </Text>
-                </View>
               </View>
               <View className="flex-row justify-between items-center">
                 <View>
@@ -273,17 +277,15 @@ function BoxCard({ box, index }: { box: Box; index: number }) {
                     <Download color={"#555555"} size={20} />
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={handleNavigate}
+                    onPress={() => console.log("Edit Pressed")}
                     className="p-2 bg-sapLight-card rounded-xl"
                   >
-                    <ArrowUpRight color={"#555555"} size={20} />
+                    <SquarePen color={"#555555"} size={20} />
                   </TouchableOpacity>
                 </View>
               </View>
             </View>
-          </View>
         </Animated.View>
-      </TouchableWithoutFeedback>
     </TouchableOpacity>
   );
 }
@@ -575,7 +577,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
   listContainer: {
-    flex: 1,
+    // flex: 1,
     paddingBottom: 80,
     paddingHorizontal: 4,
   },

@@ -75,11 +75,11 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
         setError(null);
         setLoading(false);
       } catch (err: any) {
-        console.error("Failed to create box:", {
-          message: err.message,
-          response: err.response?.data,
-          status: err.response?.status,
-        });
+        // console.error("Failed to create box:", {
+        //   message: err.message,
+        //   response: err.response?.data,
+        //   status: err.response?.status,
+        // });
         showToast(
           "error",
           `Failed to create box: ${err.response?.data?.message || err.message}`
