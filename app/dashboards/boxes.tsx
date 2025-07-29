@@ -137,6 +137,7 @@ function BoxCard({
       vendor_id: box.vendor_id,
       client_id: box.client_id,
       id: box.id,
+      status: box.box_status
     };
 
     router.push({
@@ -371,7 +372,7 @@ export default function BoxesScreen() {
   const handleConfirmDelete = async () => {
     if (!selectedBoxForDelete) return;
 
-    console.log("Item deleted successfully...")
+    console.log("Item deleted successfully😂🤣...")
     deleteSheetRef.current?.close();
 
   };

@@ -1,13 +1,15 @@
+import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
 import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
+import { useToast } from "@/components/Notification/ToastProvider";
 import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams } from "expo-router";
 import LottieView from "lottie-react-native";
 import { ScanLine, Trash2 } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
-import ConfirmationBox from "@/components/generic/ConfirmationBox";
 import {
   FlatList,
   Platform,
@@ -26,9 +28,6 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSelector } from "react-redux";
 import { QRScanner } from "../../components/generic/QRScanner";
-import { useToast } from "@/components/Notification/ToastProvider";
-import { BottomSheetModal } from "@gorhom/bottom-sheet";
-import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
 
 interface Box {
   name: string;
@@ -59,10 +58,11 @@ export default function BoxItemsScreen() {
   const [scanItems, setScanItems] = useState<ScanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const scanButtonScale = useSharedValue(1);
-
+  const [status, setStatus] = useState<string>("");
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
-
   const deleteSheetRef = useRef<BottomSheetModal>(null);
+
+  const updateStatusSheetRef = useRef<BottomSheetModal>(null);
 
   const user = useSelector((state: RootState) => state.auth.user);
 
@@ -228,10 +228,30 @@ export default function BoxItemsScreen() {
     deleteSheetRef.current?.present();
   };
 
-  // use in bottomSheet
-  const hanleCloseBottomSheet = () => {
+  const handleUpdateStatus = () => {
     console.log("Open BottomSheet...");
-    deleteSheetRef.current?.close();
+    updateStatusSheetRef.current?.present();
+  };
+
+  const handleConfirmUpdateStatus = async () => {
+    if (!box?.id) return;
+    const newstatus = status === "unpacked" ? "packed" : "unpacked";
+
+    try {
+      const response = await axios.put(`/boxes/status/${newstatus}/${box?.id}`);
+      console.log(response.data);
+      showToast("success", `Box status updated to ${newstatus}`);
+      fetchBoxDetails();
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.error ||
+        error?.message ||
+        "Failed to update status";
+      showToast("error", errorMessage);
+      console.error("update status error:", errorMessage);
+    } finally {
+      updateStatusSheetRef.current?.close();
+    }
   };
 
   // Render error screen if box is invalid
@@ -244,6 +264,23 @@ export default function BoxItemsScreen() {
       </View>
     );
   }
+  const fetchBoxDetails = async () => {
+    try {
+      const res = await axios.get(
+        `/boxes/details/vendor/${box.vendor_id}/project/${box.project_id}/client/${box.client_id}/box/${box.id}`
+      );
+      const newStatus = res.data.box.box_status;
+      setStatus(newStatus);
+      console.log(newStatus);
+    } catch (error) {
+      console.error("Failed to fetch box details:", error);
+      showToast("error", "Failed to load box details");
+    }
+  };
+
+  useEffect(() => {
+    fetchBoxDetails();
+  }, [loading]);
 
   const RenderItem = ({ item, index }: { item: ScanItem; index: number }) => {
     const cardOpacity = useSharedValue(0);
@@ -284,8 +321,15 @@ export default function BoxItemsScreen() {
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
-                    setSelectedItemId(item.id);
-                    handleDeleteItem();
+                    if (status !== "packed") {
+                      setSelectedItemId(item.id);
+                      handleDeleteItem();
+                    } else {
+                      showToast(
+                        "warning",
+                        "The box is packed, Unpacked it to delete"
+                      );
+                    }
                   }}
                 >
                   <Trash2 color="#ef4444" size={20} />
@@ -327,7 +371,16 @@ export default function BoxItemsScreen() {
         <QRScanner onScan={handleScan} onClose={() => setShowScanner(false)} />
       ) : (
         <>
-          <Navbar title={box.name} showBack showSearch={false} />
+          <Navbar
+            title={box.name}
+            showBack
+            showSearch={false}
+            showPack={true}
+            boxStatus={
+              status === "unpacked" ? "Mark as Packed" : "Mark as Unpacked"
+            }
+            onPackPress={handleUpdateStatus}
+          />
           <View className="flex-1  px-4 ">
             <View className="flex-1 mt-6 bg-white/50 rounded-2xl pb-24 ">
               {loading ? (
@@ -360,7 +413,16 @@ export default function BoxItemsScreen() {
           <View style={styles.scanBtn}>
             <TouchableOpacity
               activeOpacity={0.9}
-              onPress={() => setShowScanner(true)}
+              onPress={() => {
+                if (status !== "packed") {
+                  setShowScanner(true)
+                } else {
+                  showToast(
+                    "warning",
+                    "The box is packed, Unpacked it to Add items"
+                  );
+                }
+              }}
               onPressIn={() => (scanButtonScale.value = withSpring(0.95))}
               onPressOut={() => (scanButtonScale.value = withSpring(1))}
             >
@@ -387,7 +449,17 @@ export default function BoxItemsScreen() {
         confirmLabel="Yes. Delete"
         cancelLabel="Cancel"
         onConfirm={handleConfirmDeleteItem}
-        onCancel={hanleCloseBottomSheet}
+        onCancel={() => deleteSheetRef.current?.close()}
+      />
+
+      <ConfirmationBottomSheet
+        ref={updateStatusSheetRef}
+        title="Update Status"
+        message="Are you sure you want to update Status"
+        cancelLabel="Cancel"
+        confirmLabel="Yes, Update"
+        onConfirm={handleConfirmUpdateStatus}
+        onCancel={() => updateStatusSheetRef.current?.close()}
       />
     </View>
   );
