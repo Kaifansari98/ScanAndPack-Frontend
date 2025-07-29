@@ -47,6 +47,7 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Print from "expo-print";
 import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
+import { useToast } from "@/components/Notification/ToastProvider";
 
 // Define Project interface
 interface Project {
@@ -89,6 +90,7 @@ function BoxCard({
 }) {
   const router = useRouter();
   // Animation values
+  const { showToast } = useToast();
   const cardOpacity = useSharedValue(0);
   const cardTranslateY = useSharedValue(30);
   const scale = useSharedValue(1);
@@ -169,7 +171,14 @@ function BoxCard({
                 {status}
               </Text>
                 </View>
-                <TouchableOpacity onPress={handleDeletePress} className={`rounded-xl p-2 bg-sapLight-card`}>
+                <TouchableOpacity onPress={ () => {
+                  if(status === 'packed') {
+                    showToast('warning', "Unable to Delete Box is Packed")
+                  } else {
+                    handleDeletePress()
+                  }
+                }
+                  } className={`rounded-xl p-2 bg-sapLight-card`}>
                   <Trash2 color={'#EF4444'} size={20}/>
                 </TouchableOpacity>
               </View>
@@ -203,43 +212,6 @@ function BoxCard({
                 </View>
               </View>
             </View>
-            <TouchableOpacity
-              onPress={handleDeletePress}
-              className={`rounded-xl p-2 bg-sapLight-card`}
-            >
-              <Trash2 color={"#EF4444"} size={20} />
-            </TouchableOpacity>
-          </View>
-          <View className="flex-row items-start justify-between mb-2 gap-1.5">
-            <Text className="text-sapLight-text font-montserrat-bold text-lg flex-1">
-              {box.name}
-            </Text>
-          </View>
-          <View className="flex-row justify-between items-center">
-            <View>
-              <Text className="text-sapLight-infoText font-montserrat-medium text-sm mb-1">
-                Items Count
-              </Text>
-              <Text className="text-sapLight-text font-montserrat-semibold text-2xl">
-                {box.items_count}
-              </Text>
-            </View>
-            <View className="h-full flex-row items-end gap-2">
-              <TouchableOpacity
-                onPress={handleDownload}
-                className="p-2 bg-sapLight-card rounded-xl"
-              >
-                <Download color={"#555555"} size={20} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => console.log("Edit Pressed")}
-                className="p-2 bg-sapLight-card rounded-xl"
-              >
-                <SquarePen color={"#555555"} size={20} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
       </Animated.View>
     </TouchableOpacity>
   );
@@ -409,10 +381,14 @@ export default function BoxesScreen() {
 
   const handleConfirmDelete = async () => {
     if (!selectedBoxForDelete) return;
-
-    console.log("Item deleted successfully😂🤣...")
-    deleteSheetRef.current?.close();
-
+  
+    try {
+      await handleDeletee(selectedBoxForDelete);
+    } catch (error) {
+      console.error("❌ Error in handleConfirmDelete:", error);
+    } finally {
+      deleteSheetRef.current?.close();
+    }
   };
 
   const handleCancelDelete = () => {
@@ -444,7 +420,7 @@ export default function BoxesScreen() {
     }
   };
 
-  const handleDelete = async (box: Box) => {
+  const handleDeletee = async (box: Box) => {
     try {
       const res = await axios.delete(`/boxes/delete/${box.id}`, {
         data: { deleted_by: user?.id },
