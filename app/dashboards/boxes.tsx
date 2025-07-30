@@ -543,8 +543,8 @@ export default function BoxesScreen() {
   return (
     <View className="flex-1 bg-sapLight-background">
       <Navbar title={project.projectName} showBack={true} showSearch={false} />
-        <ScrollView showsVerticalScrollIndicator={false}>
-      <View className="flex-1 mx-4 py-6">
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View className="flex-1 mx-4 py-6">
           {/* Project Card */}
           <Animated.View
             style={[animatedCardStyle, styles.cardContainerr]}
@@ -579,6 +579,7 @@ export default function BoxesScreen() {
               <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
                 {project.projectName}
               </Text>
+              
             </View>
             <View className="flex-row justify-between items-center">
               <View>
@@ -627,10 +628,8 @@ export default function BoxesScreen() {
               className="flex-row justify-between items-center mb-4"
             >
               <Text className="text-sapLight-text font-montserrat-semibold text-3xl  pb-2">
-                {boxes.length} {boxes.length > 1 ? "Boxes" : "Box"} 
+                {boxes.length} {boxes.length > 1 ? "Boxes" : "Box"}
               </Text>
-
-            
             </Animated.View>
             {loading ? (
               <View className="flex-1 justify-center items-center">
@@ -647,7 +646,6 @@ export default function BoxesScreen() {
                     handleDownload={() => handleDownload(item)}
                     handleDeletePress={() => handleDelete(item)}
                     handleEditPress={() => handleEdit(item)}
-                  
                   />
                 )}
                 keyExtractor={(item) => item.id.toString()}
@@ -672,8 +670,8 @@ export default function BoxesScreen() {
               />
             )}
           </View>
-      </View>
-        </ScrollView>
+        </View>
+      </ScrollView>
 
       <View style={styles.addBoxBtn}>
         <TouchableOpacity

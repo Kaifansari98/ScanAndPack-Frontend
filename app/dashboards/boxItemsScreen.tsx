@@ -9,7 +9,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams } from "expo-router";
 import LottieView from "lottie-react-native";
 import { ScanLine, Trash2 } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   Platform,
@@ -28,6 +28,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSelector } from "react-redux";
 import { QRScanner } from "../../components/generic/QRScanner";
+import { ItemCard } from "@/components/ItemCards/ItemCard";
 
 interface Box {
   name: string;
@@ -57,6 +58,7 @@ export default function BoxItemsScreen() {
   const [showScanner, setShowScanner] = useState(false);
   const [scanItems, setScanItems] = useState<ScanItem[]>([]);
   const [loading, setLoading] = useState(true);
+  
   const scanButtonScale = useSharedValue(1);
   const [status, setStatus] = useState<string>("");
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
@@ -66,32 +68,24 @@ export default function BoxItemsScreen() {
 
   const user = useSelector((state: RootState) => state.auth.user);
 
-  // useEffect(() => {
-  //   if (user) {
-  //     console.log("User Data:", {
-  //       id: user.id,
-  //       user_name: user.user_name,
-  //     });
-  //   }
-  // }, [user]);
+  const parsedPayloadRef = useRef<Box | null>(null);
 
-  // Parse payload safely
-  let box: Box | null = null;
-  try {
-    if (payloadString) {
-      box = JSON.parse(payloadString) as Box;
+  if (!parsedPayloadRef.current && payloadString) {
+    try {
+      parsedPayloadRef.current = JSON.parse(payloadString) as Box;
+    } catch (error) {
+      console.error("❌ Failed to parse payload:", error);
     }
-  } catch (error) {
-    console.error("Failed to parse payload:", error);
   }
+  const box = parsedPayloadRef.current;
 
   // Fetch scan items
   useEffect(() => {
+    console.log("🔥 useEffect - fetchScanItems called box ke upper");
     if (!box) return; // Skip fetching if box is invalid
-
+    console.log("🔥 useEffect - fetchScanItems called");
     const fetchScanItems = async () => {
       try {
-        setLoading(true);
         const { data } = await axios.post("/scan-items/by-fields", {
           project_id: box.project_id,
           vendor_id: box.vendor_id,
@@ -99,29 +93,12 @@ export default function BoxItemsScreen() {
           box_id: box.id,
         });
 
-        // console.log(data);
-
         const items =
           data?.data?.map((item: any) => ({
             ...item.project_item_details,
             id: item.id,
           })) ?? [];
         setScanItems(items);
-        // console.log(
-        //   "Request URL:",
-        //   axios.getUri({
-        //     url: "/scan-items/by-fields",
-        //     method: "POST",
-        //     baseURL: axios.defaults.baseURL,
-        //   })
-        // );
-        // console.log("Request payload:", {
-        //   project_id: box.project_id,
-        //   vendor_id: box.vendor_id,
-        //   client_id: box.client_id,
-        //   box_id: box.id,
-        // });
-        // console.log("Request headers:", axios.defaults.headers);
       } catch (error) {
         console.log("Failed to fetch scan items:", error);
       } finally {
@@ -132,9 +109,31 @@ export default function BoxItemsScreen() {
     fetchScanItems();
   }, [box?.project_id, box?.vendor_id, box?.client_id, box?.id]);
 
-  const animatedScanButtonStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scanButtonScale.value }],
-  }));
+  const fetchBoxDetails = async () => {
+    if (!box?.id || !box?.vendor_id || !box?.project_id || !box?.client_id) {
+      console.warn("Box data incomplete. Skipping fetchBoxDetails.");
+      return;
+    }
+
+    try {
+      const res = await axios.get(
+        `/boxes/details/vendor/${box.vendor_id}/project/${box.project_id}/client/${box.client_id}/box/${box.id}`
+      );
+      const newStatus = res.data.box.box_status;
+      setStatus(newStatus);
+    } catch (error) {
+      console.error("Failed to fetch box details:", error);
+      showToast("error", "Failed to load box details");
+    }
+  };
+
+  useEffect(() => {
+    if (box && box.id && box.vendor_id && box.project_id && box.client_id) {
+      console.log("⚙️ useEffect - fetchBoxDetails called");
+
+      fetchBoxDetails();
+    }
+  }, [box]);
 
   const handleScan = async (scannedData: string) => {
     console.log("Scanned data:", scannedData);
@@ -222,21 +221,6 @@ export default function BoxItemsScreen() {
     }
   };
 
-  // use in item
-  const handleDeleteItem = () => {
-    console.log("Open BottomSheet...");
-    deleteSheetRef.current?.present();
-  };
-
-  const handleUpdateStatus = () => {
-    if (status === "unpacked" && scanItems.length === 0) {
-      showToast("warning", "Box is empty. Add items before packing.");
-      return;
-    }
-    console.log("Open BottomSheet...");
-    updateStatusSheetRef.current?.present();
-  };
-
   const handleConfirmUpdateStatus = async () => {
     if (!box?.id) return;
     const newstatus = status === "unpacked" ? "packed" : "unpacked";
@@ -259,6 +243,25 @@ export default function BoxItemsScreen() {
     }
   };
 
+  // use in item
+  const handleDeleteItem = () => {
+    console.log("Open BottomSheet...");
+    deleteSheetRef.current?.present();
+  };
+
+  const handleUpdateStatus = () => {
+    if (status === "unpacked" && scanItems.length === 0) {
+      showToast("warning", "Box is empty. Add items before packing.");
+      return;
+    }
+    console.log("Open BottomSheet...");
+    updateStatusSheetRef.current?.present();
+  };
+
+  const animatedScanButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scanButtonScale.value }],
+  }));
+
   // Render error screen if box is invalid
   if (!box) {
     return (
@@ -269,112 +272,6 @@ export default function BoxItemsScreen() {
       </View>
     );
   }
-  const fetchBoxDetails = async () => {
-    if (!box?.id || !box?.vendor_id || !box?.project_id || !box?.client_id) {
-      console.warn("Box data incomplete. Skipping fetchBoxDetails.");
-      return;
-    }
-
-    try {
-      const res = await axios.get(
-        `/boxes/details/vendor/${box.vendor_id}/project/${box.project_id}/client/${box.client_id}/box/${box.id}`
-      );
-      const newStatus = res.data.box.box_status;
-      setStatus(newStatus);
-    } catch (error) {
-      console.error("Failed to fetch box details:", error);
-      showToast("error", "Failed to load box details");
-    }
-  };
-
-  useEffect(() => {
-    if (box && box.id && box.vendor_id && box.project_id && box.client_id) {
-      fetchBoxDetails();
-    }
-  }, [box]);
-
-  const RenderItem = ({ item, index }: { item: ScanItem; index: number }) => {
-    const cardOpacity = useSharedValue(0);
-    const cardTranslateY = useSharedValue(30);
-    const scale = useSharedValue(1);
-
-    useEffect(() => {
-      cardOpacity.value = withDelay(
-        index * 100,
-        withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) })
-      );
-      cardTranslateY.value = withDelay(
-        index * 100,
-        withSpring(0, { damping: 15, stiffness: 120 })
-      );
-    }, [index]);
-
-    const animatedCardStyle = useAnimatedStyle(() => ({
-      opacity: cardOpacity.value,
-      transform: [{ translateY: cardTranslateY.value }, { scale: scale.value }],
-    }));
-
-    return (
-      <TouchableOpacity
-        activeOpacity={0.8}
-        onPressIn={() => (scale.value = withSpring(0.98))}
-        onPressOut={() => (scale.value = withSpring(1))}
-      >
-        <Animated.View style={[animatedCardStyle, styles.cardContainer]}>
-          <LinearGradient
-            colors={["#ffffff", "#f8fafc"]}
-            style={styles.cardGradient}
-          >
-            <View className="w-full p-5">
-              <View className="flex-row items-center justify-between mb-4">
-                <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
-                  {item.item_name}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    if (status !== "packed") {
-                      setSelectedItemId(item.id);
-                      handleDeleteItem();
-                    } else {
-                      showToast(
-                        "warning",
-                        "The box is packed, Unpacked it to delete"
-                      );
-                    }
-                  }}
-                >
-                  <Trash2 color="#ef4444" size={20} />
-                </TouchableOpacity>
-              </View>
-              <View
-                className="rounded-full px-3 py-1 bg-green-100 mb-4"
-                style={{ alignSelf: "flex-start" }}
-              >
-                <Text className="text-green-700 font-montserrat-semibold text-xs capitalize ">
-                  {item.category}
-                </Text>
-              </View>
-              <View className="w-full flex-row justify-between items-end">
-                <View className="flex-row gap-4">
-                  <TextBlock label="Length" value={item.L1} />
-                  <TextBlock label="Width" value={item.L2} />
-                  <TextBlock label="Thickness" value={item.L3} />
-                </View>
-                <View className="items-center">
-                  <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                    Quantity
-                  </Text>
-                  <Text className="text-sapLight-text font-montserrat-medium text-3xl">
-                    {/* {item.qty} */} 1
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </LinearGradient>
-        </Animated.View>
-      </TouchableOpacity>
-    );
-  };
 
   return (
     <View className="flex-1 bg-sapLight-background ">
@@ -414,7 +311,21 @@ export default function BoxItemsScreen() {
                 <FlatList
                   data={scanItems}
                   renderItem={({ item, index }) => (
-                    <RenderItem item={item} index={index} />
+                    <ItemCard
+                      item={item}
+                      index={index}
+                      status={status}
+                      onDelete={(id) => {
+                        setSelectedItemId(id);
+                        handleDeleteItem();
+                      }}
+                      onWarnDelete={() =>
+                        showToast(
+                          "warning",
+                          "The box is packed, Unpacked it to delete"
+                        )
+                      }
+                    />
                   )}
                   keyExtractor={(item) => item.id.toString()}
                 />
