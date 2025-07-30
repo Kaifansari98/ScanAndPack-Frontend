@@ -28,6 +28,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system";
 import { ScanAndPackUrl } from "@/utils/getAssetUrls";
+import { useToast } from "@/components/Notification/ToastProvider";
 
 interface ProjectCardProps {
   project: {
@@ -50,6 +51,8 @@ function ProjectCard({ project, index }: ProjectCardProps) {
 
   const cardOpacity = useSharedValue(0);
   const cardTranslateY = useSharedValue(30);
+
+  const { showToast } = useToast();
 
   const fetchBoxDetails = async () => {
     try {
@@ -213,7 +216,14 @@ function ProjectCard({ project, index }: ProjectCardProps) {
             {project.projectName}
           </Text>
           <TouchableOpacity
-            onPress={fetchBoxDetails}
+            onPress={() => {
+              if (project.packedItems <= 0){
+                showToast('warning', `This Project isn't started yet`);
+              } else {
+                fetchBoxDetails()
+              }
+            }
+            }
             className="p-2 rounded-lg"
           >
             <Download size={22} color="#555555" />

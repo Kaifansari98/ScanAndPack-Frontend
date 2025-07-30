@@ -181,42 +181,44 @@ function BoxCard({
                 } else {
                   handleDeletePress();
                 }
-              }}
-              className={`rounded-xl p-2 bg-sapLight-card`}
-            >
-              <Trash2 color={"#EF4444"} size={20} />
-            </TouchableOpacity>
-          </View>
-          <View className="flex-row items-start justify-between mb-2 gap-1.5">
-            <Text className="text-sapLight-text font-montserrat-bold text-lg flex-1">
-              {box.name}
-            </Text>
-          </View>
-          <View className="flex-row justify-between items-center">
-            <View>
-              <Text className="text-sapLight-infoText font-montserrat-medium text-sm mb-1">
-                Items Count
-              </Text>
-              <Text className="text-sapLight-text font-montserrat-semibold text-2xl">
-                {box.items_count}
-              </Text>
+                  }} className={`rounded-xl p-2 bg-sapLight-card`}>
+                  <Trash2 color={'#EF4444'} size={20}/>
+                </TouchableOpacity>
+              </View>
+              <View className="flex-row items-start justify-between mb-2 gap-1.5">
+                <Text className="text-sapLight-text font-montserrat-bold text-lg flex-1">
+                  {box.name}
+                </Text>
+              </View>
+              <View className="flex-row justify-between items-center">
+                <View>
+                  <Text className="text-sapLight-infoText font-montserrat-medium text-sm mb-1">
+                    Items Count
+                  </Text>
+                  <Text className="text-sapLight-text font-montserrat-semibold text-2xl">
+                    {box.items_count}
+                  </Text>
+                </View>
+                <View className="h-full flex-row items-end gap-2">
+                  <TouchableOpacity
+                  onPress={() =>
+                    box.items_count <= 0
+                      ? showToast('warning', `Download Failed, Box is empty`)
+                      : handleDownload()
+                  }
+                  className="p-2 bg-sapLight-card rounded-xl"
+                >
+                  <Download color={"#555555"} size={20} />
+                </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleEditPress}
+                    className="p-2 bg-sapLight-card rounded-xl"
+                  >
+                    <SquarePen color={"#555555"} size={20} />
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-            <View className="h-full flex-row items-end gap-2">
-              <TouchableOpacity
-                onPress={handleDownload}
-                className="p-2 bg-sapLight-card rounded-xl"
-              >
-                <Download color={"#555555"} size={20} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleEditPress}
-                className="p-2 bg-sapLight-card rounded-xl"
-              >
-                <SquarePen color={"#555555"} size={20} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
       </Animated.View>
     </TouchableOpacity>
   );
