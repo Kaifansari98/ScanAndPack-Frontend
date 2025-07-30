@@ -63,7 +63,7 @@ export default function Navbar({
         {showPack && (
           <TouchableOpacity
             onPress={onPackPress}
-            className="bg-sapLight-button px-4 py-2 rounded-xl"
+            className="bg-sapLight-button px-4 py-2.5 rounded-xl"
           >
             <Text className="text-white font-semibold">{boxStatus}</Text>
           </TouchableOpacity>

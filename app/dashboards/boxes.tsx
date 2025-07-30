@@ -197,12 +197,16 @@ function BoxCard({
                   </Text>
                 </View>
                 <View className="h-full flex-row items-end gap-2">
-                  <TouchableOpacity
-                    onPress={handleDownload}
-                    className="p-2 bg-sapLight-card rounded-xl"
-                  >
-                    <Download color={"#555555"} size={20} />
-                  </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() =>
+                    box.items_count <= 0
+                      ? showToast('warning', `Download Failed, Box is empty`)
+                      : handleDownload()
+                  }
+                  className="p-2 bg-sapLight-card rounded-xl"
+                >
+                  <Download color={"#555555"} size={20} />
+                </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => console.log("Edit Pressed")}
                     className="p-2 bg-sapLight-card rounded-xl"
