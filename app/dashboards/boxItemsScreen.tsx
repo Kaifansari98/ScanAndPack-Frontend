@@ -229,6 +229,10 @@ export default function BoxItemsScreen() {
   };
 
   const handleUpdateStatus = () => {
+    if (status === "unpacked" && scanItems.length === 0) {
+      showToast("warning", "Box is empty. Add items before packing.");
+      return;
+    }
     console.log("Open BottomSheet...");
     updateStatusSheetRef.current?.present();
   };
@@ -238,10 +242,11 @@ export default function BoxItemsScreen() {
     const newstatus = status === "unpacked" ? "packed" : "unpacked";
 
     try {
-      const response = await axios.put(`/boxes/status/${newstatus}/${box?.id}`);
-      console.log(response.data);
+      await axios.put(`/boxes/status/${newstatus}/${box?.id}`);
       showToast("success", `Box status updated to ${newstatus}`);
-      fetchBoxDetails();
+
+      // ✅ Immediately update local status for instant UI feedback
+      setStatus(newstatus);
     } catch (error: any) {
       const errorMessage =
         error?.response?.data?.error ||
@@ -265,6 +270,11 @@ export default function BoxItemsScreen() {
     );
   }
   const fetchBoxDetails = async () => {
+    if (!box?.id || !box?.vendor_id || !box?.project_id || !box?.client_id) {
+      console.warn("Box data incomplete. Skipping fetchBoxDetails.");
+      return;
+    }
+
     try {
       const res = await axios.get(
         `/boxes/details/vendor/${box.vendor_id}/project/${box.project_id}/client/${box.client_id}/box/${box.id}`
@@ -278,8 +288,10 @@ export default function BoxItemsScreen() {
   };
 
   useEffect(() => {
-    fetchBoxDetails();
-  }, [loading]);
+    if (box && box.id && box.vendor_id && box.project_id && box.client_id) {
+      fetchBoxDetails();
+    }
+  }, [box]);
 
   const RenderItem = ({ item, index }: { item: ScanItem; index: number }) => {
     const cardOpacity = useSharedValue(0);
@@ -376,7 +388,7 @@ export default function BoxItemsScreen() {
             showSearch={false}
             showPack={true}
             boxStatus={
-              status === "unpacked" ? "Mark as Packed" : "Mark as Unpacked"
+              status === "packed" ? "Mark as Unpacked" : "Mark as Packed"
             }
             onPackPress={handleUpdateStatus}
           />
@@ -414,7 +426,7 @@ export default function BoxItemsScreen() {
               activeOpacity={0.9}
               onPress={() => {
                 if (status !== "packed") {
-                  setShowScanner(true)
+                  setShowScanner(true);
                 } else {
                   showToast(
                     "warning",
@@ -453,10 +465,14 @@ export default function BoxItemsScreen() {
 
       <ConfirmationBottomSheet
         ref={updateStatusSheetRef}
-        title="Update Status"
-        message="Are you sure you want to update Status"
+        title={status === "packed" ? "Mark As Unpacked" : "Mark As Packed"}
+        message={
+          status === "packed"
+            ? "Are you sure you want to mark this box as unpacked"
+            : "Are you sure you want to mark this box as packed"
+        }
         cancelLabel="Cancel"
-        confirmLabel="Yes, Update"
+        confirmLabel={`Yes, ${status === "packed" ? "Unpacked" : "Packed"}`}
         onConfirm={handleConfirmUpdateStatus}
         onCancel={() => updateStatusSheetRef.current?.close()}
       />

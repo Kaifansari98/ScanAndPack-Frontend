@@ -757,7 +757,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   cardContainer: {
-    marginBottom: 16,
+    marginBottom: 8,
   },
   cardGradient: {
     borderRadius: 20,
