@@ -32,6 +32,7 @@ import {
   FlatList,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -170,7 +171,9 @@ function BoxCard({
         <View style={styles.cardGradient} className="p-5">
           <View className="w-full flex flex-row justify-between items-center mb-2">
             <View className={`rounded-full px-3 py-1 ${bgClass}`}>
-              <Text className={`font-montserrat-semibold text-xs ${textClass}`}>
+              <Text
+                className={`font-montserrat-semibold text-xs capitalize ${textClass}`}
+              >
                 {status}
               </Text>
             </View>
@@ -181,44 +184,46 @@ function BoxCard({
                 } else {
                   handleDeletePress();
                 }
-                  }} className={`rounded-xl p-2 bg-sapLight-card`}>
-                  <Trash2 color={'#EF4444'} size={20}/>
-                </TouchableOpacity>
-              </View>
-              <View className="flex-row items-start justify-between mb-2 gap-1.5">
-                <Text className="text-sapLight-text font-montserrat-bold text-lg flex-1">
-                  {box.name}
-                </Text>
-              </View>
-              <View className="flex-row justify-between items-center">
-                <View>
-                  <Text className="text-sapLight-infoText font-montserrat-medium text-sm mb-1">
-                    Items Count
-                  </Text>
-                  <Text className="text-sapLight-text font-montserrat-semibold text-2xl">
-                    {box.items_count}
-                  </Text>
-                </View>
-                <View className="h-full flex-row items-end gap-2">
-                  <TouchableOpacity
-                  onPress={() =>
-                    box.items_count <= 0
-                      ? showToast('warning', `Download Failed, Box is empty`)
-                      : handleDownload()
-                  }
-                  className="p-2 bg-sapLight-card rounded-xl"
-                >
-                  <Download color={"#555555"} size={20} />
-                </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={handleEditPress}
-                    className="p-2 bg-sapLight-card rounded-xl"
-                  >
-                    <SquarePen color={"#555555"} size={20} />
-                  </TouchableOpacity>
-                </View>
-              </View>
+              }}
+              className={`rounded-xl p-2 bg-sapLight-card`}
+            >
+              <Trash2 color={"#EF4444"} size={20} />
+            </TouchableOpacity>
+          </View>
+          <View className="flex-row items-start justify-between mb-2 gap-1.5">
+            <Text className="text-sapLight-text font-montserrat-bold text-lg flex-1">
+              {box.name}
+            </Text>
+          </View>
+          <View className="flex-row justify-between items-center">
+            <View>
+              <Text className="text-sapLight-infoText font-montserrat-medium text-sm mb-1">
+                Items Count
+              </Text>
+              <Text className="text-sapLight-text font-montserrat-semibold text-2xl">
+                {box.items_count}
+              </Text>
             </View>
+            <View className="h-full flex-row items-end gap-2">
+              <TouchableOpacity
+                onPress={() =>
+                  box.items_count <= 0
+                    ? showToast("warning", `Download Failed, Box is empty`)
+                    : handleDownload()
+                }
+                className="p-2 bg-sapLight-card rounded-xl"
+              >
+                <Download color={"#555555"} size={20} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleEditPress}
+                className="p-2 bg-sapLight-card rounded-xl"
+              >
+                <SquarePen color={"#555555"} size={20} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Animated.View>
     </TouchableOpacity>
   );
@@ -259,20 +264,18 @@ export default function BoxesScreen() {
     editSheetRef.current?.present();
   };
 
-const handleConfirmEdit = () => {
-  if (selectedBoxForEdit) {
-    editSheetRef.current?.close();
-    setTimeout(() => {
-      updateSheetRef.current?.present();
-    }, 300); // Wait for previous sheet to close
-  }
-};
+  const handleConfirmEdit = () => {
+    if (selectedBoxForEdit) {
+      editSheetRef.current?.close();
+      setTimeout(() => {
+        updateSheetRef.current?.present();
+      }, 300); // Wait for previous sheet to close
+    }
+  };
 
   const handleCancelEdit = () => {
     editSheetRef.current?.close();
   };
-
- 
 
   const fetchBoxDetails = async ({
     vendor_id,
@@ -540,127 +543,138 @@ const handleConfirmEdit = () => {
   return (
     <View className="flex-1 bg-sapLight-background">
       <Navbar title={project.projectName} showBack={true} showSearch={false} />
+        <ScrollView showsVerticalScrollIndicator={false}>
       <View className="flex-1 mx-4 py-6">
-        {/* Project Card */}
-        <Animated.View
-          style={[animatedCardStyle, styles.cardContainerr]}
-          className="bg-sapLight-card w-full rounded-3xl p-5 border border-gray-100"
-        >
-          <View className="flex-row justify-between items-center mb-4">
-            <View
-              className={`rounded-full px-3 py-1 ${
-                project.status === "packed" ? "bg-blue-100" : "bg-blue-100"
-              }`}
-            >
-              <Text
-                className={`text-sm font-montserrat-semibold ${
-                  project.status === "packed"
-                    ? "text-blue-700"
-                    : "text-blue-700"
+          {/* Project Card */}
+          <Animated.View
+            style={[animatedCardStyle, styles.cardContainerr]}
+            className="bg-sapLight-card w-full rounded-3xl p-5 border border-gray-100"
+          >
+            <View className="flex-row justify-between items-center mb-4">
+              <View
+                className={`rounded-full px-3 py-1  ${
+                  project.status === "packed" ? "bg-blue-100" : "bg-blue-100"
                 }`}
               >
-                {project.status.charAt(0).toUpperCase() +
-                  project.status.slice(1)}
-              </Text>
-            </View>
-            <View>
-              <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                {project.date}
-              </Text>
-            </View>
-          </View>
-          <View className="w-full flex-row items-center justify-between mb-4">
-            <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
-              {project.projectName}
-            </Text>
-          </View>
-          <View className="flex-row justify-between items-center">
-            <View>
-              <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                Total Items
-              </Text>
-              <Text className="text-sapLight-text font-montserrat-semibold text-xl">
-                {project.totalNoItems.toLocaleString()}
-              </Text>
-            </View>
-            <View className="flex-row space-x-6 gap-4">
-              <View className="flex-col items-center">
-                <View className="flex-row items-center">
-                  <View className="w-2 h-2 rounded-full mr-2 bg-green-400" />
-                  <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                    Packed
-                  </Text>
-                </View>
-                <View>
-                  <Text className="text-sapLight-text font-montserrat-semibold text-base">
-                    {project.packedItems.toLocaleString()}
-                  </Text>
-                </View>
+                <Text
+                  className={`text-sm font-montserrat-semibold capitalize ${
+                    project.status === "packed"
+                      ? "text-blue-700"
+                      : "text-blue-700"
+                  }`}
+                >
+                  {project.status}
+                </Text>
               </View>
-              <View className="items-center flex-col">
-                <View className="flex-row items-center">
-                  <View className="w-2 h-2 rounded-full mr-2 bg-red-400" />
-                  <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                    Unpacked
-                  </Text>
-                </View>
-                <View>
-                  <Text className="text-sapLight-text font-montserrat-semibold text-base">
-                    {project.unpackedItems.toLocaleString()}
-                  </Text>
-                </View>
+              <View className="flex-col justify-center items-start">
+                <Text className="text-xs text-sapLight-infoText font-montserrat">
+                  Est. Date
+                </Text>
+                <Text className="text-sapLight-infoText font-montserrat-medium text-md">
+                  {project.date}
+                </Text>
               </View>
             </View>
-          </View>
-        </Animated.View>
-
-        {/* Boxes Section */}
-        <View className="flex-1 mt-6 rounded-2xl">
-          <Animated.View style={animatedTitleStyle}>
-            <Text className="text-sapLight-text font-montserrat-semibold text-3xl mb-4 pb-2">
-              Boxes
-            </Text>
+            <View className="w-full flex-row items-center justify-between mb-4">
+              <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
+                {project.projectName}
+              </Text>
+            </View>
+            <View className="flex-row justify-between items-center">
+              <View>
+                <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
+                  Total Items
+                </Text>
+                <Text className="text-sapLight-text font-montserrat-semibold text-xl">
+                  {project.totalNoItems.toLocaleString()}
+                </Text>
+              </View>
+              <View className="flex-row space-x-6 gap-4">
+                <View className="flex-col items-center">
+                  <View className="flex-row items-center">
+                    <View className="w-2 h-2 rounded-full mr-2 bg-green-400" />
+                    <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
+                      Packed
+                    </Text>
+                  </View>
+                  <View>
+                    <Text className="text-sapLight-text font-montserrat-semibold text-base">
+                      {project.packedItems.toLocaleString()}
+                    </Text>
+                  </View>
+                </View>
+                <View className="items-center flex-col">
+                  <View className="flex-row items-center">
+                    <View className="w-2 h-2 rounded-full mr-2 bg-red-400" />
+                    <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
+                      Unpacked
+                    </Text>
+                  </View>
+                  <View>
+                    <Text className="text-sapLight-text font-montserrat-semibold text-base">
+                      {project.unpackedItems.toLocaleString()}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
           </Animated.View>
-          {loading ? (
-            <View className="flex-1 justify-center items-center">
-              <Loader />
-            </View>
-          ) : (
-            <FlatList
-              scrollEnabled={true}
-              data={boxes}
-              renderItem={({ item, index }) => (
-                <BoxCard
-                  box={item}
-                  index={index}
-                  handleDownload={() => handleDownload(item)}
-                  handleDeletePress={() => handleDelete(item)}
-                  handleEditPress={() => handleEdit(item)}
-                />
-              )}
-              keyExtractor={(item) => item.id.toString()}
-              contentContainerStyle={[
-                styles.listContainer,
-                boxes.length === 0 && { flex: 1, justifyContent: "center" },
-              ]}
-              showsVerticalScrollIndicator={false}
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <LottieView
-                    source={require("@/assets/animations/emptyBox.json")}
-                    autoPlay
-                    loop={false}
-                    style={styles.lottie}
+
+          {/* Boxes Section */}
+          <View className="flex-1 mt-6 rounded-2xl">
+            <Animated.View
+              style={animatedTitleStyle}
+              className="flex-row justify-between items-center mb-4"
+            >
+              <Text className="text-sapLight-text font-montserrat-semibold text-3xl  pb-2">
+                {boxes.length} {boxes.length > 1 ? "Boxes" : "Box"} 
+              </Text>
+
+            
+            </Animated.View>
+            {loading ? (
+              <View className="flex-1 justify-center items-center">
+                <Loader />
+              </View>
+            ) : (
+              <FlatList
+                scrollEnabled={false}
+                data={boxes}
+                renderItem={({ item, index }) => (
+                  <BoxCard
+                    box={item}
+                    index={index}
+                    handleDownload={() => handleDownload(item)}
+                    handleDeletePress={() => handleDelete(item)}
+                    handleEditPress={() => handleEdit(item)}
+                  
                   />
-                  <Text className="text-sapLight-infoText font-montserrat capitalize">
-                    0 Boxes Found
-                  </Text>
-                </View>
-              }
-            />
-          )}
-        </View>
+                )}
+                keyExtractor={(item) => item.id.toString()}
+                contentContainerStyle={[
+                  styles.listContainer,
+                  boxes.length === 0 && { flex: 1, justifyContent: "center" },
+                ]}
+                showsVerticalScrollIndicator={false}
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <LottieView
+                      source={require("@/assets/animations/emptyBox.json")}
+                      autoPlay
+                      loop={false}
+                      style={styles.lottie}
+                    />
+                    <Text className="text-sapLight-infoText font-montserrat capitalize">
+                      0 Boxes Found
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </View>
       </View>
+        </ScrollView>
+
       <View style={styles.addBoxBtn}>
         <TouchableOpacity
           activeOpacity={0.9}

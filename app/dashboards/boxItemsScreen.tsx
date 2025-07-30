@@ -350,7 +350,7 @@ export default function BoxItemsScreen() {
                 className="rounded-full px-3 py-1 bg-green-100 mb-4"
                 style={{ alignSelf: "flex-start" }}
               >
-                <Text className="text-green-700 font-montserrat-semibold text-xs">
+                <Text className="text-green-700 font-montserrat-semibold text-xs capitalize ">
                   {item.category}
                 </Text>
               </View>

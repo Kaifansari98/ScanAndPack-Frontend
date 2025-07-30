@@ -200,30 +200,30 @@ function ProjectCard({ project, index }: ProjectCardProps) {
       >
         <View className="flex-row justify-between items-center mb-4">
           <View className="rounded-full px-3 py-1 bg-blue-100">
-            <Text className="text-sm font-montserrat-semibold text-blue-700">
+            <Text className="text-sm font-montserrat-semibold text-blue-700 capitalize ">
               {project.status}
             </Text>
           </View>
-          <View>
-            <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
+          <View className="flex-col justify-center items-start">
+            <Text className="text-xs text-sapLight-infoText font-montserrat">Est. Date</Text>
+            <Text className="text-sapLight-infoText font-montserrat-medium text-md">
               {project.date}
             </Text>
           </View>
         </View>
 
-          <View className="w-full flex-row items-center justify-between mb-4">
+        <View className="w-full flex-row items-center justify-between mb-4">
           <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
             {project.projectName}
           </Text>
           <TouchableOpacity
             onPress={() => {
-              if (project.packedItems <= 0){
-                showToast('warning', `This Project isn't started yet`);
+              if (project.packedItems <= 0) {
+                showToast("warning", `This Project isn't started yet`);
               } else {
-                fetchBoxDetails()
+                fetchBoxDetails();
               }
-            }
-            }
+            }}
             className="p-2 rounded-lg"
           >
             <Download size={22} color="#555555" />
@@ -354,8 +354,8 @@ export default function ProfileTabScreen() {
         onRefresh={onRefresh}
         ListEmptyComponent={
           <View
-              style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-            >
+            style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+          >
             <LottieView
               source={require("@/assets/animations/projectEmpty.json")}
               style={styles.lottie}
