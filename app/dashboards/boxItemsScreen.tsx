@@ -271,7 +271,6 @@ export default function BoxItemsScreen() {
       );
       const newStatus = res.data.box.box_status;
       setStatus(newStatus);
-      console.log(newStatus);
     } catch (error) {
       console.error("Failed to fetch box details:", error);
       showToast("error", "Failed to load box details");

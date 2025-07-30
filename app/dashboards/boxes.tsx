@@ -19,8 +19,8 @@ import {
   SquarePen,
   Trash2,
 } from "lucide-react-native";
-import { useSelector } from 'react-redux';
-import { RootState } from '@/redux/store';
+import { useSelector } from "react-redux";
+import { RootState } from "@/redux/store";
 import React, {
   useCallback,
   useEffect,
@@ -48,6 +48,7 @@ import Animated, {
 import * as Print from "expo-print";
 import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
 import { useToast } from "@/components/Notification/ToastProvider";
+import { UpdateBoxModal } from "@/components/modals/UpdateBoxModal";
 
 // Define Project interface
 interface Project {
@@ -82,11 +83,13 @@ function BoxCard({
   index,
   handleDownload,
   handleDeletePress,
+  handleEditPress,
 }: {
   box: Box;
   index: number;
   handleDownload: () => void;
   handleDeletePress: () => void;
+  handleEditPress: () => void;
 }) {
   const router = useRouter();
   // Animation values
@@ -141,7 +144,7 @@ function BoxCard({
       vendor_id: box.vendor_id,
       client_id: box.client_id,
       id: box.id,
-      status: box.box_status
+      status: box.box_status,
     };
 
     router.push({
@@ -170,48 +173,50 @@ function BoxCard({
               <Text className={`font-montserrat-semibold text-xs ${textClass}`}>
                 {status}
               </Text>
-                </View>
-                <TouchableOpacity onPress={ () => {
-                  if(status === 'packed') {
-                    showToast('warning', "Unable to Delete Box is Packed")
-                  } else {
-                    handleDeletePress()
-                  }
-                }
-                  } className={`rounded-xl p-2 bg-sapLight-card`}>
-                  <Trash2 color={'#EF4444'} size={20}/>
-                </TouchableOpacity>
-              </View>
-              <View className="flex-row items-start justify-between mb-2 gap-1.5">
-                <Text className="text-sapLight-text font-montserrat-bold text-lg flex-1">
-                  {box.name}
-                </Text>
-              </View>
-              <View className="flex-row justify-between items-center">
-                <View>
-                  <Text className="text-sapLight-infoText font-montserrat-medium text-sm mb-1">
-                    Items Count
-                  </Text>
-                  <Text className="text-sapLight-text font-montserrat-semibold text-2xl">
-                    {box.items_count}
-                  </Text>
-                </View>
-                <View className="h-full flex-row items-end gap-2">
-                  <TouchableOpacity
-                    onPress={handleDownload}
-                    className="p-2 bg-sapLight-card rounded-xl"
-                  >
-                    <Download color={"#555555"} size={20} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => console.log("Edit Pressed")}
-                    className="p-2 bg-sapLight-card rounded-xl"
-                  >
-                    <SquarePen color={"#555555"} size={20} />
-                  </TouchableOpacity>
-                </View>
-              </View>
             </View>
+            <TouchableOpacity
+              onPress={() => {
+                if (status === "packed") {
+                  showToast("warning", "Unable to Delete Box is Packed");
+                } else {
+                  handleDeletePress();
+                }
+              }}
+              className={`rounded-xl p-2 bg-sapLight-card`}
+            >
+              <Trash2 color={"#EF4444"} size={20} />
+            </TouchableOpacity>
+          </View>
+          <View className="flex-row items-start justify-between mb-2 gap-1.5">
+            <Text className="text-sapLight-text font-montserrat-bold text-lg flex-1">
+              {box.name}
+            </Text>
+          </View>
+          <View className="flex-row justify-between items-center">
+            <View>
+              <Text className="text-sapLight-infoText font-montserrat-medium text-sm mb-1">
+                Items Count
+              </Text>
+              <Text className="text-sapLight-text font-montserrat-semibold text-2xl">
+                {box.items_count}
+              </Text>
+            </View>
+            <View className="h-full flex-row items-end gap-2">
+              <TouchableOpacity
+                onPress={handleDownload}
+                className="p-2 bg-sapLight-card rounded-xl"
+              >
+                <Download color={"#555555"} size={20} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleEditPress}
+                className="p-2 bg-sapLight-card rounded-xl"
+              >
+                <SquarePen color={"#555555"} size={20} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Animated.View>
     </TouchableOpacity>
   );
@@ -233,12 +238,39 @@ export default function BoxesScreen() {
 
   const downloadSheetRef = useRef<BottomSheetModal>(null);
   const user = useSelector((state: RootState) => state.auth.user);
-  console.log(user?.id);
+
   const [selectedBox, setSelectedBox] = useState<Box | null>(null);
   const deleteSheetRef = useRef<BottomSheetModal>(null);
   const [selectedBoxForDelete, setSelectedBoxForDelete] = useState<Box | null>(
     null
   );
+
+  const editSheetRef = useRef<BottomSheetModal>(null);
+  const [selectedBoxForEdit, setSelectedBoxForEdit] = useState<Box | null>(
+    null
+  );
+
+  const updateSheetRef = useRef<BottomSheetModal>(null);
+
+  const handleEdit = (box: Box) => {
+    setSelectedBoxForEdit(box);
+    editSheetRef.current?.present();
+  };
+
+const handleConfirmEdit = () => {
+  if (selectedBoxForEdit) {
+    editSheetRef.current?.close();
+    setTimeout(() => {
+      updateSheetRef.current?.present();
+    }, 300); // Wait for previous sheet to close
+  }
+};
+
+  const handleCancelEdit = () => {
+    editSheetRef.current?.close();
+  };
+
+ 
 
   const fetchBoxDetails = async ({
     vendor_id,
@@ -257,7 +289,7 @@ export default function BoxesScreen() {
         `/boxes/details/vendor/${vendor_id}/project/${project_id}/client/${client_id}/box/${id}`
       );
       console.log("📦 Full Box Details =>", JSON.stringify(res.data, null, 2));
-      
+
       // Extract data for PDF
       const { vendor, box: boxDetails, items } = res.data;
 
@@ -381,7 +413,7 @@ export default function BoxesScreen() {
 
   const handleConfirmDelete = async () => {
     if (!selectedBoxForDelete) return;
-  
+
     try {
       await handleDeletee(selectedBoxForDelete);
     } catch (error) {
@@ -425,13 +457,13 @@ export default function BoxesScreen() {
       const res = await axios.delete(`/boxes/delete/${box.id}`, {
         data: { deleted_by: user?.id },
       });
-  
+
       console.log("✅ Delete response:", res.data);
       fetchBoxes(); // Refresh the list after deletion
     } catch (error) {
       console.error("❌ Failed to delete box:", error);
     }
-  };  
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -601,6 +633,7 @@ export default function BoxesScreen() {
                   index={index}
                   handleDownload={() => handleDownload(item)}
                   handleDeletePress={() => handleDelete(item)}
+                  handleEditPress={() => handleEdit(item)}
                 />
               )}
               keyExtractor={(item) => item.id.toString()}
@@ -683,6 +716,31 @@ export default function BoxesScreen() {
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
       />
+
+      <ConfirmationBottomSheet
+        ref={editSheetRef}
+        title="Edit Box"
+        message={`Are you sure you want to edit "${selectedBoxForEdit?.name}"?`}
+        cancelLabel="Cancel"
+        confirmLabel="Yes, Edit"
+        onConfirm={handleConfirmEdit}
+        onCancel={handleCancelEdit}
+      />
+
+      {selectedBoxForEdit && (
+        <UpdateBoxModal
+          ref={updateSheetRef}
+          box={selectedBoxForEdit}
+          onSubmit={(updatedName) => {
+            // Step 3 logic: update local state
+            setBoxes((prev) =>
+              prev.map((b) =>
+                b.id === selectedBoxForEdit.id ? { ...b, name: updatedName } : b
+              )
+            );
+          }}
+        />
+      )}
     </View>
   );
 }
