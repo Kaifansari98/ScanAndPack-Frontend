@@ -59,6 +59,7 @@ interface Project {
   projectName: string;
   totalNoItems: number;
   unpackedItems: number;
+  client_id: number;
   packedItems: number;
   status: "packed" | "unpacked";
   date: string;
