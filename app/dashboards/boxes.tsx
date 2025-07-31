@@ -147,11 +147,6 @@ function BoxCard({
       id: box.id,
       status: box.box_status,
     };
-    console.log(
-      "Box payload send from boxes screen to boxItemsScreen",
-      payload
-    );
-
     router.push({
       pathname: "./boxItemsScreen",
       params: {

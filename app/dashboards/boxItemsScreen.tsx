@@ -75,12 +75,10 @@ export default function BoxItemsScreen() {
       showToast("error", "Invalid box data");
     }
   }, [payloadString]);
-  console.log(box);
+
   // Fetch scan items
   useEffect(() => {
-    console.log("🔥 useEffect - fetchScanItems called box ke upper");
-    if (!box) return; // Skip fetching if box is invalid
-    console.log("🔥 useEffect - fetchScanItems called");
+    if (!box) return;
     const fetchScanItems = async () => {
       try {
         const { data } = await axios.post("/scan-items/by-fields", {
@@ -108,7 +106,6 @@ export default function BoxItemsScreen() {
 
   const fetchBoxDetails = async () => {
     if (!box?.id || !box?.vendor_id || !box?.project_id || !box?.client_id) {
-      console.warn("Box data incomplete. Skipping fetchBoxDetails.");
       return;
     }
 
@@ -126,14 +123,12 @@ export default function BoxItemsScreen() {
 
   useEffect(() => {
     if (box && box.id && box.vendor_id && box.project_id && box.client_id) {
-      console.log("⚙️ useEffect - fetchBoxDetails called");
-
       fetchBoxDetails();
     }
   }, [box]);
 
   const handleScan = async (scannedData: string) => {
-    console.log("Scanned data:", scannedData);
+    // console.log("Scanned data:", scannedData);
     setShowScanner(false);
 
     if (!box || !user?.id) {
@@ -190,7 +185,7 @@ export default function BoxItemsScreen() {
 
     try {
       await axios.delete(`/scan-items/scan-and-pack/delete/${selectedItemId}`);
-      console.log(`Item with id ${selectedItemId} deleted`);
+      // console.log(`Item with id ${selectedItemId} deleted`);
       showToast("success", "Item deleted succussfully");
 
       // Refresh item list
@@ -251,7 +246,6 @@ export default function BoxItemsScreen() {
       showToast("warning", "Box is empty. Add items before packing.");
       return;
     }
-    console.log("Open BottomSheet...");
     updateStatusSheetRef.current?.present();
   };
 
