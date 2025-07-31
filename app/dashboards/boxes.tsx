@@ -147,6 +147,10 @@ function BoxCard({
       id: box.id,
       status: box.box_status,
     };
+    console.log(
+      "Box payload send from boxes screen to boxItemsScreen",
+      payload
+    );
 
     router.push({
       pathname: "./boxItemsScreen",
@@ -432,13 +436,12 @@ export default function BoxesScreen() {
     deleteSheetRef.current?.close();
   };
 
-  const fetchBoxes = async () => {
+  const fetchBoxes = useCallback(async () => {
     try {
       setLoading(true);
       const res = await axios.get(
         `/boxes/vendor/${project.vendor_id}/project/${project.id}`
       );
-      // console.log(res.data);
       const formatted = res.data.map((box: any) => ({
         id: box.id,
         name: box.box_name,
@@ -455,7 +458,11 @@ export default function BoxesScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [project.id, project.vendor_id]);
+
+  const onAdd = useCallback(() => {
+    fetchBoxes(); // Refresh screen data after box creation
+  }, [fetchBoxes]);
 
   const handleDeletee = async (box: Box) => {
     try {
@@ -463,7 +470,7 @@ export default function BoxesScreen() {
         data: { deleted_by: user?.id },
       });
 
-      console.log("✅ Delete response:", res.data);
+      // console.log("✅ Delete response:", res.data);
       fetchBoxes(); // Refresh the list after deletion
     } catch (error) {
       console.error("❌ Failed to delete box:", error);
@@ -496,33 +503,6 @@ export default function BoxesScreen() {
       easing: Easing.out(Easing.cubic),
     });
   }, []);
-
-  const onAdd = useCallback(
-    (name: string) => {
-      const fetchBoxes = async () => {
-        try {
-          setLoading(true);
-          const res = await axios.get(
-            `/boxes/vendor/${project.vendor_id}/project/${project.id}`
-          );
-          const formatted = res.data.map((box: any) => ({
-            id: box.id,
-            name: box.box_name,
-            box_status: box.box_status,
-            items_count: box.items_count,
-            details: box.details,
-          }));
-          setBoxes(formatted);
-        } catch (error) {
-          console.error("Failed to fetch boxes:", error);
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchBoxes();
-    },
-    [project.id, project.vendor_id]
-  );
 
   // Animated styles for project card
   const animatedCardStyle = useAnimatedStyle(() => ({
@@ -579,7 +559,6 @@ export default function BoxesScreen() {
               <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
                 {project.projectName}
               </Text>
-              
             </View>
             <View className="flex-row justify-between items-center">
               <View>
