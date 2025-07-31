@@ -17,6 +17,7 @@ interface Project {
   projectName: string;
   totalNoItems: number;
   unpackedItems: number;
+  client_id: number;
   packedItems: number;
   status: "packed" | "unpacked";
   date: string;
@@ -51,7 +52,7 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
           project_id: project.id,
           project_details_id: project.project_details_id,
           vendor_id: project.vendor_id,
-          client_id: 1,
+          client_id: project.client_id,
           box_name: boxName.trim(),
           box_status: "unpacked",
           created_by: 1,
