@@ -68,8 +68,9 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
         const response = await axios.post("/boxes", payload, {
           headers: { "Content-Type": "application/json" },
         });
-
-        console.log("Box created successfully:", response.data);
+        
+        console.log("create box time project: ",project)
+        // console.log("Box created successfully:", response.data);
         showToast("success", "Box created successfully");
         onSubmit(boxName.trim());
         setBoxName("");

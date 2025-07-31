@@ -8,8 +8,8 @@ import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams } from "expo-router";
 import LottieView from "lottie-react-native";
-import { ScanLine, Trash2 } from "lucide-react-native";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ScanLine } from "lucide-react-native";
+import React, { useEffect, useRef, useState } from "react";
 import {
   FlatList,
   Platform,
@@ -19,12 +19,9 @@ import {
   View,
 } from "react-native";
 import Animated, {
-  Easing,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
   withSpring,
-  withTiming,
 } from "react-native-reanimated";
 import { useSelector } from "react-redux";
 import { QRScanner } from "../../components/generic/QRScanner";
@@ -58,7 +55,7 @@ export default function BoxItemsScreen() {
   const [showScanner, setShowScanner] = useState(false);
   const [scanItems, setScanItems] = useState<ScanItem[]>([]);
   const [loading, setLoading] = useState(true);
-  
+  const [box, setBox] = useState<Box | null>(null);
   const scanButtonScale = useSharedValue(1);
   const [status, setStatus] = useState<string>("");
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
@@ -68,17 +65,17 @@ export default function BoxItemsScreen() {
 
   const user = useSelector((state: RootState) => state.auth.user);
 
-  const parsedPayloadRef = useRef<Box | null>(null);
-
-  if (!parsedPayloadRef.current && payloadString) {
+  useEffect(() => {
+    if (!payloadString) return;
     try {
-      parsedPayloadRef.current = JSON.parse(payloadString) as Box;
+      const parsed = JSON.parse(payloadString) as Box;
+      setBox(parsed);
     } catch (error) {
       console.error("❌ Failed to parse payload:", error);
+      showToast("error", "Invalid box data");
     }
-  }
-  const box = parsedPayloadRef.current;
-
+  }, [payloadString]);
+  console.log(box);
   // Fetch scan items
   useEffect(() => {
     console.log("🔥 useEffect - fetchScanItems called box ke upper");
@@ -263,16 +260,23 @@ export default function BoxItemsScreen() {
   }));
 
   // Render error screen if box is invalid
+  // if (!box) {
+  //   return (
+  //     <View className="flex-1 bg-sapLight-background justify-center items-center">
+  //       <Text className="text-red-500 font-montserrat-bold text-lg">
+  //         Error: Invalid or missing box data
+  //       </Text>
+  //     </View>
+  //   );
+  // }
+
   if (!box) {
     return (
-      <View className="flex-1 bg-sapLight-background justify-center items-center">
-        <Text className="text-red-500 font-montserrat-bold text-lg">
-          Error: Invalid or missing box data
-        </Text>
+      <View className="flex-1 justify-center items-center bg-white">
+        <Loader />
       </View>
     );
   }
-
   return (
     <View className="flex-1 bg-sapLight-background ">
       {showScanner ? (

@@ -205,7 +205,9 @@ function ProjectCard({ project, index }: ProjectCardProps) {
             </Text>
           </View>
           <View className="flex-col justify-center items-start">
-            <Text className="text-xs text-sapLight-infoText font-montserrat">Est. Date</Text>
+            <Text className="text-xs text-sapLight-infoText font-montserrat">
+              Est. Date
+            </Text>
             <Text className="text-sapLight-infoText font-montserrat-medium text-md">
               {project.date}
             </Text>
