@@ -65,7 +65,6 @@ interface Project {
   packedItems: number;
   status: "packed" | "unpacked";
   date: string;
-  client_id: number;
 }
 
 const ImageUrl = "http://localhost:7777/assets/scan-and-pack/";
