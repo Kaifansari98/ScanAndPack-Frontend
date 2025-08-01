@@ -50,6 +50,8 @@ import * as Print from "expo-print";
 import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
 import { useToast } from "@/components/Notification/ToastProvider";
 import { UpdateBoxModal } from "@/components/modals/UpdateBoxModal";
+import { ProjectCard } from "@/components/ItemCards/ProjectCard";
+import { fetchBoxDetailsAndShare } from "@/utils/projectPdfUtils";
 
 // Define Project interface
 interface Project {
@@ -62,6 +64,7 @@ interface Project {
   packedItems: number;
   status: "packed" | "unpacked";
   date: string;
+  client_id: number;
 }
 
 const ImageUrl = "http://localhost:7777/assets/scan-and-pack/";
@@ -147,6 +150,7 @@ function BoxCard({
       id: box.id,
       status: box.box_status,
     };
+
     router.push({
       pathname: "./boxItemsScreen",
       params: {
@@ -255,9 +259,20 @@ export default function BoxesScreen() {
   const [selectedBoxForEdit, setSelectedBoxForEdit] = useState<Box | null>(
     null
   );
+  const confirmationRef = useRef<BottomSheetModal>(null);
 
   const updateSheetRef = useRef<BottomSheetModal>(null);
 
+  const handleProjectDownload = () => {
+    confirmationRef.current?.present();
+  };
+
+  const handleConfirmProjectDownload = () => {
+    confirmationRef.current?.dismiss();
+    if (project) {
+      fetchBoxDetailsAndShare(project);
+    }
+  };
   const handleEdit = (box: Box) => {
     setSelectedBoxForEdit(box);
     editSheetRef.current?.present();
@@ -521,79 +536,12 @@ export default function BoxesScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View className="flex-1 mx-4 py-6">
           {/* Project Card */}
-          <Animated.View
-            style={[animatedCardStyle, styles.cardContainerr]}
-            className="bg-sapLight-card w-full rounded-3xl p-5 border border-gray-100"
-          >
-            <View className="flex-row justify-between items-center mb-4">
-              <View
-                className={`rounded-full px-3 py-1  ${
-                  project.status === "packed" ? "bg-blue-100" : "bg-blue-100"
-                }`}
-              >
-                <Text
-                  className={`text-sm font-montserrat-semibold capitalize ${
-                    project.status === "packed"
-                      ? "text-blue-700"
-                      : "text-blue-700"
-                  }`}
-                >
-                  {project.status}
-                </Text>
-              </View>
-              <View className="flex-col justify-center items-start">
-                <Text className="text-xs text-sapLight-infoText font-montserrat">
-                  Est. Date
-                </Text>
-                <Text className="text-sapLight-infoText font-montserrat-medium text-md">
-                  {project.date}
-                </Text>
-              </View>
-            </View>
-            <View className="w-full flex-row items-center justify-between mb-4">
-              <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
-                {project.projectName}
-              </Text>
-            </View>
-            <View className="flex-row justify-between items-center">
-              <View>
-                <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                  Total Items
-                </Text>
-                <Text className="text-sapLight-text font-montserrat-semibold text-xl">
-                  {project.totalNoItems.toLocaleString()}
-                </Text>
-              </View>
-              <View className="flex-row space-x-6 gap-4">
-                <View className="flex-col items-center">
-                  <View className="flex-row items-center">
-                    <View className="w-2 h-2 rounded-full mr-2 bg-green-400" />
-                    <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                      Packed
-                    </Text>
-                  </View>
-                  <View>
-                    <Text className="text-sapLight-text font-montserrat-semibold text-base">
-                      {project.packedItems.toLocaleString()}
-                    </Text>
-                  </View>
-                </View>
-                <View className="items-center flex-col">
-                  <View className="flex-row items-center">
-                    <View className="w-2 h-2 rounded-full mr-2 bg-red-400" />
-                    <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                      Unpacked
-                    </Text>
-                  </View>
-                  <View>
-                    <Text className="text-sapLight-text font-montserrat-semibold text-base">
-                      {project.unpackedItems.toLocaleString()}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-          </Animated.View>
+          <ProjectCard
+            project={project}
+            index={0}
+            disableNavigation={true}
+            onDownloadPress={handleProjectDownload}
+          />
 
           {/* Boxes Section */}
           <View className="flex-1 mt-6 rounded-2xl">
@@ -713,6 +661,18 @@ export default function BoxesScreen() {
         confirmLabel="Yes, Edit"
         onConfirm={handleConfirmEdit}
         onCancel={handleCancelEdit}
+      />
+
+      <ConfirmationBottomSheet
+        ref={confirmationRef}
+        title="Download Project Report"
+        message={`Download project list for "${project?.projectName}"?`}
+        confirmLabel="Download"
+        cancelLabel="Cancel"
+        onConfirm={handleConfirmProjectDownload}
+        onCancel={() => {
+          confirmationRef.current?.dismiss();
+        }}
       />
 
       {selectedBoxForEdit && (
