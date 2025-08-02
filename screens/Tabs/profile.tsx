@@ -191,7 +191,7 @@ export default function ProfileTabScreen() {
         cancelLabel="Cancel"
         onConfirm={handleConfirmLogout}
         onCancel={handlecloseBottomSheet}
-      
+        type="logout"
       />
     </View>
   );

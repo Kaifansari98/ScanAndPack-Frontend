@@ -8,7 +8,7 @@ import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams } from "expo-router";
 import LottieView from "lottie-react-native";
-import { ScanLine } from "lucide-react-native";
+import { Download, ScanLine } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   FlatList,
@@ -26,6 +26,7 @@ import Animated, {
 import { useSelector } from "react-redux";
 import { QRScanner } from "../../components/generic/QRScanner";
 import { ItemCard } from "@/components/ItemCards/ItemCard";
+import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
 
 interface Box {
   name: string;
@@ -60,7 +61,7 @@ export default function BoxItemsScreen() {
   const [status, setStatus] = useState<string>("");
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const deleteSheetRef = useRef<BottomSheetModal>(null);
-
+  const downloadSheetRef = useRef<BottomSheetModal>(null);
   const updateStatusSheetRef = useRef<BottomSheetModal>(null);
 
   const user = useSelector((state: RootState) => state.auth.user);
@@ -177,6 +178,17 @@ export default function BoxItemsScreen() {
       // console.error("Error packing scanned item:", errorMessage);
       showToast("error", errorMessage);
     }
+  };
+
+  const handleDownload = () => {
+    downloadSheetRef.current?.present();
+  };
+
+  const handleConfirmDownload = () => {
+    if (box) {
+      fetchBoxtDetailsAndShare(box);
+    }
+    downloadSheetRef.current?.close();
   };
 
   // Use in bottomSheet
@@ -326,6 +338,7 @@ export default function BoxItemsScreen() {
                     />
                   )}
                   keyExtractor={(item) => item.id.toString()}
+                  showsVerticalScrollIndicator={false}
                 />
               )}
             </View>
@@ -337,10 +350,7 @@ export default function BoxItemsScreen() {
                 if (status !== "packed") {
                   setShowScanner(true);
                 } else {
-                  showToast(
-                    "warning",
-                    "The box is packed, Unpacked it to Add items"
-                  );
+                 handleDownload();
                 }
               }}
               onPressIn={() => (scanButtonScale.value = withSpring(0.95))}
@@ -351,10 +361,21 @@ export default function BoxItemsScreen() {
                   colors={["#000000", "#222222"]}
                   style={styles.scanButton}
                 >
-                  <ScanLine size={28} color="#fff" />
-                  <Text className="text-white font-montserrat-bold text-lg ml-3">
-                    Scan Product
-                  </Text>
+                  {status == "packed" ? (
+                    <>
+                      <Download size={18} color="#fff" />
+                      <Text className="text-white font-montserrat-bold text-lg ml-3">
+                        Download Invoice
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <ScanLine size={28} color="#fff" />
+                      <Text className="text-white font-montserrat-bold text-lg ml-3">
+                        Scan Product
+                      </Text>
+                    </>
+                  )}
                 </LinearGradient>
               </Animated.View>
             </TouchableOpacity>
@@ -370,6 +391,7 @@ export default function BoxItemsScreen() {
         cancelLabel="Cancel"
         onConfirm={handleConfirmDeleteItem}
         onCancel={() => deleteSheetRef.current?.close()}
+        type="delete"
       />
 
       <ConfirmationBottomSheet
@@ -384,20 +406,20 @@ export default function BoxItemsScreen() {
         confirmLabel={`Yes, ${status === "packed" ? "Unpacked" : "Packed"}`}
         onConfirm={handleConfirmUpdateStatus}
         onCancel={() => updateStatusSheetRef.current?.close()}
-      />
-    </View>
-  );
-}
+        type="status"
 
-function TextBlock({ label, value }: { label: string; value: string }) {
-  return (
-    <View>
-      <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-        {label}
-      </Text>
-      <Text className="text-sapLight-text font-montserrat-medium text-xl">
-        {value}
-      </Text>
+      />
+
+      <ConfirmationBottomSheet
+        ref={downloadSheetRef}
+        title="Download PDF"
+        message={`Are you sure you want to download PDF?`}
+        cancelLabel="Cancel"
+        confirmLabel="Yes, Download"
+        onConfirm={handleConfirmDownload}
+        onCancel={() => downloadSheetRef.current?.close()}
+        type="download"
+      />
     </View>
   );
 }

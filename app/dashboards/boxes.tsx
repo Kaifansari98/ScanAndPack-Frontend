@@ -2,23 +2,11 @@ import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
 import { AddBoxModal } from "@/components/modals/AddBoxModal";
 import axios from "@/lib/axios";
-import {
-  BottomSheetModal,
-  TouchableWithoutFeedback,
-} from "@gorhom/bottom-sheet";
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import * as Sharing from "expo-sharing";
 import LottieView from "lottie-react-native";
-import * as FileSystem from "expo-file-system";
-import { ScanAndPackUrl } from "@/utils/getAssetUrls";
-import {
-  ArrowUpRight,
-  Download,
-  Plus,
-  SquarePen,
-  Trash2,
-} from "lucide-react-native";
+import { Download, Plus, SquarePen, Trash2 } from "lucide-react-native";
 import { useSelector } from "react-redux";
 import { RootState } from "@/redux/store";
 import React, {
@@ -31,7 +19,6 @@ import React, {
 import {
   FlatList,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -46,12 +33,12 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import * as Print from "expo-print";
 import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
 import { useToast } from "@/components/Notification/ToastProvider";
 import { UpdateBoxModal } from "@/components/modals/UpdateBoxModal";
 import { ProjectCard } from "@/components/ItemCards/ProjectCard";
-import { fetchBoxDetailsAndShare } from "@/utils/projectPdfUtils";
+import { fetchProjectDetailsAndShare } from "@/utils/projectPdfUtils";
+import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
 
 // Define Project interface
 interface Project {
@@ -66,8 +53,6 @@ interface Project {
   status: "packed" | "unpacked";
   date: string;
 }
-
-const ImageUrl = "http://localhost:7777/assets/scan-and-pack/";
 
 // Define Box interface
 interface Box {
@@ -254,7 +239,7 @@ export default function BoxesScreen() {
   const [selectedBoxForDelete, setSelectedBoxForDelete] = useState<Box | null>(
     null
   );
-
+  const [projectDownloadLoading, setProjectDownloadLoading] = useState<boolean>(false);
   const editSheetRef = useRef<BottomSheetModal>(null);
   const [selectedBoxForEdit, setSelectedBoxForEdit] = useState<Box | null>(
     null
@@ -270,7 +255,7 @@ export default function BoxesScreen() {
   const handleConfirmProjectDownload = () => {
     confirmationRef.current?.dismiss();
     if (project) {
-      fetchBoxDetailsAndShare(project);
+      fetchProjectDetailsAndShare(project);
     }
   };
   const handleEdit = (box: Box) => {
@@ -291,124 +276,6 @@ export default function BoxesScreen() {
     editSheetRef.current?.close();
   };
 
-  const fetchBoxDetails = async ({
-    vendor_id,
-    project_id,
-    client_id,
-    id,
-  }: Box) => {
-    try {
-      const permissionResponse = await Sharing.isAvailableAsync();
-      if (!permissionResponse) {
-        console.error("❌ Sharing is not available on this device");
-        return;
-      }
-
-      const res = await axios.get(
-        `/boxes/details/vendor/${vendor_id}/project/${project_id}/client/${client_id}/box/${id}`
-      );
-      console.log("📦 Full Box Details =>", JSON.stringify(res.data, null, 2));
-
-      // Extract data for PDF
-      const { vendor, box: boxDetails, items } = res.data;
-
-      console.log(ScanAndPackUrl(vendor.logo));
-
-      // HTML content for PDF
-      const htmlContent = `
-        <html>
-          <head>
-            <style>
-              body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-              .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-              .logo { width: 120px; }
-              .vendor-details { text-align: right; }
-              .vendor-details h2 { margin: 0; font-size: 18px; }
-              .vendor-details p { margin: 5px 0; font-size: 14px; }
-              .details { margin-bottom: 20px; }
-              .details p { margin: 5px 0; font-size: 16px; font-weight: bold; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
-              th { background-color: #f2f2f2; font-weight: bold; }
-              .table-container { margin-top: 20px; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <img src="${ScanAndPackUrl(vendor.logo)}" class="logo" alt="Logo" />
-              <div class="vendor-details">
-                <h2>${vendor.vendor_name.replace(/&/g, "&amp;")}</h2>
-                <p>Contact: ${vendor.primary_contact_number}</p>
-                <p>Email: ${vendor.primary_contact_email}</p>
-                <p>Date: ${new Date().toLocaleDateString()}</p>
-              </div>
-            </div>
-            <div class="details">
-              <p>Project Name: ${boxDetails.project.project_name.replace(/&/g, "&amp;")}</p>
-              <p>Box Name: ${boxDetails.box_name.replace(/&/g, "&amp;")}</p>
-            </div>
-            <div class="table-container">
-              <table>
-                <tr>
-                  <th>Sr No.</th>
-                  <th>Item Name</th>
-                  <th>Category</th>
-                  <th>Qty</th>
-                </tr>
-                ${items
-                  .map(
-                    (item: any, index: number) => `
-                    <tr>
-                      <td>${index + 1}</td>
-                      <td>${item.projectItem.item_name.replace(/&/g, "&amp;")}</td>
-                      <td>${item.projectItem.category.replace(/&/g, "&amp;")}</td>
-                      <td>${item.qty}</td>
-                    </tr>
-                  `
-                  )
-                  .join("")}
-              </table>
-            </div>
-          </body>
-        </html>
-      `;
-
-      const safeProjectName = boxDetails.project.project_name.replace(
-        /[^a-zA-Z0-9-_]/g,
-        "_"
-      );
-      const safeBoxName = boxDetails.box_name.replace(/[^a-zA-Z0-9-_]/g, "_");
-      const fileName = `${safeProjectName}-${safeBoxName}.pdf`;
-
-      // Generate PDF (still lands in cacheDirectory)
-      const { uri } = await Print.printToFileAsync({
-        html: htmlContent,
-        base64: false,
-      });
-
-      console.log("Original PDF location:", uri); // Will show something in Cache
-
-      // Construct path in DocumentDirectory
-      const newPath = FileSystem.documentDirectory + fileName;
-      console.log("Moving to:", newPath); // This MUST be in documentDirectory
-
-      // Move it
-      await FileSystem.moveAsync({
-        from: uri,
-        to: newPath,
-      });
-
-      // Share it
-      await Sharing.shareAsync(newPath, {
-        mimeType: "application/pdf",
-        dialogTitle: `Share ${fileName}`,
-        UTI: "com.adobe.pdf",
-      });
-    } catch (err) {
-      console.error("❌ Failed to fetch box details or generate PDF:", err);
-    }
-  };
-
   const handleDownload = (box: Box) => {
     setSelectedBox(box);
     downloadSheetRef.current?.present();
@@ -416,7 +283,7 @@ export default function BoxesScreen() {
 
   const handleConfirmDownload = () => {
     if (selectedBox) {
-      fetchBoxDetails(selectedBox);
+      fetchBoxtDetailsAndShare(selectedBox);
       downloadSheetRef.current?.close();
     }
   };
@@ -641,6 +508,7 @@ export default function BoxesScreen() {
         confirmLabel="Yes, Download"
         onConfirm={handleConfirmDownload}
         onCancel={handleCancelDownload}
+        type="download"
       />
 
       <ConfirmationBottomSheet
@@ -651,6 +519,7 @@ export default function BoxesScreen() {
         confirmLabel="Yes, Delete"
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
+        type="delete"
       />
 
       <ConfirmationBottomSheet
@@ -661,18 +530,20 @@ export default function BoxesScreen() {
         confirmLabel="Yes, Edit"
         onConfirm={handleConfirmEdit}
         onCancel={handleCancelEdit}
+        type="edit"
       />
 
       <ConfirmationBottomSheet
         ref={confirmationRef}
         title="Download Project Report"
         message={`Download project list for "${project?.projectName}"?`}
-        confirmLabel="Download"
+        confirmLabel="Yes, Download"
         cancelLabel="Cancel"
         onConfirm={handleConfirmProjectDownload}
         onCancel={() => {
           confirmationRef.current?.dismiss();
         }}
+        type="download"
       />
 
       {selectedBoxForEdit && (
