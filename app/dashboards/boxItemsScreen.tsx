@@ -53,18 +53,17 @@ export default function BoxItemsScreen() {
     payload: string;
   }>();
   const { showToast } = useToast();
-  const [showScanner, setShowScanner] = useState(false);
+  const user = useSelector((state: RootState) => state.auth.user);
   const [scanItems, setScanItems] = useState<ScanItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [box, setBox] = useState<Box | null>(null);
-  const scanButtonScale = useSharedValue(1);
   const [status, setStatus] = useState<string>("");
-  const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showScanner, setShowScanner] = useState(false);
   const deleteSheetRef = useRef<BottomSheetModal>(null);
+  const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const downloadSheetRef = useRef<BottomSheetModal>(null);
   const updateStatusSheetRef = useRef<BottomSheetModal>(null);
-
-  const user = useSelector((state: RootState) => state.auth.user);
+  const scanButtonScale = useSharedValue(1);
 
   useEffect(() => {
     if (!payloadString) return;
@@ -77,7 +76,6 @@ export default function BoxItemsScreen() {
     }
   }, [payloadString]);
 
-  // Fetch scan items
   useEffect(() => {
     if (!box) return;
     const fetchScanItems = async () => {
@@ -180,19 +178,46 @@ export default function BoxItemsScreen() {
     }
   };
 
-  const handleDownload = () => {
-    downloadSheetRef.current?.present();
-  };
-
-  const handleConfirmDownload = () => {
-    if (box) {
-      fetchBoxtDetailsAndShare(box);
+  const handleUpdateStatus = () => {
+    if (status === "unpacked" && scanItems.length === 0) {
+      showToast("warning", "Box is empty. Add items before packing.");
+      return;
     }
-    downloadSheetRef.current?.close();
+    updateStatusSheetRef.current?.present();
   };
 
-  // Use in bottomSheet
+  const handleConfirmUpdateStatus = async () => {
+    setLoading(true);
+    if (!box?.id) return;
+    const newstatus = status === "unpacked" ? "packed" : "unpacked";
+
+    try {
+      await axios.put(`/boxes/status/${newstatus}/${box?.id}`);
+      showToast("success", `Box status updated to ${newstatus}`);
+
+      // ✅ Immediately update local status for instant UI feedback
+      setStatus(newstatus);
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.error ||
+        error?.message ||
+        "Failed to update status";
+      showToast("error", errorMessage);
+      console.error("update status error:", errorMessage);
+    } finally {
+      updateStatusSheetRef.current?.close();
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteItem = () => {
+    console.log("Open BottomSheet...");
+    deleteSheetRef.current?.present();
+  };
+
   const handleConfirmDeleteItem = async () => {
+    deleteSheetRef.current?.close();
+    setLoading(true);
     if (!selectedItemId) return;
 
     try {
@@ -221,60 +246,31 @@ export default function BoxItemsScreen() {
       console.error("Failed to delete scan item:", error);
     } finally {
       setSelectedItemId(null);
-      deleteSheetRef.current?.close();
+      setLoading(false);
     }
   };
 
-  const handleConfirmUpdateStatus = async () => {
-    if (!box?.id) return;
-    const newstatus = status === "unpacked" ? "packed" : "unpacked";
+  const handleDownload = () => {
+    downloadSheetRef.current?.present();
+  };
 
+  const handleConfirmDownload = async () => {
+    downloadSheetRef.current?.close();
+    setLoading(true);
     try {
-      await axios.put(`/boxes/status/${newstatus}/${box?.id}`);
-      showToast("success", `Box status updated to ${newstatus}`);
-
-      // ✅ Immediately update local status for instant UI feedback
-      setStatus(newstatus);
-    } catch (error: any) {
-      const errorMessage =
-        error?.response?.data?.error ||
-        error?.message ||
-        "Failed to update status";
-      showToast("error", errorMessage);
-      console.error("update status error:", errorMessage);
+      if (box) {
+        await fetchBoxtDetailsAndShare(box);
+      }
+    } catch (err: any) {
+      console.log("Download Error: ", err.message);
     } finally {
-      updateStatusSheetRef.current?.close();
+      setLoading(false);
     }
-  };
-
-  // use in item
-  const handleDeleteItem = () => {
-    console.log("Open BottomSheet...");
-    deleteSheetRef.current?.present();
-  };
-
-  const handleUpdateStatus = () => {
-    if (status === "unpacked" && scanItems.length === 0) {
-      showToast("warning", "Box is empty. Add items before packing.");
-      return;
-    }
-    updateStatusSheetRef.current?.present();
   };
 
   const animatedScanButtonStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scanButtonScale.value }],
   }));
-
-  // Render error screen if box is invalid
-  // if (!box) {
-  //   return (
-  //     <View className="flex-1 bg-sapLight-background justify-center items-center">
-  //       <Text className="text-red-500 font-montserrat-bold text-lg">
-  //         Error: Invalid or missing box data
-  //       </Text>
-  //     </View>
-  //   );
-  // }
 
   if (!box) {
     return (
@@ -283,6 +279,7 @@ export default function BoxItemsScreen() {
       </View>
     );
   }
+
   return (
     <View className="flex-1 bg-sapLight-background ">
       {showScanner ? (
@@ -350,7 +347,7 @@ export default function BoxItemsScreen() {
                 if (status !== "packed") {
                   setShowScanner(true);
                 } else {
-                 handleDownload();
+                  handleDownload();
                 }
               }}
               onPressIn={() => (scanButtonScale.value = withSpring(0.95))}
@@ -407,7 +404,6 @@ export default function BoxItemsScreen() {
         onConfirm={handleConfirmUpdateStatus}
         onCancel={() => updateStatusSheetRef.current?.close()}
         type="status"
-
       />
 
       <ConfirmationBottomSheet

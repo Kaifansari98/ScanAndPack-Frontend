@@ -218,6 +218,8 @@ function BoxCard({
 }
 
 export default function BoxesScreen() {
+  const user = useSelector((state: RootState) => state.auth.user);
+  const { showToast } = useToast();
   const { project: projectString } = useLocalSearchParams<{
     project: string;
   }>();
@@ -225,93 +227,23 @@ export default function BoxesScreen() {
     () => JSON.parse(projectString) as Project,
     [projectString]
   );
-
-  const sheetRef = useRef<BottomSheetModal>(null);
+  const [showGlobalLoader, setShowGlobalLoader] = useState<boolean>(false);
   const [boxes, setBoxes] = useState<Box[]>([]);
+  const [selectedBox, setSelectedBox] = useState<Box | null>(null);
+  const sheetRef = useRef<BottomSheetModal>(null);
   const [loading, setLoading] = useState(true);
   const [creatingBox, setCreatingBox] = useState<boolean>(false);
-
-  const downloadSheetRef = useRef<BottomSheetModal>(null);
-  const user = useSelector((state: RootState) => state.auth.user);
-
-  const [selectedBox, setSelectedBox] = useState<Box | null>(null);
+  const projectSheetRef = useRef<BottomSheetModal>(null);
   const deleteSheetRef = useRef<BottomSheetModal>(null);
-  const [selectedBoxForDelete, setSelectedBoxForDelete] = useState<Box | null>(
-    null
-  );
-  const [projectDownloadLoading, setProjectDownloadLoading] = useState<boolean>(false);
   const editSheetRef = useRef<BottomSheetModal>(null);
   const [selectedBoxForEdit, setSelectedBoxForEdit] = useState<Box | null>(
     null
   );
-  const confirmationRef = useRef<BottomSheetModal>(null);
-
+  const downloadSheetRef = useRef<BottomSheetModal>(null);
+  const [selectedBoxForDelete, setSelectedBoxForDelete] = useState<Box | null>(
+    null
+  );
   const updateSheetRef = useRef<BottomSheetModal>(null);
-
-  const handleProjectDownload = () => {
-    confirmationRef.current?.present();
-  };
-
-  const handleConfirmProjectDownload = () => {
-    confirmationRef.current?.dismiss();
-    if (project) {
-      fetchProjectDetailsAndShare(project);
-    }
-  };
-  const handleEdit = (box: Box) => {
-    setSelectedBoxForEdit(box);
-    editSheetRef.current?.present();
-  };
-
-  const handleConfirmEdit = () => {
-    if (selectedBoxForEdit) {
-      editSheetRef.current?.close();
-      setTimeout(() => {
-        updateSheetRef.current?.present();
-      }, 300); // Wait for previous sheet to close
-    }
-  };
-
-  const handleCancelEdit = () => {
-    editSheetRef.current?.close();
-  };
-
-  const handleDownload = (box: Box) => {
-    setSelectedBox(box);
-    downloadSheetRef.current?.present();
-  };
-
-  const handleConfirmDownload = () => {
-    if (selectedBox) {
-      fetchBoxtDetailsAndShare(selectedBox);
-      downloadSheetRef.current?.close();
-    }
-  };
-
-  const handleCancelDownload = () => {
-    downloadSheetRef.current?.close();
-  };
-
-  const handleDelete = (box: Box) => {
-    setSelectedBoxForDelete(box);
-    deleteSheetRef.current?.present();
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!selectedBoxForDelete) return;
-
-    try {
-      await handleDeletee(selectedBoxForDelete);
-    } catch (error) {
-      console.error("❌ Error in handleConfirmDelete:", error);
-    } finally {
-      deleteSheetRef.current?.close();
-    }
-  };
-
-  const handleCancelDelete = () => {
-    deleteSheetRef.current?.close();
-  };
 
   const fetchBoxes = useCallback(async () => {
     try {
@@ -341,7 +273,36 @@ export default function BoxesScreen() {
     fetchBoxes(); // Refresh screen data after box creation
   }, [fetchBoxes]);
 
-  const handleDeletee = async (box: Box) => {
+  useFocusEffect(
+    useCallback(() => {
+      fetchBoxes(); // Refetch boxes on screen focus
+    }, [project.id, project.vendor_id])
+  );
+
+  const handleProjectDownload = () => {
+    projectSheetRef.current?.present();
+  };
+
+  const handleConfirmProjectDownload = async () => {
+    projectSheetRef.current?.dismiss();
+    setShowGlobalLoader(true);
+    try {
+      if (project) {
+        await fetchProjectDetailsAndShare(project);
+      }
+    } catch (err: any) {
+      console.log("Download Error: ", err.message);
+    } finally {
+      setShowGlobalLoader(false);
+    }
+  };
+
+  const handleDelete = (box: Box) => {
+    setSelectedBoxForDelete(box);
+    deleteSheetRef.current?.present();
+  };
+
+  const handleDeleteBox = async (box: Box) => {
     try {
       const res = await axios.delete(`/boxes/delete/${box.id}`, {
         data: { deleted_by: user?.id },
@@ -351,14 +312,57 @@ export default function BoxesScreen() {
       fetchBoxes(); // Refresh the list after deletion
     } catch (error) {
       console.error("❌ Failed to delete box:", error);
+      showToast("error", "Download failed");
     }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchBoxes(); // Refetch boxes on screen focus
-    }, [project.id, project.vendor_id])
-  );
+  const handleConfirmDelete = async () => {
+    deleteSheetRef.current?.close();
+    setShowGlobalLoader(true);
+    if (!selectedBoxForDelete) return;
+    try {
+      await handleDeleteBox(selectedBoxForDelete);
+    } catch (error) {
+      console.error("❌ Error in handleConfirmDelete:", error);
+    } finally {
+      setShowGlobalLoader(false);
+    }
+  };
+
+  const handleEdit = (box: Box) => {
+    setSelectedBoxForEdit(box);
+    editSheetRef.current?.present();
+  };
+
+  const handleConfirmEdit = () => {
+    try {
+      if (selectedBoxForEdit) {
+        editSheetRef.current?.close();
+        setTimeout(() => {
+          updateSheetRef.current?.present();
+        }, 300); // Wait for previous sheet to close
+      }
+    } catch (error) {}
+  };
+
+  const handleDownload = (box: Box) => {
+    setSelectedBox(box);
+    downloadSheetRef.current?.present();
+  };
+
+  const handleConfirmDownload = async () => {
+    downloadSheetRef.current?.close();
+    setShowGlobalLoader(true);
+    try {
+      if (selectedBox) {
+        await fetchBoxtDetailsAndShare(selectedBox);
+      }
+    } catch (err: any) {
+      console.log("Download Error: ", err.message);
+    } finally {
+      setShowGlobalLoader(false);
+    }
+  };
 
   // Animation values for project card
   const cardOpacity = useSharedValue(0);
@@ -400,67 +404,73 @@ export default function BoxesScreen() {
   return (
     <View className="flex-1 bg-sapLight-background">
       <Navbar title={project.projectName} showBack={true} showSearch={false} />
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View className="flex-1 mx-4 py-6">
-          {/* Project Card */}
-          <ProjectCard
-            project={project}
-            index={0}
-            disableNavigation={true}
-            onDownloadPress={handleProjectDownload}
-          />
-
-          {/* Boxes Section */}
-          <View className="flex-1 mt-6 rounded-2xl">
-            <Animated.View
-              style={animatedTitleStyle}
-              className="flex-row justify-between items-center mb-4"
-            >
-              <Text className="text-sapLight-text font-montserrat-semibold text-3xl  pb-2">
-                {boxes.length} {boxes.length > 1 ? "Boxes" : "Box"}
-              </Text>
-            </Animated.View>
-            {loading ? (
-              <View className="flex-1 justify-center items-center">
-                <Loader />
-              </View>
-            ) : (
-              <FlatList
-                scrollEnabled={false}
-                data={boxes}
-                renderItem={({ item, index }) => (
-                  <BoxCard
-                    box={item}
-                    index={index}
-                    handleDownload={() => handleDownload(item)}
-                    handleDeletePress={() => handleDelete(item)}
-                    handleEditPress={() => handleEdit(item)}
-                  />
-                )}
-                keyExtractor={(item) => item.id.toString()}
-                contentContainerStyle={[
-                  styles.listContainer,
-                  boxes.length === 0 && { flex: 1, justifyContent: "center" },
-                ]}
-                showsVerticalScrollIndicator={false}
-                ListEmptyComponent={
-                  <View style={styles.emptyContainer}>
-                    <LottieView
-                      source={require("@/assets/animations/emptyBox.json")}
-                      autoPlay
-                      loop={false}
-                      style={styles.lottie}
-                    />
-                    <Text className="text-sapLight-infoText font-montserrat capitalize">
-                      0 Boxes Found
-                    </Text>
-                  </View>
-                }
-              />
-            )}
-          </View>
+      {showGlobalLoader ? (
+        <View className="flex-1 justify-center items-center">
+          <Loader />
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <View className="flex-1 mx-4 py-6">
+            {/* Project Card */}
+            <ProjectCard
+              project={project}
+              index={0}
+              disableNavigation={true}
+              onDownloadPress={handleProjectDownload}
+            />
+
+            {/* Boxes Section */}
+            <View className="flex-1 mt-6 rounded-2xl">
+              <Animated.View
+                style={animatedTitleStyle}
+                className="flex-row justify-between items-center mb-4"
+              >
+                <Text className="text-sapLight-text font-montserrat-semibold text-3xl  pb-2">
+                  {boxes.length} {boxes.length > 1 ? "Boxes" : "Box"}
+                </Text>
+              </Animated.View>
+              {loading ? (
+                <View className="flex-1 justify-center items-center">
+                  <Loader />
+                </View>
+              ) : (
+                <FlatList
+                  scrollEnabled={false}
+                  data={boxes}
+                  renderItem={({ item, index }) => (
+                    <BoxCard
+                      box={item}
+                      index={index}
+                      handleDownload={() => handleDownload(item)}
+                      handleDeletePress={() => handleDelete(item)}
+                      handleEditPress={() => handleEdit(item)}
+                    />
+                  )}
+                  keyExtractor={(item) => item.id.toString()}
+                  contentContainerStyle={[
+                    styles.listContainer,
+                    boxes.length === 0 && { flex: 1, justifyContent: "center" },
+                  ]}
+                  showsVerticalScrollIndicator={false}
+                  ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                      <LottieView
+                        source={require("@/assets/animations/emptyBox.json")}
+                        autoPlay
+                        loop={false}
+                        style={styles.lottie}
+                      />
+                      <Text className="text-sapLight-infoText font-montserrat capitalize">
+                        0 Boxes Found
+                      </Text>
+                    </View>
+                  }
+                />
+              )}
+            </View>
+          </View>
+        </ScrollView>
+      )}
 
       <View style={styles.addBoxBtn}>
         <TouchableOpacity
@@ -507,7 +517,7 @@ export default function BoxesScreen() {
         cancelLabel="Cancel"
         confirmLabel="Yes, Download"
         onConfirm={handleConfirmDownload}
-        onCancel={handleCancelDownload}
+        onCancel={() => downloadSheetRef.current?.close()}
         type="download"
       />
 
@@ -518,7 +528,7 @@ export default function BoxesScreen() {
         cancelLabel="Cancel"
         confirmLabel="Yes, Delete"
         onConfirm={handleConfirmDelete}
-        onCancel={handleCancelDelete}
+        onCancel={() => deleteSheetRef.current?.close()}
         type="delete"
       />
 
@@ -529,19 +539,19 @@ export default function BoxesScreen() {
         cancelLabel="Cancel"
         confirmLabel="Yes, Edit"
         onConfirm={handleConfirmEdit}
-        onCancel={handleCancelEdit}
+        onCancel={() => editSheetRef.current?.close()}
         type="edit"
       />
 
       <ConfirmationBottomSheet
-        ref={confirmationRef}
+        ref={projectSheetRef}
         title="Download Project Report"
         message={`Download project list for "${project?.projectName}"?`}
         confirmLabel="Yes, Download"
         cancelLabel="Cancel"
         onConfirm={handleConfirmProjectDownload}
         onCancel={() => {
-          confirmationRef.current?.dismiss();
+          projectSheetRef.current?.dismiss();
         }}
         type="download"
       />
@@ -549,6 +559,7 @@ export default function BoxesScreen() {
       {selectedBoxForEdit && (
         <UpdateBoxModal
           ref={updateSheetRef}
+          setLoading={setShowGlobalLoader}
           box={selectedBoxForEdit}
           onSubmit={(updatedName) => {
             // Step 3 logic: update local state
