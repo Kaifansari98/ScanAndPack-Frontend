@@ -2,7 +2,7 @@ import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
 import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import LottieView from "lottie-react-native";
 import React, { useState, useCallback, useRef } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
@@ -11,6 +11,7 @@ import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
 import { ProjectCard } from "@/components/ItemCards/ProjectCard";
 import { fetchProjectDetailsAndShare } from "@/utils/projectPdfUtils";
+import { useToast } from "@/components/Notification/ToastProvider";
 
 interface ProjectCardProps {
   project: {
@@ -27,6 +28,21 @@ interface ProjectCardProps {
   index: number;
 }
 
+interface FormattedProject {
+  id: number;
+  vendor_id: number;
+  client_id: number;
+  project_details_id: number | null;
+  projectName: string;
+  totalNoItems: number;
+  unpackedItems: number;
+  packedItems: number;
+  status: string;
+  date: string;
+  isCompleted: boolean;
+  completionPercentage: number;
+}
+
 // Project Card Component
 
 export default function ProfileTabScreen() {
@@ -39,6 +55,7 @@ export default function ProfileTabScreen() {
     ProjectCardProps["project"] | null
   >(null);
   const [downloadLoading, setDownloadLoading] = useState<boolean>(false);
+  const { showToast } = useToast();
 
   const handleConfirm = async() => {
     confirmationRef.current?.dismiss();
@@ -63,10 +80,11 @@ export default function ProfileTabScreen() {
     try {
       const vendorId = user?.vendor_id;
       if (!vendorId) return;
-
+  
+      // Step 1: Fetch all projects first (regular flow)
       const response = await axios.get(`/projects/vendor/${vendorId}`);
-
-      const formatted = response.data.map((proj: any) => ({
+  
+      const formatted: FormattedProject[] = response.data.map((proj: any) => ({
         id: proj.id,
         vendor_id: proj.vendor_id,
         client_id: proj.client_id,
@@ -85,11 +103,62 @@ export default function ProfileTabScreen() {
               year: "numeric",
             })
           : "N/A",
+        // Add completion status for UI indicators
+        isCompleted: (proj.aggregatedTotals?.total_items > 0 && 
+                     proj.aggregatedTotals?.total_packed === proj.aggregatedTotals?.total_items),
+        completionPercentage: proj.aggregatedTotals?.total_items > 0 
+          ? Math.round((proj.aggregatedTotals?.total_packed / proj.aggregatedTotals?.total_items) * 100)
+          : 0
       }));
-
+  
+      // Step 2: Smart completion check - only run if there are potentially completed projects
+      const potentiallyCompleted = formatted.filter((project: FormattedProject) => 
+        project.isCompleted && project.status !== 'completed'
+      );
+  
+      if (potentiallyCompleted.length > 0) {
+        console.log(`🔍 Found ${potentiallyCompleted.length} potentially completed projects, checking...`);
+        
+        try {
+          const completedResponse = await axios.get(`/projects/vendor/${vendorId}/completed`);
+          
+          // Handle completion notifications with smart logic
+          if (completedResponse.data.boxUpdateSummary?.length > 0) {
+            console.log('✅ Auto-updated box status for completed projects:', 
+              completedResponse.data.boxUpdateSummary);
+            
+            completedResponse.data.boxUpdateSummary.forEach((summary: any) => {
+              if (summary.was_already_completed) {
+                // Project was already completed - no toast needed
+                console.log(`ℹ️ Project "${summary.project_name}" was already completed (${summary.packed_boxes}/${summary.total_boxes} boxes packed)`);
+              } else if (summary.boxes_updated > 0) {
+                // New completion - show celebration toast
+                showToast('success', `🎉 Project "${summary.project_name}" completed! Updated ${summary.boxes_updated} boxes.`);
+                console.log(`🎉 Project "${summary.project_name}" newly completed! Updated ${summary.boxes_updated} boxes.`);
+              }
+            });
+            
+            // Optional: Show summary toast if multiple projects completed
+            const newCompletions = completedResponse.data.boxUpdateSummary.filter((s: any) => !s.was_already_completed);
+            if (newCompletions.length > 1) {
+              showToast('info', `🎊 ${newCompletions.length} projects completed!`);
+            }
+          }
+        } catch (completedError) {
+          console.warn('Failed to check completed projects:', completedError);
+          // Optional: Show error toast only in development
+          if (__DEV__) {
+            showToast('error', 'Failed to check project completions');
+          }
+        }
+      } else {
+        console.log('ℹ️ No completed projects detected, skipping completion check');
+      }
+  
       setProjects(formatted);
     } catch (error) {
       console.error("Failed to fetch projects", error);
+      showToast('error', 'Failed to fetch projects');
     } finally {
       setLoading(false);
     }

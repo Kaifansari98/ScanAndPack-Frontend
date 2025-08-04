@@ -12,8 +12,6 @@ import axios from "@/lib/axios";
 import { ScanAndPackUrl } from "@/utils/getAssetUrls";
 import { useEffect, useRef, useState } from "react";
 import {
-  BottomSheetModal,
-  TouchableWithoutFeedback,
 } from "@gorhom/bottom-sheet";
 import {
   Platform,
