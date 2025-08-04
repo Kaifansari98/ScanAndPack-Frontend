@@ -11,7 +11,7 @@ import { useToast } from "@/components/Notification/ToastProvider";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
 import { ProjectCard } from "@/components/ItemCards/ProjectCard";
-import { fetchBoxDetailsAndShare } from "@/utils/projectPdfUtils";
+import { fetchProjectDetailsAndShare } from "@/utils/projectPdfUtils";
 
 interface ProjectCardProps {
   project: {
@@ -39,11 +39,19 @@ export default function ProfileTabScreen() {
   const [selectedProject, setSelectedProject] = useState<
     ProjectCardProps["project"] | null
   >(null);
+  const [downloadLoading, setDownloadLoading] = useState<boolean>(false);
 
-  const handleConfirm = () => {
+  const handleConfirm = async() => {
     confirmationRef.current?.dismiss();
-    if (selectedProject) {
-      fetchBoxDetailsAndShare(selectedProject);
+    setDownloadLoading(true);
+    try {
+      if (selectedProject) {
+        await fetchProjectDetailsAndShare(selectedProject);
+      }
+    } catch (error: any) {
+      console.log("Download Error", error.message);
+    } finally {
+      setDownloadLoading(false);
     }
   };
 
@@ -116,44 +124,56 @@ export default function ProfileTabScreen() {
         showSearch={false}
         showNotification={true}
       />
-      <FlatList
-        data={projects}
-        renderItem={({ item, index }) => (
-          <ProjectCard
-            project={item}
-            index={index}
-            onDownloadPress={() => handleDownload(item)}
-          />
-        )}
-        keyExtractor={(item, index) => item.projectName + index}
-        contentContainerStyle={styles.listContainer}
-        showsVerticalScrollIndicator={false}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        ListEmptyComponent={
-          <View
-            style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-          >
-            <LottieView
-              source={require("@/assets/animations/projectEmpty.json")}
-              style={styles.lottie}
-              autoPlay
-              loop={false}
+
+      {downloadLoading ? (
+        <View className="flex-1 justify-center items-center">
+          <Loader />
+        </View>
+      ) : (
+        <FlatList
+          data={projects}
+          renderItem={({ item, index }) => (
+            <ProjectCard
+              project={item}
+              index={index}
+              onDownloadPress={() => handleDownload(item)}
             />
-          </View>
-        }
-      />
+          )}
+          keyExtractor={(item, index) => item.projectName + index}
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          ListEmptyComponent={
+            <View
+              style={{
+                flex: 1,
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <LottieView
+                source={require("@/assets/animations/projectEmpty.json")}
+                style={styles.lottie}
+                autoPlay
+                loop={false}
+              />
+            </View>
+          }
+        />
+      )}
 
       <ConfirmationBottomSheet
         ref={confirmationRef}
         title="Download Project Report"
         message={`Download box list for "${selectedProject?.projectName}"?`}
-        confirmLabel="Download"
+        confirmLabel="Yes, Download"
         cancelLabel="Cancel"
         onConfirm={handleConfirm}
         onCancel={() => {
           confirmationRef.current?.dismiss();
         }}
+        type="download"
       />
     </View>
   );

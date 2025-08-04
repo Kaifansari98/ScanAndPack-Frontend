@@ -6,7 +6,7 @@ import * as FileSystem from "expo-file-system";
 import { ScanAndPackUrl } from "@/utils/getAssetUrls";
 import { ProjectData } from "@/components/ItemCards/ProjectCard";
 
-export async function fetchBoxDetailsAndShare(project: ProjectData) {
+export async function fetchProjectDetailsAndShare(project: ProjectData) {
   try {
     const permissionResponse = await Sharing.isAvailableAsync();
     if (!permissionResponse) {

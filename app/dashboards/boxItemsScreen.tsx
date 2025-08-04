@@ -8,7 +8,7 @@ import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams } from "expo-router";
 import LottieView from "lottie-react-native";
-import { ScanLine } from "lucide-react-native";
+import { Download, ScanLine } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   FlatList,
@@ -26,6 +26,7 @@ import Animated, {
 import { useSelector } from "react-redux";
 import { QRScanner } from "../../components/generic/QRScanner";
 import { ItemCard } from "@/components/ItemCards/ItemCard";
+import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
 
 interface Box {
   name: string;
@@ -52,18 +53,17 @@ export default function BoxItemsScreen() {
     payload: string;
   }>();
   const { showToast } = useToast();
-  const [showScanner, setShowScanner] = useState(false);
-  const [scanItems, setScanItems] = useState<ScanItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [box, setBox] = useState<Box | null>(null);
-  const scanButtonScale = useSharedValue(1);
-  const [status, setStatus] = useState<string>("");
-  const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
-  const deleteSheetRef = useRef<BottomSheetModal>(null);
-
-  const updateStatusSheetRef = useRef<BottomSheetModal>(null);
-
   const user = useSelector((state: RootState) => state.auth.user);
+  const [scanItems, setScanItems] = useState<ScanItem[]>([]);
+  const [box, setBox] = useState<Box | null>(null);
+  const [status, setStatus] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [showScanner, setShowScanner] = useState(false);
+  const deleteSheetRef = useRef<BottomSheetModal>(null);
+  const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
+  const downloadSheetRef = useRef<BottomSheetModal>(null);
+  const updateStatusSheetRef = useRef<BottomSheetModal>(null);
+  const scanButtonScale = useSharedValue(1);
 
   useEffect(() => {
     if (!payloadString) return;
@@ -76,7 +76,6 @@ export default function BoxItemsScreen() {
     }
   }, [payloadString]);
 
-  // Fetch scan items
   useEffect(() => {
     if (!box) return;
     const fetchScanItems = async () => {
@@ -179,8 +178,46 @@ export default function BoxItemsScreen() {
     }
   };
 
-  // Use in bottomSheet
+  const handleUpdateStatus = () => {
+    if (status === "unpacked" && scanItems.length === 0) {
+      showToast("warning", "Box is empty. Add items before packing.");
+      return;
+    }
+    updateStatusSheetRef.current?.present();
+  };
+
+  const handleConfirmUpdateStatus = async () => {
+    setLoading(true);
+    if (!box?.id) return;
+    const newstatus = status === "unpacked" ? "packed" : "unpacked";
+
+    try {
+      await axios.put(`/boxes/status/${newstatus}/${box?.id}`);
+      showToast("success", `Box status updated to ${newstatus}`);
+
+      // ✅ Immediately update local status for instant UI feedback
+      setStatus(newstatus);
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.error ||
+        error?.message ||
+        "Failed to update status";
+      showToast("error", errorMessage);
+      console.error("update status error:", errorMessage);
+    } finally {
+      updateStatusSheetRef.current?.close();
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteItem = () => {
+    console.log("Open BottomSheet...");
+    deleteSheetRef.current?.present();
+  };
+
   const handleConfirmDeleteItem = async () => {
+    deleteSheetRef.current?.close();
+    setLoading(true);
     if (!selectedItemId) return;
 
     try {
@@ -209,60 +246,31 @@ export default function BoxItemsScreen() {
       console.error("Failed to delete scan item:", error);
     } finally {
       setSelectedItemId(null);
-      deleteSheetRef.current?.close();
+      setLoading(false);
     }
   };
 
-  const handleConfirmUpdateStatus = async () => {
-    if (!box?.id) return;
-    const newstatus = status === "unpacked" ? "packed" : "unpacked";
+  const handleDownload = () => {
+    downloadSheetRef.current?.present();
+  };
 
+  const handleConfirmDownload = async () => {
+    downloadSheetRef.current?.close();
+    setLoading(true);
     try {
-      await axios.put(`/boxes/status/${newstatus}/${box?.id}`);
-      showToast("success", `Box status updated to ${newstatus}`);
-
-      // ✅ Immediately update local status for instant UI feedback
-      setStatus(newstatus);
-    } catch (error: any) {
-      const errorMessage =
-        error?.response?.data?.error ||
-        error?.message ||
-        "Failed to update status";
-      showToast("error", errorMessage);
-      console.error("update status error:", errorMessage);
+      if (box) {
+        await fetchBoxtDetailsAndShare(box);
+      }
+    } catch (err: any) {
+      console.log("Download Error: ", err.message);
     } finally {
-      updateStatusSheetRef.current?.close();
+      setLoading(false);
     }
-  };
-
-  // use in item
-  const handleDeleteItem = () => {
-    console.log("Open BottomSheet...");
-    deleteSheetRef.current?.present();
-  };
-
-  const handleUpdateStatus = () => {
-    if (status === "unpacked" && scanItems.length === 0) {
-      showToast("warning", "Box is empty. Add items before packing.");
-      return;
-    }
-    updateStatusSheetRef.current?.present();
   };
 
   const animatedScanButtonStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scanButtonScale.value }],
   }));
-
-  // Render error screen if box is invalid
-  // if (!box) {
-  //   return (
-  //     <View className="flex-1 bg-sapLight-background justify-center items-center">
-  //       <Text className="text-red-500 font-montserrat-bold text-lg">
-  //         Error: Invalid or missing box data
-  //       </Text>
-  //     </View>
-  //   );
-  // }
 
   if (!box) {
     return (
@@ -271,6 +279,7 @@ export default function BoxItemsScreen() {
       </View>
     );
   }
+
   return (
     <View className="flex-1 bg-sapLight-background ">
       {showScanner ? (
@@ -326,6 +335,7 @@ export default function BoxItemsScreen() {
                     />
                   )}
                   keyExtractor={(item) => item.id.toString()}
+                  showsVerticalScrollIndicator={false}
                 />
               )}
             </View>
@@ -337,10 +347,7 @@ export default function BoxItemsScreen() {
                 if (status !== "packed") {
                   setShowScanner(true);
                 } else {
-                  showToast(
-                    "warning",
-                    "The box is packed, Unpacked it to Add items"
-                  );
+                  handleDownload();
                 }
               }}
               onPressIn={() => (scanButtonScale.value = withSpring(0.95))}
@@ -351,10 +358,21 @@ export default function BoxItemsScreen() {
                   colors={["#000000", "#222222"]}
                   style={styles.scanButton}
                 >
-                  <ScanLine size={28} color="#fff" />
-                  <Text className="text-white font-montserrat-bold text-lg ml-3">
-                    Scan Product
-                  </Text>
+                  {status == "packed" ? (
+                    <>
+                      <Download size={18} color="#fff" />
+                      <Text className="text-white font-montserrat-bold text-lg ml-3">
+                        Download Invoice
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <ScanLine size={28} color="#fff" />
+                      <Text className="text-white font-montserrat-bold text-lg ml-3">
+                        Scan Product
+                      </Text>
+                    </>
+                  )}
                 </LinearGradient>
               </Animated.View>
             </TouchableOpacity>
@@ -370,6 +388,7 @@ export default function BoxItemsScreen() {
         cancelLabel="Cancel"
         onConfirm={handleConfirmDeleteItem}
         onCancel={() => deleteSheetRef.current?.close()}
+        type="delete"
       />
 
       <ConfirmationBottomSheet
@@ -384,20 +403,19 @@ export default function BoxItemsScreen() {
         confirmLabel={`Yes, ${status === "packed" ? "Unpacked" : "Packed"}`}
         onConfirm={handleConfirmUpdateStatus}
         onCancel={() => updateStatusSheetRef.current?.close()}
+        type="status"
       />
-    </View>
-  );
-}
 
-function TextBlock({ label, value }: { label: string; value: string }) {
-  return (
-    <View>
-      <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-        {label}
-      </Text>
-      <Text className="text-sapLight-text font-montserrat-medium text-xl">
-        {value}
-      </Text>
+      <ConfirmationBottomSheet
+        ref={downloadSheetRef}
+        title="Download PDF"
+        message={`Are you sure you want to download PDF?`}
+        cancelLabel="Cancel"
+        confirmLabel="Yes, Download"
+        onConfirm={handleConfirmDownload}
+        onCancel={() => downloadSheetRef.current?.close()}
+        type="download"
+      />
     </View>
   );
 }
