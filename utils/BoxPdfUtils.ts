@@ -3,6 +3,7 @@ import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import * as Print from "expo-print";
 import { ScanAndPackUrl } from "@/utils/getAssetUrls";
+import { getBoxWeight } from "./BoxWeight";
 
 export interface BoxDetailsInput {
   vendor_id: number;
@@ -37,6 +38,8 @@ export const fetchBoxtDetailsAndShare = async ({
 
     console.log(ScanAndPackUrl(vendor.logo));
 
+    const boxWeight = await getBoxWeight(vendor_id, project_id, id)
+    console.log("Box Weight: ",boxWeight)
     // HTML content for PDF
     const htmlContent = `
   <html>

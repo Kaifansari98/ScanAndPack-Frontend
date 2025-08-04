@@ -7,7 +7,6 @@ import LottieView from "lottie-react-native";
 import React, { useState, useCallback, useRef } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
 import { useSelector } from "react-redux";
-import { useToast } from "@/components/Notification/ToastProvider";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
 import { ProjectCard } from "@/components/ItemCards/ProjectCard";
@@ -181,7 +180,6 @@ export default function ProfileTabScreen() {
 
 const styles = StyleSheet.create({
   listContainer: {
-    flex: 1,
     padding: 20,
     paddingTop: 24,
   },
