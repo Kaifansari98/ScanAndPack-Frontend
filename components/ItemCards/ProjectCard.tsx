@@ -10,7 +10,7 @@ import Animated, {
 import { useToast } from "../Notification/ToastProvider";
 import axios from "@/lib/axios";
 import { ScanAndPackUrl } from "@/utils/getAssetUrls";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BottomSheetModal,
   TouchableWithoutFeedback,
@@ -27,6 +27,8 @@ import { Download } from "lucide-react-native";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system";
+import { getProjectWeight } from "@/utils/ProjectWeight";
+import { weight } from "@/data/generic";
 
 export interface ProjectData {
   id: number;
@@ -55,8 +57,16 @@ export const ProjectCard = ({
   const router = useRouter();
   const cardOpacity = useSharedValue(0);
   const cardTranslateY = useSharedValue(30);
-
+  const [projectWeight, setProjectWeight] = useState<number | null>(null);
   const { showToast } = useToast();
+
+  useEffect(() => {
+    const fetchWeight = async() => {
+        const res = await getProjectWeight(project.vendor_id, project.id);
+        setProjectWeight(res.project_weight)
+    }
+    fetchWeight();
+  },[project.vendor_id, project.id])
 
   useEffect(() => {
     cardOpacity.value = withDelay(
@@ -120,7 +130,7 @@ export const ProjectCard = ({
             {project.projectName}
           </Text>
 
-          {project.packedItems !== 0 && 
+          {project.packedItems !== 0 && (
             <TouchableOpacity
               onPress={() => {
                 if (project.packedItems <= 0) {
@@ -133,17 +143,28 @@ export const ProjectCard = ({
             >
               <Download size={22} color="#555555" />
             </TouchableOpacity>
-          }
+          )}
         </View>
 
         <View className="flex-row justify-between items-center">
-          <View>
-            <Text className="text-sapLight-text font-montserrat-medium text-sm">
-              Total Items
-            </Text>
-            <Text className="text-sapLight-text font-montserrat-semibold text-xl">
-              {project.totalNoItems.toLocaleString()}
-            </Text>
+
+          <View className="flex-row space-x-6 gap-6">
+            <View>
+              <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
+                Items
+              </Text>
+              <Text className="text-sapLight-text font-montserrat-semibold text-xl">
+                {project.totalNoItems.toLocaleString()}
+              </Text>
+            </View>
+            <View>
+              <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
+                Weight
+              </Text>
+              <Text className="text-sapLight-text font-montserrat-semibold text-xl">
+                {projectWeight} {weight}
+              </Text>
+            </View>
           </View>
 
           <View className="flex-row space-x-6 gap-4">
