@@ -65,9 +65,9 @@ export default function ProfileTabScreen() {
         client_id: proj.client_id,
         project_details_id: proj.details[0]?.id ?? null,
         projectName: proj.project_name,
-        totalNoItems: proj.details[0]?.total_items ?? 0,
-        unpackedItems: proj.details[0]?.total_unpacked ?? 0,
-        packedItems: proj.details[0]?.total_packed ?? 0,
+        totalNoItems: proj.aggregatedTotals?.total_items ?? 0,
+        unpackedItems: proj.aggregatedTotals?.total_unpacked ?? 0,
+        packedItems: proj.aggregatedTotals?.total_packed ?? 0,
         status: proj.project_status,
         date: proj.details[0]?.estimated_completion_date
           ? new Date(
