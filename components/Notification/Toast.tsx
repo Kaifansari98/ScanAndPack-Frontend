@@ -140,7 +140,7 @@ const NotificationToast: React.FC<Props> = ({
           style={{
             color: COLORS[type].text,
             fontWeight: "600",
-            fontSize: 16,
+            fontSize: 12,
           }}
         >
           {message}

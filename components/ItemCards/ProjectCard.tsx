@@ -8,12 +8,8 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useToast } from "../Notification/ToastProvider";
-import axios from "@/lib/axios";
-import { ScanAndPackUrl } from "@/utils/getAssetUrls";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import {
-  BottomSheetModal,
-  TouchableWithoutFeedback,
 } from "@gorhom/bottom-sheet";
 import {
   Platform,
@@ -24,9 +20,6 @@ import {
   View,
 } from "react-native";
 import { Download } from "lucide-react-native";
-import * as Print from "expo-print";
-import * as Sharing from "expo-sharing";
-import * as FileSystem from "expo-file-system";
 
 export interface ProjectData {
   id: number;
