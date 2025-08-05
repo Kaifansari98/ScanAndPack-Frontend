@@ -59,6 +59,7 @@ export const ProjectCard = ({
   const { showToast } = useToast();
 
   useEffect(() => {
+    
     const fetchWeight = async() => {
         const res = await getProjectWeight(project.vendor_id, project.id);
         setProjectWeight(res.project_weight)

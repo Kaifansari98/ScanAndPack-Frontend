@@ -14,13 +14,9 @@ interface Project {
   id: number;
   vendor_id: number;
   project_details_id: number | null;
-  projectName: string;
-  totalNoItems: number;
-  unpackedItems: number;
   client_id: number;
-  packedItems: number;
-  status: "packed" | "unpacked";
-  date: string;
+
+
 }
 
 interface AddBoxModalProps {

@@ -38,6 +38,9 @@ export async function fetchProjectDetailsAndShare(project: ProjectData) {
       `/boxes/details/vendor/${project.vendor_id}/project/${project.id}/client/${project.client_id}/boxes`
     );
 
+    console.log(res)
+
+    
     const ProjectWeight = await getProjectWeight(project.vendor_id, project.id);
     const { vendor, project: projectDetails, boxes, client } = res.data;
 

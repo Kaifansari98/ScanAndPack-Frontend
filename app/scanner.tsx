@@ -76,9 +76,7 @@ export default function BarcodeScanner() {
           router.push({
             pathname: '/dashboards/boxes',
             params: {
-              vendor_id: parsedData.vendor_id.toString(),
               project_id: parsedData.project_id.toString(),
-              client_id: parsedData.client_id.toString(),
             },
           });
         }

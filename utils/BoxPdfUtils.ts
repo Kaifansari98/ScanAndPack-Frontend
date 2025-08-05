@@ -47,6 +47,8 @@ export const fetchBoxtDetailsAndShare = async ({
       `/boxes/details/vendor/${vendor_id}/project/${project_id}/client/${client_id}/box/${id}`
     );
 
+    // console.log(res)
+
 
     const qrValue = `${vendor_id}, ${project_id}, ${client_id}, ${id}`
     const qrBase64 = await generateQRBase64(qrValue);

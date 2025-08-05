@@ -117,15 +117,15 @@ export default function ProfileTabScreen() {
       );
   
       if (potentiallyCompleted.length > 0) {
-        console.log(`🔍 Found ${potentiallyCompleted.length} potentially completed projects, checking...`);
+   
         
         try {
           const completedResponse = await axios.get(`/projects/vendor/${vendorId}/completed`);
           
           // Handle completion notifications with smart logic
           if (completedResponse.data.boxUpdateSummary?.length > 0) {
-            console.log('✅ Auto-updated box status for completed projects:', 
-              completedResponse.data.boxUpdateSummary);
+            // console.log('✅ Auto-updated box status for completed projects:', 
+            //   completedResponse.data.boxUpdateSummary);
             
             completedResponse.data.boxUpdateSummary.forEach((summary: any) => {
               if (summary.was_already_completed) {
