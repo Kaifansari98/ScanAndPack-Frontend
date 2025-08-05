@@ -46,6 +46,7 @@ interface ProjectCardProps {
   disableNavigation?: boolean;
   onDownloadPress: (project: ProjectData) => void;
 }
+
 export const ProjectCard = ({
   project,
   index,
