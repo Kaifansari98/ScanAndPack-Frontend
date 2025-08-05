@@ -3,6 +3,7 @@ import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import * as Print from "expo-print";
 import { ScanAndPackUrl } from "@/utils/getAssetUrls";
+import { getBoxWeight } from "./BoxWeight";
 
 export interface BoxDetailsInput {
   vendor_id: number;
@@ -37,14 +38,21 @@ export const fetchBoxtDetailsAndShare = async ({
 
     console.log(ScanAndPackUrl(vendor.logo));
 
+    const boxWeight = await getBoxWeight(vendor_id, project_id, id);
+    console.log("Box Weight: ", boxWeight.box_weight);
     // HTML content for PDF
     const htmlContent = `
   <html>
     <head>
       <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
         body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
         .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-        .logo { width: 120px; }
+        .logo { width: 100px; }
         .vendor-details { text-align: right; }
         .vendor-details h2 { margin: 0; font-size: 18px; }
         .vendor-details p { margin: 5px 0; font-size: 14px; }
@@ -54,12 +62,34 @@ export const fetchBoxtDetailsAndShare = async ({
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
         th { background-color: #3b3b3b; font-weight: bold; color: #fff }
         .table-container { margin-top: 20px; }
-        .row { background-color: #000000; height: 1px; border: none }
+        .row { background-color: #000000; height: 1px; border: none; margin: 5px 0px 5px 0px }
         .client-section { margin-top: 20px; margin-bottom: 10px; }
         .client-section p { font-size: 14px; margin: 2px 0; }
+        .info-qr-container { display: flex;flex-direction: row; justify-content: space-between; width: 100%;}
+        .qrContainer {height: 100px; width: 120px; border: 1px solid black; }
         .project-info { margin: 10px 0; }
         .project-name { text-align: center; font-size: 16px; font-weight: bold; }
         .box-name { text-align: left; font-size: 14px; font-weight: bold; }
+        .project-summary {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+            align-items: center;
+
+          }
+         .project-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 0 0 4px 0;
+          }
+          .box-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #444;
+          }
+          p {
+            margin: 0px;
+            }
       </style>
     </head>
     <body>
@@ -72,28 +102,35 @@ export const fetchBoxtDetailsAndShare = async ({
           <p>Date: ${new Date().toLocaleDateString()}</p>
         </div>
       </div>
-
-      <div class="client-section">
-        <p><strong>Client Name:</strong> ${client.name}</p>
-        <p><strong>Contact:</strong> ${client.contact}</p>
-        <p><strong>Email:</strong> ${client.email}</p>
-        <p><strong>Address:</strong> ${client.address}, ${client.city}, ${client.state}, ${client.country} - ${client.pincode}</p>
-      </div>
-
+        <div class="info-qr-container">
+            <div class="client-section">
+                <p><strong>Client Name:</strong> ${client.name}</p>
+                <p><strong>Contact:</strong> ${client.contact}</p>
+                <p><strong>Email:</strong> ${client.email}</p>
+                <p><strong>Address:</strong> ${client.address}, ${client.city}, ${client.state}, ${client.country} - ${client.pincode}</p>
+            </div>
+            <div class="qrContainer">
+              </div>
+        </div>
       <hr class="row" /> 
 
-      <div class="project-info">
-        <h2 class="project-name">${boxDetails.project.project_name.replace(/&/g, "&amp;")}</h2>
-        <p class="box-name">Box : ${boxDetails.box_name.replace(/&/g, "&amp;")}</p>
-      </div>
+        <div class="project-summary">
+          <div class="left-section">
+            <h2 class="project-title">${boxDetails.project.project_name.replace(/&/g, "&amp;")} - ${boxDetails.box_name.replace(/&/g, "&amp;")}</h2>
+     
+          </div>
+          <div class="right-section">
+            <p><strong>Box Weight:</strong> ${boxWeight.box_weight}</p>
+          </div>
+        </div>
 
       <div class="table-container">
         <table>
           <tr>
-            <th>Sr No.</th>
-            <th>Item Name</th>
-            <th>Category</th>
-            <th>Qty</th>
+            <th style="width: 8%;">Sr No.</th>
+            <th style="width: 60%;">Item Name</th>
+            <th style="width: 20%;">Category</th>
+            <th style="width: 12%;">Qty</th>
           </tr>
           ${items
             .map(

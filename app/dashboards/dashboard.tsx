@@ -1,6 +1,6 @@
 import DashboardTabScreen from '@/screens/Tabs/dashboard';
 import ProfileTabScreen from '@/screens/Tabs/profile';
-import ProjectsTabScreen from '@/screens/Tabs/projects';
+import ProjectsTabScreen from '@/app/dashboards/projects';
 import ReportsTabScreen from '@/screens/Tabs/reports';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { FolderOpenDot, Home, User, FileCheck2 } from 'lucide-react-native';

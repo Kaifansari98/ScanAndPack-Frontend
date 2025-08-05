@@ -1,10 +1,30 @@
-// lib/pdfUtils.ts
 import axios from "@/lib/axios";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system";
 import { ScanAndPackUrl } from "@/utils/getAssetUrls";
 import { ProjectData } from "@/components/ItemCards/ProjectCard";
+import { getProjectWeight } from "./ProjectWeight";
+import { getBoxWeight } from "./BoxWeight";
+import { weight } from "@/data/generic";
+
+// ✅ Generate QR as base64 PNG from third-party API
+async function generateQRBase64(qrValue: string): Promise<string> {
+  const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
+    qrValue
+  )}&size=150x150`;
+
+  const response = await FileSystem.downloadAsync(
+    apiUrl,
+    FileSystem.cacheDirectory + "qr.png"
+  );
+
+  const base64 = await FileSystem.readAsStringAsync(response.uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
+  return `data:image/png;base64,${base64}`;
+}
 
 export async function fetchProjectDetailsAndShare(project: ProjectData) {
   try {
@@ -18,7 +38,23 @@ export async function fetchProjectDetailsAndShare(project: ProjectData) {
       `/boxes/details/vendor/${project.vendor_id}/project/${project.id}/client/${project.client_id}/boxes`
     );
 
-    const { vendor, project: projectDetails, boxes } = res.data;
+    const ProjectWeight = await getProjectWeight(project.vendor_id, project.id);
+    const { vendor, project: projectDetails, boxes, client } = res.data;
+
+    // ✅ Use base64 QR image
+    const qrValue = `${project.vendor_id}, ${project.id}, ${project.client_id}`;
+    const qrBase64 = await generateQRBase64(qrValue);
+
+    const boxesWithWeights = await Promise.all(
+      boxes.map(async (box: any) => {
+        const { box_weight } = await getBoxWeight(
+          project.vendor_id,
+          project.id,
+          box.box_id
+        );
+        return { box_weight };
+      })
+    );
 
     const htmlContent = `
       <html>
@@ -26,16 +62,24 @@ export async function fetchProjectDetailsAndShare(project: ProjectData) {
           <style>
             body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
             .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-            .logo { width: 120px; }
+            .logo { width: 100px; }
             .vendor-details { text-align: right; }
             .vendor-details h2 { margin: 0; font-size: 18px; }
             .vendor-details p { margin: 5px 0; font-size: 14px; }
             .details { margin-bottom: 20px; }
             .details p { margin: 5px 0; font-size: 16px; font-weight: bold; }
             table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
-            th { background-color: #f2f2f2; font-weight: bold; }
-            .table-container { margin-top: 20px; }
+            td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
+            th { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; color:#fff; background-color: #3b3b3b; font-weight: bold; }
+            .table-container { margin-top: 10px; }
+            .row { background-color: #000000; height: 1px; border: none }
+            .project-name { text-align: center; }
+            .client-section { margin-top: 20px; margin-bottom: 10px; }
+            .client-section p { font-size: 14px; margin: 2px 0; }
+            .info-qr-container { display: flex; flex-direction: row; justify-content: space-between; width: 100%; }
+            .qrContainer { height: 100px; width: 120px; border: 1px solid black; display: flex; align-items: center; justify-content: center; }
+            .project-details-row { display: flex; justify-content: space-between; align-items: center; font-size: 16px; font-weight: bold; }
+            p { margin: 0; }
           </style>
         </head>
         <body>
@@ -48,23 +92,38 @@ export async function fetchProjectDetailsAndShare(project: ProjectData) {
               <p>Date: ${new Date().toLocaleDateString()}</p>
             </div>
           </div>
-          <div class="details">
-            <p>Project Name: ${projectDetails.project_name.replace(/&/g, "&amp;")}</p>
+          <div class="info-qr-container">
+            <div class="client-section">
+              <p><strong>Client Name:</strong> ${client.name}</p>
+              <p><strong>Contact:</strong> ${client.contact}</p>
+              <p><strong>Email:</strong> ${client.email}</p>
+              <p><strong>Address:</strong> ${client.address}, ${client.city}, ${client.state}, ${client.country} - ${client.pincode}</p>
+            </div>
+            <div class="qrContainer">
+              <img src="${qrBase64}" alt="QR Code" style="width: 110px; height: 90px;" />
+            </div>
+          </div>
+          <hr class="row" />
+          <div class="project-details-row">
+            <p><strong>${projectDetails.project_name.replace(/&/g, "&amp;")}</strong></p>
+            <p><strong>Project Weight:</strong> ${ProjectWeight.project_weight} ${weight}</p>
           </div>
           <div class="table-container">
             <table>
               <tr>
                 <th>Sr No.</th>
                 <th>Box Name</th>
-                <th>Items</th>
+                <th>Items Count</th>
+                <th>Weight</th>
               </tr>
               ${boxes
                 .map(
                   (box: any, index: number) => `
                     <tr>
-                      <td>${index + 1}</td>
-                      <td>${box.box_name.replace(/&/g, "&amp;")}</td>
-                      <td>${box.total_items}</td>
+                      <td style="width: 8%;">${index + 1}</td>
+                      <td style="width: 52%;">${box.box_name.replace(/&/g, "&amp;")}</td>
+                      <td style="width: 10%;">${box.total_items}</td>
+                      <td style="width: 10%;">${boxesWithWeights[index]?.box_weight ?? "N/A"} ${weight}</td>
                     </tr>
                   `
                 )
@@ -75,23 +134,13 @@ export async function fetchProjectDetailsAndShare(project: ProjectData) {
       </html>
     `;
 
-    const safeProjectName = projectDetails.project_name.replace(
-      /[^a-zA-Z0-9-_]/g,
-      "_"
-    );
+    const safeProjectName = projectDetails.project_name.replace(/[^a-zA-Z0-9-_]/g, "_");
     const fileName = `${safeProjectName}-Boxes.pdf`;
 
-    const { uri } = await Print.printToFileAsync({
-      html: htmlContent,
-      base64: false,
-    });
-
+    const { uri } = await Print.printToFileAsync({ html: htmlContent, base64: false });
     const newPath = FileSystem.documentDirectory + fileName;
 
-    await FileSystem.moveAsync({
-      from: uri,
-      to: newPath,
-    });
+    await FileSystem.moveAsync({ from: uri, to: newPath });
 
     await Sharing.shareAsync(newPath, {
       mimeType: "application/pdf",

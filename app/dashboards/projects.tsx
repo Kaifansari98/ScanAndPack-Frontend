@@ -130,11 +130,11 @@ export default function ProfileTabScreen() {
             completedResponse.data.boxUpdateSummary.forEach((summary: any) => {
               if (summary.was_already_completed) {
                 // Project was already completed - no toast needed
-                console.log(`ℹ️ Project "${summary.project_name}" was already completed (${summary.packed_boxes}/${summary.total_boxes} boxes packed)`);
+                // console.log(`ℹ️ Project "${summary.project_name}" was already completed (${summary.packed_boxes}/${summary.total_boxes} boxes packed)`);
               } else if (summary.boxes_updated > 0) {
                 // New completion - show celebration toast
-                showToast('success', `🎉 Project "${summary.project_name}" completed! Updated ${summary.boxes_updated} boxes.`);
-                console.log(`🎉 Project "${summary.project_name}" newly completed! Updated ${summary.boxes_updated} boxes.`);
+                // showToast('success', `🎉 Project "${summary.project_name}" completed! Updated ${summary.boxes_updated} boxes.`);
+                // console.log(`🎉 Project "${summary.project_name}" newly completed! Updated ${summary.boxes_updated} boxes.`);
               }
             });
             
@@ -249,7 +249,6 @@ export default function ProfileTabScreen() {
 
 const styles = StyleSheet.create({
   listContainer: {
-    flex: 1,
     padding: 20,
     paddingTop: 24,
   },
