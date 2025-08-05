@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { Bell, ChevronLeft, Search } from 'lucide-react-native';
+import { Bell, ChevronLeft, Search, QrCode } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -9,7 +9,9 @@ type NavbarProps = {
   showSearch?: boolean;
   showNotification?: boolean;
   showPack?: boolean;
+  showScan?: boolean;
   onPackPress?: () => void;
+  onScanPress?: () => void;
   boxStatus?: string;
 };
 
@@ -19,10 +21,21 @@ export default function Navbar({
   showSearch = false,
   showNotification = false,
   showPack = false,
+  showScan = false,
   onPackPress,
+  onScanPress,
   boxStatus = "Mark as packed"
 }: NavbarProps) {
   const router = useRouter();
+
+  const handleScanPress = () => {
+    if (onScanPress) {
+      onScanPress();
+    } else {
+      // Default behavior - navigate to scanner screen
+      router.push('/scanner');
+    }
+  };
 
   return (
     <View
@@ -53,6 +66,11 @@ export default function Navbar({
         {showSearch && (
           <TouchableOpacity onPress={() => console.log('Search pressed')}>
             <Search size={24} color="#171717" />
+          </TouchableOpacity>
+        )}
+        {showScan && (
+          <TouchableOpacity onPress={handleScanPress}>
+            <QrCode size={24} color="#171717" />
           </TouchableOpacity>
         )}
         {showNotification && (

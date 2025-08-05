@@ -138,12 +138,10 @@ function BoxCard({
 
   const handleNavigate = () => {
     const payload = {
-      name: box.name,
       project_id: box.project_id,
       vendor_id: box.vendor_id,
       client_id: box.client_id,
       id: box.id,
-      status: box.box_status,
     };
 
     router.push({

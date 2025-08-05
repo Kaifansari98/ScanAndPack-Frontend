@@ -57,6 +57,7 @@ export default function BoxItemsScreen() {
   const [scanItems, setScanItems] = useState<ScanItem[]>([]);
   const [box, setBox] = useState<Box | null>(null);
   const [status, setStatus] = useState<string>("");
+  const [boxName, setBoxName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [showScanner, setShowScanner] = useState(false);
   const deleteSheetRef = useRef<BottomSheetModal>(null);
@@ -64,6 +65,7 @@ export default function BoxItemsScreen() {
   const downloadSheetRef = useRef<BottomSheetModal>(null);
   const updateStatusSheetRef = useRef<BottomSheetModal>(null);
   const scanButtonScale = useSharedValue(1);
+  
 
   useEffect(() => {
     if (!payloadString) return;
@@ -88,7 +90,7 @@ export default function BoxItemsScreen() {
         });
 
         const items =
-          data?.data?.map((item: any) => ({
+          data?.data?.items?.map((item: any) => ({
             ...item.project_item_details,
             id: item.id,
           })) ?? [];
@@ -113,7 +115,9 @@ export default function BoxItemsScreen() {
         `/boxes/details/vendor/${box.vendor_id}/project/${box.project_id}/client/${box.client_id}/box/${box.id}`
       );
       const newStatus = res.data.box.box_status;
+      const BoxName = res.data.box.box_name;
       setStatus(newStatus);
+      setBoxName(BoxName);
     } catch (error) {
       console.error("Failed to fetch box details:", error);
       showToast("error", "Failed to load box details");
@@ -162,7 +166,7 @@ export default function BoxItemsScreen() {
       });
 
       const items =
-        data?.data?.map((item: any) => ({
+        data?.data?.items?.map((item: any) => ({
           ...item.project_item_details,
           id: item.id,
         })) ?? [];
@@ -235,7 +239,7 @@ export default function BoxItemsScreen() {
         });
 
         const items =
-          data?.data?.map((item: any) => ({
+          data?.data?.items?.map((item: any) => ({
             ...item.project_item_details,
             id: item.id,
           })) ?? [];
@@ -287,7 +291,7 @@ export default function BoxItemsScreen() {
       ) : (
         <>
           <Navbar
-            title={box.name}
+            title={boxName}
             showBack
             showSearch={false}
             showPack={true}
