@@ -4,12 +4,30 @@ import * as Sharing from "expo-sharing";
 import * as Print from "expo-print";
 import { ScanAndPackUrl } from "@/utils/getAssetUrls";
 import { getBoxWeight } from "./BoxWeight";
+import { weight } from "@/data/generic";
 
 export interface BoxDetailsInput {
   vendor_id: number;
   client_id: number;
   project_id: number;
   id: number;
+}
+
+async function generateQRBase64(qrValue: string): Promise<string> {
+  const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
+    qrValue
+  )}&size=150x150`;
+
+  const response = await FileSystem.downloadAsync(
+    apiUrl,
+    FileSystem.cacheDirectory + "qr.png"
+  );
+
+  const base64 = await FileSystem.readAsStringAsync(response.uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
+  return `data:image/png;base64,${base64}`;
 }
 
 export const fetchBoxtDetailsAndShare = async ({
@@ -28,11 +46,10 @@ export const fetchBoxtDetailsAndShare = async ({
     const res = await axios.get(
       `/boxes/details/vendor/${vendor_id}/project/${project_id}/client/${client_id}/box/${id}`
     );
-    console.log(
-      "📦 Full Box Details =>",
-      JSON.stringify(res.data.client, null, 2)
-    );
 
+
+    const qrValue = `${vendor_id}, ${project_id}, ${client_id}, ${id}`
+    const qrBase64 = await generateQRBase64(qrValue);
     // Extract data for PDF
     const { vendor, box: boxDetails, items, client } = res.data;
 
@@ -63,10 +80,9 @@ export const fetchBoxtDetailsAndShare = async ({
         th { background-color: #3b3b3b; font-weight: bold; color: #fff }
         .table-container { margin-top: 20px; }
         .row { background-color: #000000; height: 1px; border: none; margin: 5px 0px 5px 0px }
-        .client-section { margin-top: 20px; margin-bottom: 10px; }
         .client-section p { font-size: 14px; margin: 2px 0; }
-        .info-qr-container { display: flex;flex-direction: row; justify-content: space-between; width: 100%;}
-        .qrContainer {height: 100px; width: 120px; border: 1px solid black; }
+        .info-qr-container { display: flex; flex-direction: row; justify-content: space-between; width: 100%; align-items: end; margin-bottom: 10px;}
+        .qrContainer { height: 80px; width: 80px; border: 1px solid black; display: flex; align-items: center; justify-content: center; }
         .project-info { margin: 10px 0; }
         .project-name { text-align: center; font-size: 16px; font-weight: bold; }
         .box-name { text-align: left; font-size: 14px; font-weight: bold; }
@@ -110,7 +126,8 @@ export const fetchBoxtDetailsAndShare = async ({
                 <p><strong>Address:</strong> ${client.address}, ${client.city}, ${client.state}, ${client.country} - ${client.pincode}</p>
             </div>
             <div class="qrContainer">
-              </div>
+              <img src="${qrBase64}" alt="QR Code" style="width: 70px; height: 70px;" />
+            </div>
         </div>
       <hr class="row" /> 
 
@@ -120,7 +137,7 @@ export const fetchBoxtDetailsAndShare = async ({
      
           </div>
           <div class="right-section">
-            <p><strong>Box Weight:</strong> ${boxWeight.box_weight}</p>
+            <p><strong>Box Weight:</strong> ${boxWeight.box_weight} ${weight}</p>
           </div>
         </div>
 

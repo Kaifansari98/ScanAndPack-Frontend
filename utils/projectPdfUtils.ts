@@ -1,12 +1,12 @@
+import { ProjectData } from "@/components/ItemCards/ProjectCard";
+import { weight } from "@/data/generic";
 import axios from "@/lib/axios";
+import { ScanAndPackUrl } from "@/utils/getAssetUrls";
+import * as FileSystem from "expo-file-system";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
-import * as FileSystem from "expo-file-system";
-import { ScanAndPackUrl } from "@/utils/getAssetUrls";
-import { ProjectData } from "@/components/ItemCards/ProjectCard";
-import { getProjectWeight } from "./ProjectWeight";
 import { getBoxWeight } from "./BoxWeight";
-import { weight } from "@/data/generic";
+import { getProjectWeight } from "./ProjectWeight";
 
 // ✅ Generate QR as base64 PNG from third-party API
 async function generateQRBase64(qrValue: string): Promise<string> {
@@ -74,10 +74,9 @@ export async function fetchProjectDetailsAndShare(project: ProjectData) {
             .table-container { margin-top: 10px; }
             .row { background-color: #000000; height: 1px; border: none }
             .project-name { text-align: center; }
-            .client-section { margin-top: 20px; margin-bottom: 10px; }
             .client-section p { font-size: 14px; margin: 2px 0; }
-            .info-qr-container { display: flex; flex-direction: row; justify-content: space-between; width: 100%; }
-            .qrContainer { height: 100px; width: 120px; border: 1px solid black; display: flex; align-items: center; justify-content: center; }
+            .info-qr-container { display: flex; flex-direction: row; justify-content: space-between; width: 100%; align-items: end; margin-bottom: 10px;}
+            .qrContainer { height: 80px; width: 80px; border: 1px solid black; display: flex; align-items: center; justify-content: center; }
             .project-details-row { display: flex; justify-content: space-between; align-items: center; font-size: 16px; font-weight: bold; }
             p { margin: 0; }
           </style>
@@ -100,7 +99,7 @@ export async function fetchProjectDetailsAndShare(project: ProjectData) {
               <p><strong>Address:</strong> ${client.address}, ${client.city}, ${client.state}, ${client.country} - ${client.pincode}</p>
             </div>
             <div class="qrContainer">
-              <img src="${qrBase64}" alt="QR Code" style="width: 110px; height: 90px;" />
+              <img src="${qrBase64}" alt="QR Code" style="width: 70px; height: 70px;" />
             </div>
           </div>
           <hr class="row" />
