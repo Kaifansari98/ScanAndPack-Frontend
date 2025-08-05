@@ -15,8 +15,6 @@ interface Project {
   vendor_id: number;
   project_details_id: number | null;
   client_id: number;
-
-
 }
 
 interface AddBoxModalProps {

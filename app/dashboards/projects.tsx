@@ -2,7 +2,7 @@ import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
 import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import LottieView from "lottie-react-native";
 import React, { useState, useCallback, useRef } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
@@ -191,6 +191,12 @@ export default function ProfileTabScreen() {
         showBack={false}
         showSearch={false}
         showNotification={true}
+        showScan={true}
+          onScanPress={() => {
+                  // Optional: Custom scan handler
+                  // If not provided, it will navigate to '/scanner'
+                  router.push('/scanner');
+                }}
       />
 
       {downloadLoading ? (

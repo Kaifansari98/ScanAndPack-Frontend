@@ -46,14 +46,7 @@ import { weight } from "@/data/generic";
 interface Project {
   id: number;
   vendor_id: number;
-  project_details_id: number | null;
-  projectName: string;
-  totalNoItems: number;
-  unpackedItems: number;
-  client_id: number;
-  packedItems: number;
-  status: string;
-  date: string;
+  client_id: number; // handle kiya download me
 }
 
 interface ProjectDetailsResponse {
@@ -67,6 +60,7 @@ interface ProjectDetailsResponse {
   total_packed: number;
   total_unpaked: number;
   total_weight: number;
+  project_details_id: number | null;
 }
 // Define Box interface
 interface Box {
@@ -250,13 +244,14 @@ function BoxCard({
 export default function BoxesScreen() {
   const user = useSelector((state: RootState) => state.auth.user);
   const { showToast } = useToast();
-  const { project: projectString } = useLocalSearchParams<{
-    project: string;
-  }>();
-  const project = useMemo(
-    () => JSON.parse(projectString) as Project,
-    [projectString]
-  );
+  const { id, client_id, vendor_id } = useLocalSearchParams();
+
+  const project: Project = {
+    id: Number(id),
+    client_id: Number(client_id),
+    vendor_id: Number(vendor_id),
+  };
+  // console.log(project);
   const [projectDetails, setProjectDetails] =
     useState<ProjectDetailsResponse | null>(null);
   const [showGlobalLoader, setShowGlobalLoader] = useState<boolean>(false);
@@ -307,6 +302,7 @@ export default function BoxesScreen() {
   }, [fetchBoxes]);
 
   const fetchProjectDetails = useCallback(async () => {
+    setShowGlobalLoader(true)
     try {
       const res = await axios.get(`/projects/${project.id}`);
       const data = res.data;
@@ -337,11 +333,14 @@ export default function BoxesScreen() {
         vendor_id: data.vender_id,
         client_id: data.client_id,
         estimated_completion_date: formatDate(rawDate),
+        project_details_id: data.details.id,
       };
 
       setProjectDetails(filteredDetails);
     } catch (error: any) {
       console.log("❌ Fetch Project Details Failed:", error.message);
+    }finally{
+      setShowGlobalLoader(false)
     }
   }, [project.id, project.vendor_id]);
 
@@ -359,6 +358,7 @@ export default function BoxesScreen() {
   const handleConfirmProjectDownload = async () => {
     projectSheetRef.current?.dismiss();
     setShowGlobalLoader(true);
+
     try {
       if (project) {
         await fetchProjectDetailsAndShare(project);
@@ -481,9 +481,16 @@ export default function BoxesScreen() {
     transform: [{ scale: addButtonScale.value }],
   }));
 
+  if (!projectDetails) {
+    return <Loader />;
+  }
   return (
     <View className="flex-1 bg-sapLight-background">
-      <Navbar title={project.projectName} showBack={true} showSearch={false} />
+      <Navbar
+        title={projectDetails?.project_name}
+        showBack={true}
+        showSearch={false}
+      />
       {showGlobalLoader ? (
         <View className="flex-1 justify-center items-center">
           <Loader />
@@ -495,7 +502,7 @@ export default function BoxesScreen() {
             {projectDetails && (
               <ProjectCard
                 project={{
-                  id: projectDetails.id,
+                  id: project.id,
                   vendor_id: project.vendor_id,
                   client_id: project.client_id,
                   projectName: projectDetails.project_name,
@@ -597,7 +604,12 @@ export default function BoxesScreen() {
         <AddBoxModal
           ref={sheetRef}
           onSubmit={onAdd}
-          project={project}
+          project={{
+            id: projectDetails.id,
+            client_id: projectDetails.client_id,
+            vendor_id: projectDetails.vendor_id,
+            project_details_id: projectDetails.project_details_id,
+          }}
           setCreatingBox={setCreatingBox}
         />
       )}
@@ -638,7 +650,7 @@ export default function BoxesScreen() {
       <ConfirmationBottomSheet
         ref={projectSheetRef}
         title="Download Project Report"
-        message={`Download project list for "${project?.projectName}"?`}
+        message={`Download project list for "${projectDetails.project_name}"?`}
         confirmLabel="Yes, Download"
         cancelLabel="Cancel"
         onConfirm={handleConfirmProjectDownload}

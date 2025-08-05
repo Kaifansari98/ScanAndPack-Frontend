@@ -47,90 +47,73 @@ export default function BarcodeScanner() {
 
   const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
     if (scanned) return;
-    
+  
     setScanned(true);
     console.log('Scanned data:', data);
     console.log('Scan type:', type);
-    
-    // First try to parse as JSON
+  
     try {
-      const parsedData = JSON.parse(data);
-      
-      // Check if it has vendor_id, project_id, client_id
-      if (parsedData.vendor_id && parsedData.project_id && parsedData.client_id) {
-        // If it also has box_id, redirect to boxItemsScreen
-        if (parsedData.id) {
-          router.push({
-            pathname: '/dashboards/boxItemsScreen',
-            params: {
-              name: parsedData.name || 'Unknown Box',
-              project_id: parsedData.project_id.toString(),
-              vendor_id: parsedData.vendor_id.toString(),
-              client_id: parsedData.client_id.toString(),
-              id: parsedData.id.toString(),
-              status: parsedData.status || 'unknown',
-            },
-          });
-        } else {
-          // Only has vendor_id, project_id, client_id - redirect to boxes screen
-          router.push({
-            pathname: '/dashboards/boxes',
-            params: {
-              project_id: parsedData.project_id.toString(),
-            },
-          });
-        }
+      // Clean and split the data by comma
+      const cleanData = data.replace(/"/g, '').trim();
+      const parts = cleanData.split(',').map(part => part.trim());
+  
+      if (parts.length === 3) {
+        // ✅ Case 1: vendor_id, project_id, client_id → redirect to Boxes screen
+        const [vendor_id, id, client_id] = parts;
+  
+        router.push({
+          pathname: '/dashboards/boxes',
+          params: {
+            vendor_id,
+            id,
+            client_id,
+          },
+        });
         return;
       }
-    } catch (error) {
-      // If JSON parsing fails, try comma-separated format
-      console.log('Not JSON format, trying comma-separated format');
-      
-      // Try to parse comma-separated format: "Box 1", 1, 16, 16, 29, "unpacked"
-      try {
-        // Remove quotes and split by comma
-        const cleanData = data.replace(/"/g, '').trim();
-        const parts = cleanData.split(',').map(part => part.trim());
-        
-        // Expected format: name, vendor_id, project_id, client_id, id, status
-        if (parts.length === 6) {
-          const [name, vendor_id, project_id, client_id, id, status] = parts;
-          
-          // Validate that we have the required numeric IDs
-          if (vendor_id && project_id && client_id && id) {
-            router.push({
-              pathname: '/dashboards/boxItemsScreen',
-              params: {
-                project_id: project_id.toString(),
-                vendor_id: vendor_id.toString(),
-                client_id: client_id.toString(),
-                id: id.toString(),
-              },
-            });
-            return;
-          }
-        }
-      } catch (parseError) {
-        console.error('Failed to parse comma-separated data:', parseError);
+  
+      if (parts.length === 4) {
+        // ✅ Case 2: vendor_id, project_id, client_id, id → redirect to BoxItems screen
+        const [vendor_id, project_id, client_id, id] = parts;
+  
+        const payload = {
+          vendor_id: Number(vendor_id),
+          project_id: Number(project_id),
+          client_id: Number(client_id),
+          id: Number(id),
+        };
+  
+        router.push({
+          pathname: '/dashboards/boxItemsScreen',
+          params: {
+            payload: JSON.stringify(payload),
+          },
+        });
+        return;
       }
+  
+      // ❌ If neither format matched
+      throw new Error('Invalid QR format');
+    } catch (err) {
+      console.error('Failed to parse scanned data:', err);
+  
+      Alert.alert(
+        'Invalid QR Code',
+        `Scanned data is not in expected format:\n\n${data}`,
+        [
+          {
+            text: 'Scan Again',
+            onPress: () => setScanned(false),
+          },
+          {
+            text: 'Close',
+            onPress: () => router.back(),
+          },
+        ]
+      );
     }
-    
-    // For non-JSON data or data that doesn't match our format, show alert
-    Alert.alert(
-      'Scan Successful!',
-      `Type: ${type}\nData: ${data}`,
-      [
-        {
-          text: 'Scan Again',
-          onPress: () => setScanned(false),
-        },
-        {
-          text: 'Close',
-          onPress: () => router.back(),
-        },
-      ]
-    );
   };
+  
 
   const toggleFlash = () => {
     console.log('Toggle flash called, current:', flashMode);

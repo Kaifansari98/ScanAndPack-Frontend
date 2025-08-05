@@ -11,8 +11,7 @@ import { useToast } from "../Notification/ToastProvider";
 import axios from "@/lib/axios";
 import { ScanAndPackUrl } from "@/utils/getAssetUrls";
 import { useEffect, useRef, useState } from "react";
-import {
-} from "@gorhom/bottom-sheet";
+import {} from "@gorhom/bottom-sheet";
 import {
   Platform,
   Pressable,
@@ -46,6 +45,7 @@ interface ProjectCardProps {
   disableNavigation?: boolean;
   onDownloadPress: (project: ProjectData) => void;
 }
+
 export const ProjectCard = ({
   project,
   index,
@@ -59,13 +59,12 @@ export const ProjectCard = ({
   const { showToast } = useToast();
 
   useEffect(() => {
-    
-    const fetchWeight = async() => {
-        const res = await getProjectWeight(project.vendor_id, project.id);
-        setProjectWeight(res.project_weight)
-    }
+    const fetchWeight = async () => {
+      const res = await getProjectWeight(project.vendor_id, project.id);
+      setProjectWeight(res.project_weight);
+    };
     fetchWeight();
-  },[project.vendor_id, project.id])
+  }, [project.vendor_id, project.id]);
 
   useEffect(() => {
     cardOpacity.value = withDelay(
@@ -95,7 +94,11 @@ export const ProjectCard = ({
         if (!disableNavigation) {
           router.push({
             pathname: "/dashboards/boxes",
-            params: { project: JSON.stringify(project) },
+            params: {
+              id: String(project.id),
+              client_id: String(project.client_id),
+              vendor_id: String(project.vendor_id),
+            },
           });
         }
       }}
@@ -146,7 +149,6 @@ export const ProjectCard = ({
         </View>
 
         <View className="flex-row justify-between items-center">
-
           <View className="flex-row space-x-6 gap-6">
             <View>
               <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
