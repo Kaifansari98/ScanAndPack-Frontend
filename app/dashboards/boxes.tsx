@@ -39,6 +39,8 @@ import { UpdateBoxModal } from "@/components/modals/UpdateBoxModal";
 import { ProjectCard } from "@/components/ItemCards/ProjectCard";
 import { fetchProjectDetailsAndShare } from "@/utils/projectPdfUtils";
 import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
+import { getBoxWeight } from "@/utils/BoxWeight";
+import { weight } from "@/data/generic";
 
 // Define Project interface
 interface Project {
@@ -86,9 +88,17 @@ function BoxCard({
   const cardOpacity = useSharedValue(0);
   const cardTranslateY = useSharedValue(30);
   const scale = useSharedValue(1);
+  const [boxWeight, setBoxWeight] = useState<number | null>(null);
 
+  useEffect(() => {
+    const fetchBoxWeight = async () => {
+      const res = await getBoxWeight(box.vendor_id, box.project_id, box.id);
+      setBoxWeight(res.box_weight);
+    };
+
+    fetchBoxWeight();
+  }, [box.vendor_id, box.project_id, box.id]);
   const status = box.box_status || "In Progress";
-
   const bgClass =
     status === "packed"
       ? "bg-green-100"
@@ -184,13 +194,23 @@ function BoxCard({
             </Text>
           </View>
           <View className="flex-row justify-between items-center">
-            <View>
-              <Text className="text-sapLight-infoText font-montserrat-medium text-sm mb-1">
-                Items Count
-              </Text>
-              <Text className="text-sapLight-text font-montserrat-semibold text-2xl">
-                {box.items_count}
-              </Text>
+            <View className="flex-row gap-6 items-center">
+              <View>
+                <Text className="text-sapLight-infoText font-montserrat-medium text-sm mb-1">
+                  Items
+                </Text>
+                <Text className="text-sapLight-text font-montserrat-semibold text-2xl">
+                  {box.items_count}
+                </Text>
+              </View>
+              <View>
+                <Text className="text-sapLight-infoText font-montserrat-medium text-sm mb-1">
+                  Weight
+                </Text>
+                <Text className="text-sapLight-text font-montserrat-semibold text-2xl">
+                  {boxWeight} {weight}
+                </Text>
+              </View>
             </View>
             <View className="h-full flex-row items-end gap-2">
               <TouchableOpacity
@@ -242,7 +262,6 @@ export default function BoxesScreen() {
   const downloadSheetRef = useRef<BottomSheetModal>(null);
   const [selectedBoxForDelete, setSelectedBoxForDelete] = useState<Box | null>(
     null
-
   );
   const updateSheetRef = useRef<BottomSheetModal>(null);
 
@@ -324,6 +343,7 @@ export default function BoxesScreen() {
     if (!selectedBoxForDelete) return;
     try {
       await handleDeleteBox(selectedBoxForDelete);
+      showToast('success', 'Box deleted successfully')
     } catch (error) {
       console.error("❌ Error in handleConfirmDelete:", error);
     } finally {
