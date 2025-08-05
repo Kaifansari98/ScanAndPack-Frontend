@@ -46,16 +46,22 @@ import { weight } from "@/data/generic";
 interface Project {
   id: number;
   vendor_id: number;
-  project_details_id: number | null;
-  projectName: string;
-  totalNoItems: number;
-  unpackedItems: number;
-  client_id: number;
-  packedItems: number;
-  status: "packed" | "unpacked";
-  date: string;
+  client_id: number; // handle kiya download me
 }
 
+interface ProjectDetailsResponse {
+  id: number;
+  vendor_id: number;
+  client_id: number;
+  project_status: string;
+  project_name: string;
+  estimated_completion_date: string;
+  total_items: number;
+  total_packed: number;
+  total_unpaked: number;
+  total_weight: number;
+  project_details_id: number | null;
+}
 // Define Box interface
 interface Box {
   id: number;
@@ -238,13 +244,16 @@ function BoxCard({
 export default function BoxesScreen() {
   const user = useSelector((state: RootState) => state.auth.user);
   const { showToast } = useToast();
-  const { project: projectString } = useLocalSearchParams<{
-    project: string;
-  }>();
-  const project = useMemo(
-    () => JSON.parse(projectString) as Project,
-    [projectString]
-  );
+  const { id, client_id, vendor_id } = useLocalSearchParams();
+
+  const project: Project = {
+    id: Number(id),
+    client_id: Number(client_id),
+    vendor_id: Number(vendor_id),
+  };
+  // console.log(project);
+  const [projectDetails, setProjectDetails] =
+    useState<ProjectDetailsResponse | null>(null);
   const [showGlobalLoader, setShowGlobalLoader] = useState<boolean>(false);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [selectedBox, setSelectedBox] = useState<Box | null>(null);
@@ -292,9 +301,53 @@ export default function BoxesScreen() {
     fetchBoxes(); // Refresh screen data after box creation
   }, [fetchBoxes]);
 
+  const fetchProjectDetails = useCallback(async () => {
+    setShowGlobalLoader(true)
+    try {
+      const res = await axios.get(`/projects/${project.id}`);
+      const data = res.data;
+
+      // Safely extract raw ISO date string
+      const rawDate: string | null =
+        data.details?.[0]?.estimated_completion_date || null;
+
+      // Format date to a readable format (e.g., "28 Sep 2025")
+      const formatDate = (isoDate: string | null): string => {
+        if (!isoDate) return "N/A";
+        const date = new Date(isoDate);
+        return date.toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+      };
+
+      const filteredDetails: ProjectDetailsResponse = {
+        id: data.id,
+        project_status: data.project_status,
+        project_name: data.project_name,
+        total_items: data.totals.total_items,
+        total_packed: data.totals.total_packed,
+        total_unpaked: data.totals.total_unpacked,
+        total_weight: data.totals.total_weight,
+        vendor_id: data.vender_id,
+        client_id: data.client_id,
+        estimated_completion_date: formatDate(rawDate),
+        project_details_id: data.details.id,
+      };
+
+      setProjectDetails(filteredDetails);
+    } catch (error: any) {
+      console.log("❌ Fetch Project Details Failed:", error.message);
+    }finally{
+      setShowGlobalLoader(false)
+    }
+  }, [project.id, project.vendor_id]);
+
   useFocusEffect(
     useCallback(() => {
-      fetchBoxes(); // Refetch boxes on screen focus
+      fetchProjectDetails();
+      fetchBoxes();
     }, [project.id, project.vendor_id])
   );
 
@@ -305,6 +358,7 @@ export default function BoxesScreen() {
   const handleConfirmProjectDownload = async () => {
     projectSheetRef.current?.dismiss();
     setShowGlobalLoader(true);
+
     try {
       if (project) {
         await fetchProjectDetailsAndShare(project);
@@ -318,6 +372,7 @@ export default function BoxesScreen() {
 
   const handleDelete = (box: Box) => {
     setSelectedBoxForDelete(box);
+
     deleteSheetRef.current?.present();
   };
 
@@ -341,11 +396,12 @@ export default function BoxesScreen() {
     if (!selectedBoxForDelete) return;
     try {
       await handleDeleteBox(selectedBoxForDelete);
-      showToast('success', 'Box deleted successfully')
+      showToast("success", "Box deleted successfully");
     } catch (error) {
       console.error("❌ Error in handleConfirmDelete:", error);
     } finally {
       setShowGlobalLoader(false);
+      fetchProjectDetails();
     }
   };
 
@@ -362,7 +418,11 @@ export default function BoxesScreen() {
           updateSheetRef.current?.present();
         }, 300); // Wait for previous sheet to close
       }
-    } catch (error) {}
+    } catch (error) {
+      console.log("Box Edit error: ", error);
+    } finally {
+      fetchProjectDetails();
+    }
   };
 
   const handleDownload = (box: Box) => {
@@ -421,9 +481,16 @@ export default function BoxesScreen() {
     transform: [{ scale: addButtonScale.value }],
   }));
 
+  if (!projectDetails) {
+    return <Loader />;
+  }
   return (
     <View className="flex-1 bg-sapLight-background">
-      <Navbar title={project.projectName} showBack={true} showSearch={false} />
+      <Navbar
+        title={projectDetails?.project_name}
+        showBack={true}
+        showSearch={false}
+      />
       {showGlobalLoader ? (
         <View className="flex-1 justify-center items-center">
           <Loader />
@@ -432,12 +499,24 @@ export default function BoxesScreen() {
         <ScrollView showsVerticalScrollIndicator={false}>
           <View className="flex-1 mx-4 py-6">
             {/* Project Card */}
-            <ProjectCard
-              project={project}
-              index={0}
-              disableNavigation={true}
-              onDownloadPress={handleProjectDownload}
-            />
+            {projectDetails && (
+              <ProjectCard
+                project={{
+                  id: project.id,
+                  vendor_id: project.vendor_id,
+                  client_id: project.client_id,
+                  projectName: projectDetails.project_name,
+                  totalNoItems: projectDetails.total_items,
+                  unpackedItems: projectDetails.total_unpaked,
+                  packedItems: projectDetails.total_packed,
+                  status: projectDetails.project_status,
+                  date: projectDetails.estimated_completion_date,
+                }}
+                index={0}
+                disableNavigation={true}
+                onDownloadPress={handleProjectDownload}
+              />
+            )}
 
             {/* Boxes Section */}
             <View className="flex-1 mt-6 rounded-2xl">
@@ -525,7 +604,12 @@ export default function BoxesScreen() {
         <AddBoxModal
           ref={sheetRef}
           onSubmit={onAdd}
-          project={project}
+          project={{
+            id: projectDetails.id,
+            client_id: projectDetails.client_id,
+            vendor_id: projectDetails.vendor_id,
+            project_details_id: projectDetails.project_details_id,
+          }}
           setCreatingBox={setCreatingBox}
         />
       )}
@@ -566,7 +650,7 @@ export default function BoxesScreen() {
       <ConfirmationBottomSheet
         ref={projectSheetRef}
         title="Download Project Report"
-        message={`Download project list for "${project?.projectName}"?`}
+        message={`Download project list for "${projectDetails.project_name}"?`}
         confirmLabel="Yes, Download"
         cancelLabel="Cancel"
         onConfirm={handleConfirmProjectDownload}

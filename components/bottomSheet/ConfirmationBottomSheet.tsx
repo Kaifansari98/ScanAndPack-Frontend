@@ -6,7 +6,7 @@ import {
 import React, { JSX, useMemo } from "react";
 import { Text, View, TouchableOpacity } from "react-native";
 import { Trash2, Download, SquarePen, LogOut, Package } from "lucide-react-native"; // Optional fallback icon
-
+import { Dimensions } from "react-native";
 type ConfirmationType = "download" | "edit" | "delete" | "logout" | "status";
 
 export interface ConfirmationBottomSheetProps {
@@ -43,7 +43,9 @@ export const ConfirmationBottomSheet = React.forwardRef<
     },
     ref
   ) => {
-    const snapPoints = useMemo(() => ["30%"], []);
+    
+    const screenHeight = Dimensions.get("window").height;
+    const snapPoints = useMemo(() => [screenHeight * 0.6], []);
 
     const IconComponent = type ? iconMap[type] : null; // ✅ Optional fallback
 

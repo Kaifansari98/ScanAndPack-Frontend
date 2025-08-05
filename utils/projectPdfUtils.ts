@@ -8,6 +8,11 @@ import * as Sharing from "expo-sharing";
 import { getBoxWeight } from "./BoxWeight";
 import { getProjectWeight } from "./ProjectWeight";
 
+export interface PDFData {
+  vendor_id: number;
+  id: number;
+  client_id: number;
+}
 // ✅ Generate QR as base64 PNG from third-party API
 async function generateQRBase64(qrValue: string): Promise<string> {
   const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
@@ -26,7 +31,7 @@ async function generateQRBase64(qrValue: string): Promise<string> {
   return `data:image/png;base64,${base64}`;
 }
 
-export async function fetchProjectDetailsAndShare(project: ProjectData) {
+export async function fetchProjectDetailsAndShare(project: PDFData) {
   try {
     const permissionResponse = await Sharing.isAvailableAsync();
     if (!permissionResponse) {
@@ -37,6 +42,8 @@ export async function fetchProjectDetailsAndShare(project: ProjectData) {
     const res = await axios.get(
       `/boxes/details/vendor/${project.vendor_id}/project/${project.id}/client/${project.client_id}/boxes`
     );
+
+    // console.log(res)
 
     const ProjectWeight = await getProjectWeight(project.vendor_id, project.id);
     const { vendor, project: projectDetails, boxes, client } = res.data;
@@ -133,10 +140,16 @@ export async function fetchProjectDetailsAndShare(project: ProjectData) {
       </html>
     `;
 
-    const safeProjectName = projectDetails.project_name.replace(/[^a-zA-Z0-9-_]/g, "_");
+    const safeProjectName = projectDetails.project_name.replace(
+      /[^a-zA-Z0-9-_]/g,
+      "_"
+    );
     const fileName = `${safeProjectName}-Boxes.pdf`;
 
-    const { uri } = await Print.printToFileAsync({ html: htmlContent, base64: false });
+    const { uri } = await Print.printToFileAsync({
+      html: htmlContent,
+      base64: false,
+    });
     const newPath = FileSystem.documentDirectory + fileName;
 
     await FileSystem.moveAsync({ from: uri, to: newPath });

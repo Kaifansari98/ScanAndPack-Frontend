@@ -59,13 +59,13 @@ export default function BarcodeScanner() {
   
       if (parts.length === 3) {
         // ✅ Case 1: vendor_id, project_id, client_id → redirect to Boxes screen
-        const [vendor_id, project_id, client_id] = parts;
+        const [vendor_id, id, client_id] = parts;
   
         router.push({
           pathname: '/dashboards/boxes',
           params: {
             vendor_id,
-            project_id,
+            id,
             client_id,
           },
         });
