@@ -27,6 +27,7 @@ import { useSelector } from "react-redux";
 import { QRScanner } from "../../components/generic/QRScanner";
 import { ItemCard } from "@/components/ItemCards/ItemCard";
 import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
+import { QRCodeBase64Generator } from "@/components/generic/QRCodeBase64Generator";
 
 interface Box {
   name: string;
@@ -59,13 +60,14 @@ export default function BoxItemsScreen() {
   const [status, setStatus] = useState<string>("");
   const [boxName, setBoxName] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [qrValue, setQRValue] = useState<string | null>(null);
+  const [qrBase64, setQRBase64] = useState<string | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const deleteSheetRef = useRef<BottomSheetModal>(null);
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const downloadSheetRef = useRef<BottomSheetModal>(null);
   const updateStatusSheetRef = useRef<BottomSheetModal>(null);
   const scanButtonScale = useSharedValue(1);
-  
 
   useEffect(() => {
     if (!payloadString) return;
@@ -255,6 +257,7 @@ export default function BoxItemsScreen() {
   };
 
   const handleDownload = () => {
+    setQRValue(`${box?.vendor_id}, ${box?.project_id}, ${box?.client_id}, ${box?.id}`)
     downloadSheetRef.current?.present();
   };
 
@@ -262,8 +265,8 @@ export default function BoxItemsScreen() {
     downloadSheetRef.current?.close();
     setLoading(true);
     try {
-      if (box) {
-        await fetchBoxtDetailsAndShare(box);
+      if (box && qrBase64) {
+        await fetchBoxtDetailsAndShare(box, qrBase64);
       }
     } catch (err: any) {
       console.log("Download Error: ", err.message);
@@ -420,6 +423,18 @@ export default function BoxItemsScreen() {
         onCancel={() => downloadSheetRef.current?.close()}
         type="download"
       />
+
+      
+            {qrValue && (
+              <View style={{ position: "absolute", top: -9999, left: -9999 }}>
+                <QRCodeBase64Generator
+                  value={qrValue}
+                  onGenerated={(data) => {
+                    setQRBase64(data);
+                  }}
+                />
+              </View>
+            )}
     </View>
   );
 }

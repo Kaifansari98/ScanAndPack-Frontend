@@ -41,6 +41,7 @@ import { fetchProjectDetailsAndShare } from "@/utils/projectPdfUtils";
 import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
 import { getBoxWeight } from "@/utils/BoxWeight";
 import { weight } from "@/data/generic";
+import { QRCodeBase64Generator } from "@/components/generic/QRCodeBase64Generator";
 
 // Define Project interface
 interface Project {
@@ -280,7 +281,11 @@ export default function BoxesScreen() {
   const user = useSelector((state: RootState) => state.auth.user);
   const { showToast } = useToast();
   const { id, client_id, vendor_id } = useLocalSearchParams();
+  const [projectQrValue, setProjectQRValue] = useState<string | null>(null);
+  const [projectQrBase64, setProjectQRBase64] = useState<string | null>(null);
 
+  const [boxQrValue, setBoxQRValue] = useState<string | null>(null);
+  const [boxQrBase64, setBoxQRBase64] = useState<string | null>(null);
   const project: Project = {
     id: Number(id),
     client_id: Number(client_id),
@@ -337,7 +342,7 @@ export default function BoxesScreen() {
   }, [fetchBoxes]);
 
   const fetchProjectDetails = useCallback(async () => {
-    setShowGlobalLoader(true)
+    setShowGlobalLoader(true);
     try {
       const res = await axios.get(`/projects/${project.id}`);
       const data = res.data;
@@ -376,8 +381,8 @@ export default function BoxesScreen() {
       setProjectDetails(filteredDetails);
     } catch (error: any) {
       console.log("❌ Fetch Project Details Failed:", error.message);
-    }finally{
-      setShowGlobalLoader(false)
+    } finally {
+      setShowGlobalLoader(false);
     }
   }, [project.id, project.vendor_id]);
 
@@ -389,6 +394,9 @@ export default function BoxesScreen() {
   );
 
   const handleProjectDownload = () => {
+    setProjectQRValue(
+      `${project.vendor_id},${project.id},${project.client_id}`
+    );
     projectSheetRef.current?.present();
   };
 
@@ -397,8 +405,8 @@ export default function BoxesScreen() {
     setShowGlobalLoader(true);
 
     try {
-      if (project) {
-        await fetchProjectDetailsAndShare(project);
+      if (project && projectQrBase64) {
+        await fetchProjectDetailsAndShare(project, projectQrBase64);
       }
     } catch (err: any) {
       console.log("Download Error: ", err.message);
@@ -464,6 +472,7 @@ export default function BoxesScreen() {
 
   const handleDownload = (box: Box) => {
     setSelectedBox(box);
+    setBoxQRValue(`${project.vendor_id}, ${project.id}, ${project.client_id}, ${box.id}`)
     downloadSheetRef.current?.present();
   };
 
@@ -471,8 +480,8 @@ export default function BoxesScreen() {
     downloadSheetRef.current?.close();
     setShowGlobalLoader(true);
     try {
-      if (selectedBox) {
-        await fetchBoxtDetailsAndShare(selectedBox);
+      if (selectedBox && boxQrBase64) {
+        await fetchBoxtDetailsAndShare(selectedBox, boxQrBase64);
       }
     } catch (err: any) {
       console.log("Download Error: ", err.message);
@@ -632,6 +641,29 @@ export default function BoxesScreen() {
           </Animated.View>
         </TouchableOpacity>
       </View>
+
+      {projectQrValue && (
+        <View style={{ position: "absolute", top: -9999, left: -9999 }}>
+          <QRCodeBase64Generator
+            value={projectQrValue}
+            onGenerated={(data) => {
+              setProjectQRBase64(data);
+            }}
+          />
+        </View>
+      )}
+
+      {boxQrValue && (
+        <View style={{ position: "absolute", top: -9999, left: -9999 }}>
+          <QRCodeBase64Generator
+            value={boxQrValue}
+            onGenerated={(data) => {
+              setBoxQRBase64(data);
+            }}
+          />
+        </View>
+      )}
+
       {creatingBox && (
         <View style={styles.loaderOverlly}>
           <Loader />

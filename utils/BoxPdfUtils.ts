@@ -13,29 +13,12 @@ export interface BoxDetailsInput {
   id: number;
 }
 
-async function generateQRBase64(qrValue: string): Promise<string> {
-  const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
-    qrValue
-  )}&size=150x150`;
-
-  const response = await FileSystem.downloadAsync(
-    apiUrl,
-    FileSystem.cacheDirectory + "qr.png"
-  );
-
-  const base64 = await FileSystem.readAsStringAsync(response.uri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-
-  return `data:image/png;base64,${base64}`;
-}
-
 export const fetchBoxtDetailsAndShare = async ({
   vendor_id,
   project_id,
   client_id,
   id,
-}: BoxDetailsInput) => {
+}: BoxDetailsInput, qrBase64: string) => {
   try {
     const permissionResponse = await Sharing.isAvailableAsync();
     if (!permissionResponse) {
@@ -47,12 +30,6 @@ export const fetchBoxtDetailsAndShare = async ({
       `/boxes/details/vendor/${vendor_id}/project/${project_id}/client/${client_id}/box/${id}`
     );
 
-    // console.log(res)
-
-
-    const qrValue = `${vendor_id}, ${project_id}, ${client_id}, ${id}`
-    const qrBase64 = await generateQRBase64(qrValue);
-    // Extract data for PDF
     const { vendor, box: boxDetails, items, client } = res.data;
 
     console.log(ScanAndPackUrl(vendor.logo));
