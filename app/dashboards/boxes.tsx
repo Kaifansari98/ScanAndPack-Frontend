@@ -322,6 +322,8 @@ export default function BoxesScreen() {
         });
       };
 
+      console.log(data.vendor_id);
+
       const filteredDetails: ProjectDetailsResponse = {
         id: data.id,
         project_status: data.project_status,
@@ -330,10 +332,10 @@ export default function BoxesScreen() {
         total_packed: data.totals.total_packed,
         total_unpaked: data.totals.total_unpacked,
         total_weight: data.totals.total_weight,
-        vendor_id: data.vender_id,
+        vendor_id: data.vendor_id,
         client_id: data.client_id,
         estimated_completion_date: formatDate(rawDate),
-        project_details_id: data.details.id,
+        project_details_id: data.details[0].id,
       };
 
       setProjectDetails(filteredDetails);
