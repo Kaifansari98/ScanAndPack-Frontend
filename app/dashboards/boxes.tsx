@@ -95,6 +95,10 @@ function BoxCard({
   const cardTranslateY = useSharedValue(30);
   const scale = useSharedValue(1);
   const [boxWeight, setBoxWeight] = useState<number | null>(null);
+  const [groupedItemInfo, setGroupedItemInfo] = useState<{
+    group: string;
+    roomName: string;
+  } | null>(null);
 
   useEffect(() => {
     const fetchBoxWeight = async () => {
@@ -104,6 +108,25 @@ function BoxCard({
 
     fetchBoxWeight();
   }, [box.vendor_id, box.project_id, box.id]);
+
+
+  useEffect(() => {
+    const fetchGroupedItemInfo = async () => {
+      try {
+        const response = await axios.get(`/boxes/grouped-info/${box.id}`);
+        setGroupedItemInfo(response.data);
+      } catch (error) {
+        // console.error(`Error fetching grouped item info for : ${box.id}`, error);
+        setGroupedItemInfo(null);
+      }
+    };
+
+    if (box?.id) {
+      fetchGroupedItemInfo();
+    }
+  }, [box.id]);
+
+
   const status = box.box_status || "In Progress";
   const bgClass =
     status === "packed"
@@ -193,9 +216,21 @@ function BoxCard({
             </TouchableOpacity>
           </View>
           <View className="flex-row items-start justify-between mb-2 gap-1.5">
-            <Text className="text-sapLight-text font-montserrat-bold text-lg flex-1">
-              {box.name}
-            </Text>
+            <View className="flex-1">
+              {groupedItemInfo && (
+                <Text className="text-sapLight-infoText font-montserrat-medium text-xs mb-1">
+                  {groupedItemInfo.roomName}
+                </Text>
+              )}
+              <Text className="text-sapLight-text font-montserrat-bold text-lg">
+                {box.name}
+              </Text>
+              {groupedItemInfo && (
+                <Text className="text-sapLight-infoText font-montserrat-medium text-xs mt-1">
+                  {groupedItemInfo.group}
+                </Text>
+              )}
+            </View>
           </View>
           <View className="flex-row justify-between items-center">
             <View className="flex-row gap-6 items-center">
