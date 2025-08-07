@@ -9,6 +9,8 @@ import { X } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useToast } from "../Notification/ToastProvider";
+import { useSelector } from 'react-redux';
+import { RootState } from '@/redux/store';
 
 interface Project {
   id: number;
@@ -31,6 +33,7 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
     const [boxName, setBoxName] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const user = useSelector((state: RootState) => state.auth.user);
 
     const handleAdd = async () => {
       if (!boxName.trim()) {
@@ -49,9 +52,11 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
           client_id: project.client_id,
           box_name: boxName.trim(),
           box_status: "unpacked",
-          created_by: 1,
+          created_by: user?.id,
         };
 
+
+        console.log(payload)
         if (!project.project_details_id) {
           setError("Project details ID is missing");
           setCreatingBox(false);
