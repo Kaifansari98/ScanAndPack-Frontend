@@ -14,24 +14,8 @@ export interface PDFData {
   client_id: number;
 }
 // ✅ Generate QR as base64 PNG from third-party API
-async function generateQRBase64(qrValue: string): Promise<string> {
-  const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(
-    qrValue
-  )}&size=150x150`;
 
-  const response = await FileSystem.downloadAsync(
-    apiUrl,
-    FileSystem.cacheDirectory + "qr.png"
-  );
-
-  const base64 = await FileSystem.readAsStringAsync(response.uri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-
-  return `data:image/png;base64,${base64}`;
-}
-
-export async function fetchProjectDetailsAndShare(project: PDFData) {
+export async function fetchProjectDetailsAndShare(project: PDFData, qrBase64: string) {
   try {
     const permissionResponse = await Sharing.isAvailableAsync();
     if (!permissionResponse) {
@@ -48,9 +32,7 @@ export async function fetchProjectDetailsAndShare(project: PDFData) {
     const ProjectWeight = await getProjectWeight(project.vendor_id, project.id);
     const { vendor, project: projectDetails, boxes, client } = res.data;
 
-    // ✅ Use base64 QR image
-    const qrValue = `${project.vendor_id}, ${project.id}, ${project.client_id}`;
-    const qrBase64 = await generateQRBase64(qrValue);
+
 
     const boxesWithWeights = await Promise.all(
       boxes.map(async (box: any) => {

@@ -12,6 +12,7 @@ import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBo
 import { ProjectCard } from "@/components/ItemCards/ProjectCard";
 import { fetchProjectDetailsAndShare } from "@/utils/projectPdfUtils";
 import { useToast } from "@/components/Notification/ToastProvider";
+import { QRCodeBase64Generator } from "@/components/generic/QRCodeBase64Generator";
 
 interface ProjectCardProps {
   project: {
@@ -49,6 +50,9 @@ export default function ProfileTabScreen() {
   const user = useSelector((state: RootState) => state.auth.user);
   const [projects, setProjects] = useState<ProjectCardProps["project"][]>([]);
   const [loading, setLoading] = useState(true);
+  const [qrValue, setQRValue] = useState<string | null>(null);
+  const [qrBase64, setQRBase64] = useState<string | null>(null);
+
   const confirmationRef = useRef<BottomSheetModal>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedProject, setSelectedProject] = useState<
@@ -57,12 +61,18 @@ export default function ProfileTabScreen() {
   const [downloadLoading, setDownloadLoading] = useState<boolean>(false);
   const { showToast } = useToast();
 
-  const handleConfirm = async() => {
+  const handleDownload = (project: ProjectCardProps["project"]) => {
+    setSelectedProject(project);
+    setQRValue(`${project.vendor_id},${project.id},${project.client_id}`); // set QR content
+    confirmationRef.current?.present();
+  };
+
+  const handleConfirm = async () => {
     confirmationRef.current?.dismiss();
     setDownloadLoading(true);
     try {
-      if (selectedProject) {
-        await fetchProjectDetailsAndShare(selectedProject);
+      if (selectedProject && qrBase64) {
+        await fetchProjectDetailsAndShare(selectedProject, qrBase64);
       }
     } catch (error: any) {
       console.log("Download Error", error.message);
@@ -71,19 +81,14 @@ export default function ProfileTabScreen() {
     }
   };
 
-  const handleDownload = (project: ProjectCardProps["project"]) => {
-    setSelectedProject(project);
-    confirmationRef.current?.present();
-  };
-
   const fetchProjects = async () => {
     try {
       const vendorId = user?.vendor_id;
       if (!vendorId) return;
-  
+
       // Step 1: Fetch all projects first (regular flow)
       const response = await axios.get(`/projects/vendor/${vendorId}`);
-  
+
       const formatted: FormattedProject[] = response.data.map((proj: any) => ({
         id: proj.id,
         vendor_id: proj.vendor_id,
@@ -104,29 +109,37 @@ export default function ProfileTabScreen() {
             })
           : "N/A",
         // Add completion status for UI indicators
-        isCompleted: (proj.aggregatedTotals?.total_items > 0 && 
-                     proj.aggregatedTotals?.total_packed === proj.aggregatedTotals?.total_items),
-        completionPercentage: proj.aggregatedTotals?.total_items > 0 
-          ? Math.round((proj.aggregatedTotals?.total_packed / proj.aggregatedTotals?.total_items) * 100)
-          : 0
+        isCompleted:
+          proj.aggregatedTotals?.total_items > 0 &&
+          proj.aggregatedTotals?.total_packed ===
+            proj.aggregatedTotals?.total_items,
+        completionPercentage:
+          proj.aggregatedTotals?.total_items > 0
+            ? Math.round(
+                (proj.aggregatedTotals?.total_packed /
+                  proj.aggregatedTotals?.total_items) *
+                  100
+              )
+            : 0,
       }));
-  
+
       // Step 2: Smart completion check - only run if there are potentially completed projects
-      const potentiallyCompleted = formatted.filter((project: FormattedProject) => 
-        project.isCompleted && project.status !== 'completed'
+      const potentiallyCompleted = formatted.filter(
+        (project: FormattedProject) =>
+          project.isCompleted && project.status !== "completed"
       );
-  
+
       if (potentiallyCompleted.length > 0) {
-   
-        
         try {
-          const completedResponse = await axios.get(`/projects/vendor/${vendorId}/completed`);
-          
+          const completedResponse = await axios.get(
+            `/projects/vendor/${vendorId}/completed`
+          );
+
           // Handle completion notifications with smart logic
           if (completedResponse.data.boxUpdateSummary?.length > 0) {
-            // console.log('✅ Auto-updated box status for completed projects:', 
+            // console.log('✅ Auto-updated box status for completed projects:',
             //   completedResponse.data.boxUpdateSummary);
-            
+
             completedResponse.data.boxUpdateSummary.forEach((summary: any) => {
               if (summary.was_already_completed) {
                 // Project was already completed - no toast needed
@@ -137,28 +150,36 @@ export default function ProfileTabScreen() {
                 // console.log(`🎉 Project "${summary.project_name}" newly completed! Updated ${summary.boxes_updated} boxes.`);
               }
             });
-            
+
             // Optional: Show summary toast if multiple projects completed
-            const newCompletions = completedResponse.data.boxUpdateSummary.filter((s: any) => !s.was_already_completed);
+            const newCompletions =
+              completedResponse.data.boxUpdateSummary.filter(
+                (s: any) => !s.was_already_completed
+              );
             if (newCompletions.length > 1) {
-              showToast('info', `🎊 ${newCompletions.length} projects completed!`);
+              showToast(
+                "info",
+                `🎊 ${newCompletions.length} projects completed!`
+              );
             }
           }
         } catch (completedError) {
-          console.warn('Failed to check completed projects:', completedError);
+          console.warn("Failed to check completed projects:", completedError);
           // Optional: Show error toast only in development
           if (__DEV__) {
-            showToast('error', 'Failed to check project completions');
+            showToast("error", "Failed to check project completions");
           }
         }
       } else {
-        console.log('ℹ️ No completed projects detected, skipping completion check');
+        console.log(
+          "ℹ️ No completed projects detected, skipping completion check"
+        );
       }
-  
+
       setProjects(formatted);
     } catch (error) {
       console.error("Failed to fetch projects", error);
-      showToast('error', 'Failed to fetch projects');
+      showToast("error", "Failed to fetch projects");
     } finally {
       setLoading(false);
     }
@@ -192,11 +213,11 @@ export default function ProfileTabScreen() {
         showSearch={false}
         showNotification={true}
         showScan={true}
-          onScanPress={() => {
-                  // Optional: Custom scan handler
-                  // If not provided, it will navigate to '/scanner'
-                  router.push('/scanner');
-                }}
+        onScanPress={() => {
+          // Optional: Custom scan handler
+          // If not provided, it will navigate to '/scanner'
+          router.push("/scanner");
+        }}
       />
 
       {downloadLoading ? (
@@ -224,7 +245,6 @@ export default function ProfileTabScreen() {
                 flex: 1,
                 justifyContent: "center",
                 alignItems: "center",
-
               }}
             >
               <LottieView
@@ -250,13 +270,24 @@ export default function ProfileTabScreen() {
         }}
         type="download"
       />
+
+      {qrValue && (
+        <View style={{ position: "absolute", top: -9999, left: -9999 }}>
+          <QRCodeBase64Generator
+            value={qrValue}
+            onGenerated={(data) => {
+              setQRBase64(data);
+            }}
+          />
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   listContainer: {
-    flex:1,
+    flex: 1,
     padding: 20,
     paddingTop: 24,
   },
