@@ -172,12 +172,15 @@ function BoxCard({
       <Animated.View style={[animatedCardStyle, styles.cardContainer]}>
         <View style={styles.cardGradient} className="p-5">
           <View className="w-full flex flex-row justify-between items-center mb-2">
+            <View className="flex-row items-center gap-2">
             <View className={`rounded-full px-3 py-1 ${bgClass}`}>
               <Text
                 className={`font-montserrat-semibold text-xs capitalize ${textClass}`}
-              >
+                >
                 {status}
               </Text>
+            </View>
+              
             </View>
             <TouchableOpacity
               onPress={() => {
@@ -193,9 +196,29 @@ function BoxCard({
             </TouchableOpacity>
           </View>
           <View className="flex-row items-start justify-between mb-2 gap-1.5">
-            <Text className="text-sapLight-text font-montserrat-bold text-lg flex-1">
-              {box.name}
-            </Text>
+            <View className="flex-1">
+              <Text className="text-sapLight-text font-montserrat-bold text-lg">
+                {box.name}
+              </Text>
+              <View className="w-full flex-row justify-between items-center gap-2">
+              {groupedItemInfo && (
+                <View className="flex flex-col w-1/2">
+                  <Text className="text-sapLight-infoText font-montserrat-medium text-xs mt-1">Group</Text>
+                <Text className="text-sapLight-text font-montserrat-medium text-sm" numberOfLines={1} ellipsizeMode="tail">
+                  {groupedItemInfo.group} 
+                </Text>
+              </View>
+              )}
+              {groupedItemInfo && (
+                <View className="flex flex-col w-1/2 items-end">
+                  <Text className="text-sapLight-infoText font-montserrat-medium text-xs mt-1">Room</Text>
+                    <Text className="text-sapLight-text font-montserrat-medium text-sm" numberOfLines={1} ellipsizeMode="tail">
+                      {groupedItemInfo.roomName} 
+                    </Text>
+                    </View>
+                  )}
+              </View>
+            </View>
           </View>
           <View className="flex-row justify-between items-center">
             <View className="flex-row gap-6 items-center">
