@@ -41,7 +41,6 @@ import { fetchProjectDetailsAndShare } from "@/utils/projectPdfUtils";
 import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
 import { getBoxWeight } from "@/utils/BoxWeight";
 import { weight } from "@/data/generic";
-import { QRCodeBase64Generator } from "@/components/generic/QRCodeBase64Generator";
 
 // Define Project interface
 interface Project {
@@ -96,10 +95,6 @@ function BoxCard({
   const cardTranslateY = useSharedValue(30);
   const scale = useSharedValue(1);
   const [boxWeight, setBoxWeight] = useState<number | null>(null);
-  const [groupedItemInfo, setGroupedItemInfo] = useState<{
-    group: string;
-    roomName: string;
-  } | null>(null);
 
   useEffect(() => {
     const fetchBoxWeight = async () => {
@@ -109,25 +104,6 @@ function BoxCard({
 
     fetchBoxWeight();
   }, [box.vendor_id, box.project_id, box.id]);
-
-
-  useEffect(() => {
-    const fetchGroupedItemInfo = async () => {
-      try {
-        const response = await axios.get(`/boxes/grouped-info/${box.id}`);
-        setGroupedItemInfo(response.data);
-      } catch (error) {
-        // console.error(`Error fetching grouped item info for : ${box.id}`, error);
-        setGroupedItemInfo(null);
-      }
-    };
-
-    if (box?.id) {
-      fetchGroupedItemInfo();
-    }
-  }, [box.id]);
-
-
   const status = box.box_status || "In Progress";
   const bgClass =
     status === "packed"
@@ -217,21 +193,9 @@ function BoxCard({
             </TouchableOpacity>
           </View>
           <View className="flex-row items-start justify-between mb-2 gap-1.5">
-            <View className="flex-1">
-              {groupedItemInfo && (
-                <Text className="text-sapLight-infoText font-montserrat-medium text-xs mb-1">
-                  {groupedItemInfo.roomName}
-                </Text>
-              )}
-              <Text className="text-sapLight-text font-montserrat-bold text-lg">
-                {box.name}
-              </Text>
-              {groupedItemInfo && (
-                <Text className="text-sapLight-infoText font-montserrat-medium text-xs mt-1">
-                  {groupedItemInfo.group}
-                </Text>
-              )}
-            </View>
+            <Text className="text-sapLight-text font-montserrat-bold text-lg flex-1">
+              {box.name}
+            </Text>
           </View>
           <View className="flex-row justify-between items-center">
             <View className="flex-row gap-6 items-center">
@@ -281,11 +245,7 @@ export default function BoxesScreen() {
   const user = useSelector((state: RootState) => state.auth.user);
   const { showToast } = useToast();
   const { id, client_id, vendor_id } = useLocalSearchParams();
-  const [projectQrValue, setProjectQRValue] = useState<string | null>(null);
-  const [projectQrBase64, setProjectQRBase64] = useState<string | null>(null);
 
-  const [boxQrValue, setBoxQRValue] = useState<string | null>(null);
-  const [boxQrBase64, setBoxQRBase64] = useState<string | null>(null);
   const project: Project = {
     id: Number(id),
     client_id: Number(client_id),
@@ -342,7 +302,7 @@ export default function BoxesScreen() {
   }, [fetchBoxes]);
 
   const fetchProjectDetails = useCallback(async () => {
-    setShowGlobalLoader(true);
+    setShowGlobalLoader(true)
     try {
       const res = await axios.get(`/projects/${project.id}`);
       const data = res.data;
@@ -381,8 +341,8 @@ export default function BoxesScreen() {
       setProjectDetails(filteredDetails);
     } catch (error: any) {
       console.log("❌ Fetch Project Details Failed:", error.message);
-    } finally {
-      setShowGlobalLoader(false);
+    }finally{
+      setShowGlobalLoader(false)
     }
   }, [project.id, project.vendor_id]);
 
@@ -394,9 +354,6 @@ export default function BoxesScreen() {
   );
 
   const handleProjectDownload = () => {
-    setProjectQRValue(
-      `${project.vendor_id},${project.id},${project.client_id}`
-    );
     projectSheetRef.current?.present();
   };
 
@@ -405,8 +362,8 @@ export default function BoxesScreen() {
     setShowGlobalLoader(true);
 
     try {
-      if (project && projectQrBase64) {
-        await fetchProjectDetailsAndShare(project, projectQrBase64);
+      if (project) {
+        await fetchProjectDetailsAndShare(project);
       }
     } catch (err: any) {
       console.log("Download Error: ", err.message);
@@ -472,7 +429,6 @@ export default function BoxesScreen() {
 
   const handleDownload = (box: Box) => {
     setSelectedBox(box);
-    setBoxQRValue(`${project.vendor_id}, ${project.id}, ${project.client_id}, ${box.id}`)
     downloadSheetRef.current?.present();
   };
 
@@ -480,8 +436,8 @@ export default function BoxesScreen() {
     downloadSheetRef.current?.close();
     setShowGlobalLoader(true);
     try {
-      if (selectedBox && boxQrBase64) {
-        await fetchBoxtDetailsAndShare(selectedBox, boxQrBase64);
+      if (selectedBox) {
+        await fetchBoxtDetailsAndShare(selectedBox);
       }
     } catch (err: any) {
       console.log("Download Error: ", err.message);
@@ -641,29 +597,6 @@ export default function BoxesScreen() {
           </Animated.View>
         </TouchableOpacity>
       </View>
-
-      {projectQrValue && (
-        <View style={{ position: "absolute", top: -9999, left: -9999 }}>
-          <QRCodeBase64Generator
-            value={projectQrValue}
-            onGenerated={(data) => {
-              setProjectQRBase64(data);
-            }}
-          />
-        </View>
-      )}
-
-      {boxQrValue && (
-        <View style={{ position: "absolute", top: -9999, left: -9999 }}>
-          <QRCodeBase64Generator
-            value={boxQrValue}
-            onGenerated={(data) => {
-              setBoxQRBase64(data);
-            }}
-          />
-        </View>
-      )}
-
       {creatingBox && (
         <View style={styles.loaderOverlly}>
           <Loader />

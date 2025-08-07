@@ -6,7 +6,7 @@ import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import LottieView from "lottie-react-native";
 import { Download, ScanLine } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
@@ -27,7 +27,6 @@ import { useSelector } from "react-redux";
 import { QRScanner } from "../../components/generic/QRScanner";
 import { ItemCard } from "@/components/ItemCards/ItemCard";
 import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
-import { QRCodeBase64Generator } from "@/components/generic/QRCodeBase64Generator";
 
 interface Box {
   name: string;
@@ -60,14 +59,13 @@ export default function BoxItemsScreen() {
   const [status, setStatus] = useState<string>("");
   const [boxName, setBoxName] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [qrValue, setQRValue] = useState<string | null>(null);
-  const [qrBase64, setQRBase64] = useState<string | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const deleteSheetRef = useRef<BottomSheetModal>(null);
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const downloadSheetRef = useRef<BottomSheetModal>(null);
   const updateStatusSheetRef = useRef<BottomSheetModal>(null);
   const scanButtonScale = useSharedValue(1);
+
 
   useEffect(() => {
     if (!payloadString) return;
@@ -91,12 +89,17 @@ export default function BoxItemsScreen() {
           box_id: box.id,
         });
 
+        // console.log(data)
+        // console.log(box.id, box.project_id, box.vendor_id, box.client_id)
+
         const items =
           data?.data?.items?.map((item: any) => ({
             ...item.project_item_details,
             id: item.id,
           })) ?? [];
         setScanItems(items);
+
+
       } catch (error) {
         console.log("Failed to fetch scan items:", error);
       } finally {
@@ -180,7 +183,7 @@ export default function BoxItemsScreen() {
         error?.message ||
         "Something went wrong";
       // console.error("Error packing scanned item:", errorMessage);
-      showToast("error", errorMessage);
+      showToast("error", "Item can't be added");
     }
   };
 
@@ -257,7 +260,6 @@ export default function BoxItemsScreen() {
   };
 
   const handleDownload = () => {
-    setQRValue(`${box?.vendor_id}, ${box?.project_id}, ${box?.client_id}, ${box?.id}`)
     downloadSheetRef.current?.present();
   };
 
@@ -265,8 +267,8 @@ export default function BoxItemsScreen() {
     downloadSheetRef.current?.close();
     setLoading(true);
     try {
-      if (box && qrBase64) {
-        await fetchBoxtDetailsAndShare(box, qrBase64);
+      if (box) {
+        await fetchBoxtDetailsAndShare(box);
       }
     } catch (err: any) {
       console.log("Download Error: ", err.message);
@@ -423,18 +425,6 @@ export default function BoxItemsScreen() {
         onCancel={() => downloadSheetRef.current?.close()}
         type="download"
       />
-
-      
-            {qrValue && (
-              <View style={{ position: "absolute", top: -9999, left: -9999 }}>
-                <QRCodeBase64Generator
-                  value={qrValue}
-                  onGenerated={(data) => {
-                    setQRBase64(data);
-                  }}
-                />
-              </View>
-            )}
     </View>
   );
 }
