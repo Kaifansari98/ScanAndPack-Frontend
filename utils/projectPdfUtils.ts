@@ -32,8 +32,6 @@ export async function fetchProjectDetailsAndShare(project: PDFData, qrBase64: st
     const ProjectWeight = await getProjectWeight(project.vendor_id, project.id);
     const { vendor, project: projectDetails, boxes, client } = res.data;
 
-
-
     const boxesWithWeights = await Promise.all(
       boxes.map(async (box: any) => {
         const { box_weight } = await getBoxWeight(
