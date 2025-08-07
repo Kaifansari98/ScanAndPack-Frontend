@@ -200,7 +200,7 @@ export default function ProfileTabScreen() {
       />
 
       {downloadLoading ? (
-        <View className="flex-1 justify-center items-center">
+        <View className="flex-1 justify-center items-center ">
           <Loader />
         </View>
       ) : (
@@ -224,6 +224,7 @@ export default function ProfileTabScreen() {
                 flex: 1,
                 justifyContent: "center",
                 alignItems: "center",
+
               }}
             >
               <LottieView
@@ -255,6 +256,7 @@ export default function ProfileTabScreen() {
 
 const styles = StyleSheet.create({
   listContainer: {
+    flex:1,
     padding: 20,
     paddingTop: 24,
   },
