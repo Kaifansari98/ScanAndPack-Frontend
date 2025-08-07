@@ -1,7 +1,8 @@
-import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import { useRouter } from 'expo-router';
-import { X, Flashlight, FlashlightOff, Focus } from 'lucide-react-native';
-import React, { useState, useRef } from 'react';
+import { useToast } from "@/components/Notification/ToastProvider";
+import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
+import { useRouter } from "expo-router";
+import { X, Flashlight, FlashlightOff, Focus } from "lucide-react-native";
+import React, { useState, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -11,9 +12,9 @@ import {
   Dimensions,
   Animated,
   StatusBar,
-} from 'react-native';
+} from "react-native";
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 const scanAreaSize = width * 0.7;
 
 export default function BarcodeScanner() {
@@ -23,6 +24,7 @@ export default function BarcodeScanner() {
   const [scanned, setScanned] = useState(false);
   const router = useRouter();
   const scanLineAnimation = useRef(new Animated.Value(0)).current;
+  const { showToast } = useToast();
 
   React.useEffect(() => {
     const startScanAnimation = () => {
@@ -45,24 +47,30 @@ export default function BarcodeScanner() {
     startScanAnimation();
   }, []);
 
-  const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
+  const handleBarCodeScanned = ({
+    type,
+    data,
+  }: {
+    type: string;
+    data: string;
+  }) => {
     if (scanned) return;
-  
+
     setScanned(true);
-    console.log('Scanned data:', data);
-    console.log('Scan type:', type);
-  
+    console.log("Scanned data:", data);
+    console.log("Scan type:", type);
+
     try {
       // Clean and split the data by comma
-      const cleanData = data.replace(/"/g, '').trim();
-      const parts = cleanData.split(',').map(part => part.trim());
-  
+      const cleanData = data.replace(/"/g, "").trim();
+      const parts = cleanData.split(",").map((part) => part.trim());
+
       if (parts.length === 3) {
         // ✅ Case 1: vendor_id, project_id, client_id → redirect to Boxes screen
         const [vendor_id, id, client_id] = parts;
-  
-        router.push({
-          pathname: '/dashboards/boxes',
+
+        router.replace({
+          pathname: "/dashboards/boxes",
           params: {
             vendor_id,
             id,
@@ -71,56 +79,34 @@ export default function BarcodeScanner() {
         });
         return;
       }
-  
+
       if (parts.length === 4) {
         // ✅ Case 2: vendor_id, project_id, client_id, id → redirect to BoxItems screen
         const [vendor_id, project_id, client_id, id] = parts;
-  
+
         const payload = {
           vendor_id: Number(vendor_id),
           project_id: Number(project_id),
           client_id: Number(client_id),
           id: Number(id),
         };
-  
-        router.push({
-          pathname: '/dashboards/boxItemsScreen',
+
+        router.replace({
+          pathname: "/dashboards/boxItemsScreen",
           params: {
             payload: JSON.stringify(payload),
           },
         });
         return;
       }
-  
-      // ❌ If neither format matched
-      throw new Error('Invalid QR format');
-    } catch (err) {
-      console.error('Failed to parse scanned data:', err);
-  
-      Alert.alert(
-        'Invalid QR Code',
-        `Scanned data is not in expected format:\n\n${data}`,
-        [
-          {
-            text: 'Scan Again',
-            onPress: () => setScanned(false),
-          },
-          {
-            text: 'Close',
-            onPress: () => router.back(),
-          },
-        ]
-      );
-    }
-  };
-  
 
-  const toggleFlash = () => {
-    console.log('Toggle flash called, current:', flashMode);
-    setFlashMode(prev => {
-      console.log('Setting flash mode to:', !prev);
-      return !prev;
-    });
+      // ❌ If neither format matched
+      throw new Error("Invalid QR format");
+    } catch (err) {
+      console.log("Failed to parse scanned data:", err);
+      showToast('error',`Scanned Failed`)
+      router.back()
+    }
   };
 
   if (!permission) {
@@ -139,7 +125,10 @@ export default function BarcodeScanner() {
           <Text style={styles.permissionMessage}>
             We need access to your camera to scan barcodes and QR codes
           </Text>
-          <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+          <TouchableOpacity
+            style={styles.permissionButton}
+            onPress={requestPermission}
+          >
             <Text style={styles.permissionButtonText}>Grant Permission</Text>
           </TouchableOpacity>
         </View>
@@ -155,36 +144,36 @@ export default function BarcodeScanner() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="black" />
-      
+
       <CameraView
         style={styles.camera}
         facing="back"
-        flash={flashMode ? 'on' : 'off'}
+        enableTorch={flashMode}
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
         barcodeScannerSettings={{
           barcodeTypes: [
-            'qr',
-            'ean13',
-            'ean8',
-            'code39',
-            'code128',
-            'upc_a',
-            'upc_e',
-            'codabar',
-            'code93',
-            'itf14',
-            'datamatrix',
-            'pdf417',
+            "qr",
+            "ean13",
+            "ean8",
+            "code39",
+            "code128",
+            "upc_a",
+            "upc_e",
+            "codabar",
+            "code93",
+            "itf14",
+            "datamatrix",
+            "pdf417",
           ],
         }}
       />
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.closeButton} 
+        <TouchableOpacity
+          style={styles.closeButton}
           onPress={() => {
-            console.log('Close button pressed');
+            console.log("Close button pressed");
             router.back();
           }}
           activeOpacity={0.7}
@@ -193,10 +182,9 @@ export default function BarcodeScanner() {
           <X size={28} color="white" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Scan Code</Text>
-        <TouchableOpacity 
-          style={styles.flashButton} 
+        <TouchableOpacity
+          style={styles.flashButton}
           onPress={() => {
-            console.log('Flash button pressed, current mode:', flashMode);
             setFlashMode(!flashMode);
           }}
           activeOpacity={0.7}
@@ -214,11 +202,11 @@ export default function BarcodeScanner() {
       <View style={styles.overlay}>
         {/* Top Overlay */}
         <View style={[styles.overlaySection, styles.topOverlay]} />
-        
+
         <View style={styles.middleSection}>
           {/* Left Overlay */}
           <View style={[styles.overlaySection, styles.sideOverlay]} />
-          
+
           {/* Scan Area */}
           <View style={styles.scanArea}>
             {/* Corner Indicators */}
@@ -226,7 +214,7 @@ export default function BarcodeScanner() {
             <View style={[styles.corner, styles.topRight]} />
             <View style={[styles.corner, styles.bottomLeft]} />
             <View style={[styles.corner, styles.bottomRight]} />
-            
+
             {/* Animated Scan Line */}
             <Animated.View
               style={[
@@ -237,11 +225,11 @@ export default function BarcodeScanner() {
               ]}
             />
           </View>
-          
+
           {/* Right Overlay */}
           <View style={[styles.overlaySection, styles.sideOverlay]} />
         </View>
-        
+
         {/* Bottom Overlay */}
         <View style={[styles.overlaySection, styles.bottomOverlay]} />
       </View>
@@ -263,84 +251,89 @@ export default function BarcodeScanner() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'black',
+    backgroundColor: "black",
   },
   camera: {
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 50,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 30,
     paddingHorizontal: 20,
-    paddingBottom: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    paddingBottom: 25,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
   closeButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
+    borderColor: "rgba(255, 255, 255, 0.4)",
   },
   headerTitle: {
-    color: 'white',
+    color: "white",
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   flashButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
+    borderColor: "rgba(255, 255, 255, 0.4)",
   },
   overlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   overlaySection: {
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
   },
   topOverlay: {
-    width: '100%',
+    width: "100%",
     height: (height - scanAreaSize) / 2,
   },
   bottomOverlay: {
-    width: '100%',
+    width: "100%",
     height: (height - scanAreaSize) / 2,
   },
   middleSection: {
-    flexDirection: 'row',
-    width: '100%',
+    flexDirection: "row",
+    width: "100%",
     height: scanAreaSize,
   },
   sideOverlay: {
     width: (width - scanAreaSize) / 2,
-    height: '100%',
+    height: "100%",
   },
   scanArea: {
     width: scanAreaSize,
     height: scanAreaSize,
-    position: 'relative',
+    position: "relative",
   },
   corner: {
-    position: 'absolute',
+    position: "absolute",
     width: 30,
     height: 30,
-    borderColor: '#007AFF',
+    borderColor: "#007AFF",
     borderWidth: 4,
   },
   topLeft: {
@@ -368,75 +361,75 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
   },
   scanLine: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
     height: 4,
-    backgroundColor: '#007AFF',
-    shadowColor: '#007AFF',
+    backgroundColor: "#007AFF",
+    shadowColor: "#007AFF",
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 4,
     elevation: 5,
   },
   instructionsContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 120,
     left: 0,
     right: 0,
-    alignItems: 'center',
+    alignItems: "center",
     paddingHorizontal: 40,
   },
   focusIcon: {
     marginBottom: 10,
   },
   instructions: {
-    color: 'white',
+    color: "white",
     fontSize: 18,
-    fontWeight: '500',
-    textAlign: 'center',
+    fontWeight: "500",
+    textAlign: "center",
     marginBottom: 8,
   },
   subInstructions: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: "rgba(255, 255, 255, 0.7)",
     fontSize: 14,
-    textAlign: 'center',
+    textAlign: "center",
   },
   message: {
-    textAlign: 'center',
+    textAlign: "center",
     paddingBottom: 10,
-    color: 'white',
+    color: "white",
   },
   permissionContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 40,
-    backgroundColor: 'black',
+    backgroundColor: "black",
   },
   permissionTitle: {
-    color: 'white',
+    color: "white",
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   permissionMessage: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: "rgba(255, 255, 255, 0.8)",
     fontSize: 16,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 32,
     lineHeight: 24,
   },
   permissionButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 12,
   },
   permissionButtonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

@@ -56,6 +56,8 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
           created_by: user?.id,
         };
 
+
+        console.log(payload)
         if (!project.project_details_id) {
           setError("Project details ID is missing");
           setCreatingBox(false);
