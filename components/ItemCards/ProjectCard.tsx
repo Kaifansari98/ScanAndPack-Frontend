@@ -62,7 +62,10 @@ export const ProjectCard = ({
     const fetchWeight = async () => {
       const res = await getProjectWeight(project.vendor_id, project.id);
       setProjectWeight(res.project_weight);
+      // console.log(res.project_weight)
     };
+
+    
     fetchWeight();
   }, [project.vendor_id, project.id]);
 
