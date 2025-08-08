@@ -152,7 +152,7 @@ export default function ProfileTabScreen() {
           }
         }
       } else {
-        console.log('ℹ️ No completed projects detected, skipping completion check');
+        // console.log('ℹ️ No completed projects detected, skipping completion check');
       }
   
       setProjects(formatted);
