@@ -26,6 +26,7 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system";
 import { getProjectWeight } from "@/utils/ProjectWeight";
 import { weight } from "@/data/generic";
+import { useIsFocused } from "@react-navigation/native";
 
 export interface ProjectData {
   id: number;
@@ -58,16 +59,17 @@ export const ProjectCard = ({
   const [projectWeight, setProjectWeight] = useState<number | null>(null);
   const { showToast } = useToast();
 
-  useEffect(() => {
-    const fetchWeight = async () => {
-      const res = await getProjectWeight(project.vendor_id, project.id);
-      setProjectWeight(res.project_weight);
-      // console.log(res.project_weight)
-    };
+  const isFocused = useIsFocused();
 
-    
-    fetchWeight();
-  }, [project.vendor_id, project.id]);
+  useEffect(() => {
+    if (isFocused) {
+      const fetchWeight = async () => {
+        const res = await getProjectWeight(project.vendor_id, project.id);
+        setProjectWeight(res.project_weight);
+      };
+      fetchWeight();
+    }
+  }, [isFocused, project.vendor_id, project.id]);
 
   useEffect(() => {
     cardOpacity.value = withDelay(
