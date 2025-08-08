@@ -13,6 +13,7 @@ import {
   Animated,
   StatusBar,
 } from "react-native";
+import { useSelector } from "react-redux";
 
 const { width, height } = Dimensions.get("window");
 const scanAreaSize = width * 0.7;
@@ -25,6 +26,8 @@ export default function BarcodeScanner() {
   const router = useRouter();
   const scanLineAnimation = useRef(new Animated.Value(0)).current;
   const { showToast } = useToast();
+  const {vendor_id } = useSelector((state: any) => state.auth.user)
+ 
 
   React.useEffect(() => {
     const startScanAnimation = () => {
@@ -59,11 +62,20 @@ export default function BarcodeScanner() {
     setScanned(true);
     console.log("Scanned data:", data);
     console.log("Scan type:", type);
+    // Clean and split the data by comma
+    const cleanData = data.replace(/"/g, "").trim();
+    const parts = cleanData.split(",").map((part) => part.trim());
 
+
+   const scannedVendorId = Number(parts[0])
+   console.log(scannedVendorId, vendor_id)
+   if(scannedVendorId !== vendor_id){
+      showToast("error", "Barcode Scanned Failed");
+      router.back();
+      return;
+   } 
+   
     try {
-      // Clean and split the data by comma
-      const cleanData = data.replace(/"/g, "").trim();
-      const parts = cleanData.split(",").map((part) => part.trim());
 
       if (parts.length === 3) {
         // ✅ Case 1: vendor_id, project_id, client_id → redirect to Boxes screen
@@ -83,6 +95,7 @@ export default function BarcodeScanner() {
       if (parts.length === 4) {
         // ✅ Case 2: vendor_id, project_id, client_id, id → redirect to BoxItems screen
         const [vendor_id, project_id, client_id, id] = parts;
+      
 
         const payload = {
           vendor_id: Number(vendor_id),
@@ -90,6 +103,7 @@ export default function BarcodeScanner() {
           client_id: Number(client_id),
           id: Number(id),
         };
+
 
         router.replace({
           pathname: "/dashboards/boxItemsScreen",
@@ -112,29 +126,12 @@ export default function BarcodeScanner() {
   if (!permission) {
     return (
       <View style={styles.container}>
-        <Text style={styles.message}>Requesting camera permission...</Text>
+        <Text className="text-white text-3xl">Requesting camera permission...</Text>
       </View>
     );
   }
 
-  if (!permission.granted) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.permissionContainer}>
-          <Text style={styles.permissionTitle}>Camera Permission Required</Text>
-          <Text style={styles.permissionMessage}>
-            We need access to your camera to scan barcodes and QR codes
-          </Text>
-          <TouchableOpacity
-            style={styles.permissionButton}
-            onPress={requestPermission}
-          >
-            <Text style={styles.permissionButtonText}>Grant Permission</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
+
 
   const scanLineTranslateY = scanLineAnimation.interpolate({
     inputRange: [0, 1],

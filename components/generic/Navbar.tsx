@@ -1,5 +1,6 @@
+import { useCameraPermissions } from "expo-camera";
 import { useRouter } from 'expo-router';
-import { Bell, ChevronLeft, Search, QrCode } from 'lucide-react-native';
+import { Bell, ChevronLeft, QrCode, Search } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -27,15 +28,20 @@ export default function Navbar({
   boxStatus = "Mark as packed"
 }: NavbarProps) {
   const router = useRouter();
+  const [permission, requestPermission] = useCameraPermissions();
 
-  const handleScanPress = () => {
-    if (onScanPress) {
-      onScanPress();
-    } else {
-      // Default behavior - navigate to scanner screen
+  const handleScanPress = async () => {
+  if (!permission || !permission.granted) {
+    const newPermission = await requestPermission();
+    if (newPermission?.granted) {
       router.push('/scanner');
+    } else {
+      console.warn('Camera permission not granted');
     }
-  };
+  } else {
+    router.push('/scanner');
+  }
+};
 
   return (
     <View
@@ -64,12 +70,12 @@ export default function Navbar({
       {/* Right Side Icons and Pack Button */}
       <View className="flex-row items-center space-x-6 gap-4 ml-4">
         {showSearch && (
-          <TouchableOpacity onPress={() => console.log('Search pressed')}>
+          <TouchableOpacity>
             <Search size={24} color="#171717" />
           </TouchableOpacity>
         )}
         {showScan && (
-          <TouchableOpacity onPress={handleScanPress}>
+          <TouchableOpacity onPress={() => handleScanPress()}>
             <QrCode size={24} color="#171717" />
           </TouchableOpacity>
         )}
