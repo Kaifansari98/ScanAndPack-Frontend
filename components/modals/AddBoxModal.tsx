@@ -118,7 +118,7 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
 
           {/* Image */}
           <Image
-            source={require("@/assets/images/projects/Boxes.jpg")}
+            source={require("@/assets/images/projects/Boxes0.jpg")}
             style={styles.image}
           />
 
