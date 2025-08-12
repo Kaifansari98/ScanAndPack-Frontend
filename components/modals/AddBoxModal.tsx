@@ -9,8 +9,9 @@ import { X } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useToast } from "../Notification/ToastProvider";
-import { useSelector } from 'react-redux';
-import { RootState } from '@/redux/store';
+import { useSelector } from "react-redux";
+import { RootState } from "@/redux/store";
+import { useRouter } from "expo-router";
 
 interface Project {
   id: number;
@@ -34,9 +35,9 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const user = useSelector((state: RootState) => state.auth.user);
+    const router = useRouter();
 
     const handleAdd = async () => {
-      
       if (!boxName.trim()) {
         setError("Box name is invalid!");
         showToast("error", "Box name is required");
@@ -56,8 +57,7 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
           created_by: user?.id,
         };
 
-
-        console.log(payload)
+        console.log(payload);
         if (!project.project_details_id) {
           setError("Project details ID is missing");
           setCreatingBox(false);
@@ -65,23 +65,26 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
         }
 
         console.log("Sending POST to /api/boxes with payload:", payload);
-        const response = await axios.post("/boxes", payload, {
-          headers: { "Content-Type": "application/json" },
-        });
-        
-        console.log("create box time project: ",project)
-        // console.log("Box created successfully:", response.data);
+        const res = await axios.post("/boxes", payload);
         showToast("success", "Box created successfully");
         onSubmit(boxName.trim());
         setBoxName("");
         setError(null);
         setLoading(false);
+        
+        const boxItemsScreenPayload ={
+            project_id: project.id,
+            client_id: project.client_id,
+            vendor_id: project.vendor_id,
+            id: res.data.box.id
+        }
+        router.push({
+          pathname: "/dashboards/boxItemsScreen",
+          params: {
+            payload: JSON.stringify(boxItemsScreenPayload),
+          }
+        })
       } catch (err: any) {
-        // console.error("Failed to create box:", {
-        //   message: err.message,
-        //   response: err.response?.data,
-        //   status: err.response?.status,
-        // });
         showToast(
           "error",
           `Failed to create box: ${err.response?.data?.message || err.message}`
@@ -100,9 +103,9 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
         backdropComponent={(props) => (
           <BottomSheetBackdrop
             {...props}
-            appearsOnIndex={0}
-            disappearsOnIndex={-1}
-            pressBehavior="close" // optional: tap outside to close
+            // appearsOnIndex={0}
+            // disappearsOnIndex={-1}
+            // pressBehavior="close" // optional: tap outside to close
           />
         )}
         keyboardBehavior="interactive"
