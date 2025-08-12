@@ -371,7 +371,7 @@ export default function BoxItemsScreen() {
                     <>
                       <Download size={18} color="#fff" />
                       <Text className="text-white font-montserrat-bold text-lg ml-3">
-                        Download Invoice
+                        Download Label
                       </Text>
                     </>
                   ) : (
