@@ -1,12 +1,14 @@
 import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
 import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
+import { ItemCard } from "@/components/ItemCards/ItemCard";
 import { useToast } from "@/components/Notification/ToastProvider";
 import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
+import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import LottieView from "lottie-react-native";
 import { Download, ScanLine } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
@@ -25,8 +27,6 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSelector } from "react-redux";
 import { QRScanner } from "../../components/generic/QRScanner";
-import { ItemCard } from "@/components/ItemCards/ItemCard";
-import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
 
 interface Box {
   name: string;

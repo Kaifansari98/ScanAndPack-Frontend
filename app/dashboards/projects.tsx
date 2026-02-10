@@ -1,17 +1,17 @@
+import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
 import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
+import { ProjectCard } from "@/components/ItemCards/ProjectCard";
+import { useToast } from "@/components/Notification/ToastProvider";
 import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
+import { fetchProjectDetailsAndShare } from "@/utils/projectPdfUtils";
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { router, useFocusEffect } from "expo-router";
 import LottieView from "lottie-react-native";
-import React, { useState, useCallback, useRef } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
 import { useSelector } from "react-redux";
-import { BottomSheetModal } from "@gorhom/bottom-sheet";
-import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
-import { ProjectCard } from "@/components/ItemCards/ProjectCard";
-import { fetchProjectDetailsAndShare } from "@/utils/projectPdfUtils";
-import { useToast } from "@/components/Notification/ToastProvider";
 
 interface ProjectCardProps {
   project: {

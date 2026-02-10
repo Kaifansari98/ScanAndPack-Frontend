@@ -1,6 +1,17 @@
 import { useToast } from "@/components/Notification/ToastProvider";
+import axios from "@/lib/axios";
+import { RootState } from "@/redux/store";
+// import {
+//   playErrorFeedback,
+//   playSuccessFeedback,
+//   preloadFeedbackSounds,
+//   unloadFeedbackSounds,
+// } from "@/utils/soundVibration";
+
+import { playErrorFeedback, playSuccessFeedback, preloadFeedbackSounds, unloadFeedbackSounds } from "@/utils/soundVibration";
+
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Flashlight, FlashlightOff, Focus, X } from "lucide-react-native";
 import React, { useRef, useState } from "react";
 import {
@@ -14,11 +25,14 @@ import {
 } from "react-native";
 import { useSelector } from "react-redux";
 
+
 const { width, height } = Dimensions.get("window");
 const scanAreaSize = width * 0.7;
 
-export default function BarcodeScanner() {
-  
+export default function TrackTraceBarcodeScanner() {
+  const { machine_id } = useLocalSearchParams<{ machine_id?: string }>();
+  // alert(machine_id)
+
   const [permission, requestPermission] = useCameraPermissions();
   const [hasFlash, setHasFlash] = useState(false);
   const [flashMode, setFlashMode] = useState(false);
@@ -26,10 +40,22 @@ export default function BarcodeScanner() {
   const router = useRouter();
   const scanLineAnimation = useRef(new Animated.Value(0)).current;
   const { showToast } = useToast();
-  const {vendor_id } = useSelector((state: any) => state.auth.user)
- 
+  const { vendor_id } = useSelector((state: any) => state.auth.user)
+
+  const [unique_code, setUniqueCode] = useState("");
+
+  const user = useSelector((state: RootState) => state.auth.user);
+
+
+
 
   React.useEffect(() => {
+   
+
+(async () => {
+    await preloadFeedbackSounds(); // 🔑 wait properly
+  })();
+
     const startScanAnimation = () => {
       Animated.loop(
         Animated.sequence([
@@ -48,77 +74,38 @@ export default function BarcodeScanner() {
     };
 
     startScanAnimation();
+    return () => {
+    unloadFeedbackSounds(); // 🔑 IMPORTANT
+  };
+
   }, []);
 
-  const handleBarCodeScanned = ({
+  const handleBarCodeScanned = async ({
     type,
     data,
   }: {
     type: string;
     data: string;
   }) => {
+
+
+    // alert("23435");
+   
+
     if (scanned) return;
 
     setScanned(true);
     console.log("Scanned data:", data);
-    console.log("Scan type:", type);
-    // Clean and split the data by comma
-    const cleanData = data.replace(/"/g, "").trim();
-    const parts = cleanData.split(",").map((part) => part.trim());
-
-
-   const scannedVendorId = Number(parts[0])
-   console.log(scannedVendorId, vendor_id)
-   if(scannedVendorId !== vendor_id){
-      showToast("error", "Barcode Scanned Failed");
-      router.back();
-      return;
-   } 
-   
+    console.log("Scan type:", type);    
+    setUniqueCode(data);
+    console.log("scannedVendorId:" + unique_code, "vendor_id:" + vendor_id)
     try {
 
-      if (parts.length === 3) {
-        // ✅ Case 1: vendor_id, project_id, client_id → redirect to Boxes screen
-        const [vendor_id, id, client_id] = parts;
-
-        router.replace({
-          pathname: "/dashboards/boxes",
-          params: {
-            vendor_id,
-            id,
-            client_id,
-          },
-        });
-        return;
-      }
-
-      if (parts.length === 4) {
-        // ✅ Case 2: vendor_id, project_id, client_id, id → redirect to BoxItems screen
-        const [vendor_id, project_id, client_id, id] = parts;
-      
-
-        const payload = {
-          vendor_id: Number(vendor_id),
-          project_id: Number(project_id),
-          client_id: Number(client_id),
-          id: Number(id),
-        };
-
-
-        router.replace({
-          pathname: "/dashboards/boxItemsScreen",
-          params: {
-            payload: JSON.stringify(payload),
-          },
-        });
-        return;
-      }
-
-      // ❌ If neither format matched
-      throw new Error("Invalid QR format");
+      await handleQRScanned(data);
+     
     } catch (err) {
       console.log("Failed to parse scanned data:", err);
-      showToast('error',`Scanned Failed`)
+      showToast('error', `Scanned Failed`)
       router.back()
     }
   };
@@ -130,6 +117,56 @@ export default function BarcodeScanner() {
       </View>
     );
   }
+
+
+
+
+
+
+
+  const handleQRScanned = async (scannedCode: string) => {
+
+    // alert("unique_code:"+unique_code);
+
+    const payload = {
+      project_id: 1,
+      vendor_id: Number(vendor_id),
+      machine_id: Number(machine_id),
+      unique_code: scannedCode,
+      created_by: Number(user?.id),
+    };
+
+    console.log("payload", payload);
+    console.log("-----------");
+    try {
+      const res = await axios.post(
+        "/track-trace/scan/item",
+        payload
+      );      
+
+      console.log("Done:", res.data);
+      
+      const apiResponse =  res.data;
+      
+      if(apiResponse.success){
+        showToast("success", apiResponse.message);
+        await playSuccessFeedback();
+      }else{
+        showToast("error", apiResponse.message);
+        await playErrorFeedback();
+      }
+      setTimeout(() => {
+        setScanned(false);
+      }, 1000);
+
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message;
+      showToast("error", msg);
+      setTimeout(() => {
+      setScanned(false);
+    }, 1000);
+    }
+  };
 
 
 

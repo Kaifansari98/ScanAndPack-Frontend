@@ -1,7 +1,7 @@
 import Navbar from '@/components/generic/Navbar'
+import { router } from 'expo-router'
 import React from 'react'
 import { StyleSheet, View } from 'react-native'
-import { router } from 'expo-router'
 
 export default function DashboardTabScreen() {
   return (

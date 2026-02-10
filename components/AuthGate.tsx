@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
+import { finishLoading, setCredentials } from "@/redux/slices/authSlice";
 import { RootState } from "@/redux/store";
-import { Redirect } from "expo-router";
-import { View } from "react-native";
-import Loader from "./generic/Loader";
 import { getSession } from "@/utils/authStorage";
-import { setCredentials, finishLoading } from "@/redux/slices/authSlice";
+import { Redirect } from "expo-router";
+import { useEffect, useState } from "react";
+import { View } from "react-native";
+import { useDispatch, useSelector } from "react-redux";
+import Loader from "./generic/Loader";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const dispatch = useDispatch();

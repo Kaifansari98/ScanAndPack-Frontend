@@ -41,8 +41,8 @@ export default function LoginScreen() {
   const buttonTranslateY = useSharedValue(30);
 
   const { login } = useAuth();
-  const [contact, setContact] = useState("");
-  const [password, setPassword] = useState("");
+  const [contact, setContact] = useState("+919833509275");
+  const [password, setPassword] = useState("1234");
   const [errors, setErrors] = useState<LoginError>({});
   const [showPassword, setShowPassword] = useState(false);
 
@@ -72,14 +72,17 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
+    
     if (!validateFields()) return;
-
+    
     try {
       const res = await axios.post("/auth/login", {
-        user_contact: contact,
+        identifier: contact,
         password,
       });
 
+      
+ 
       const { token, user } = res.data;
       await login(user, token);
       showToast("success", "Login Successfully");

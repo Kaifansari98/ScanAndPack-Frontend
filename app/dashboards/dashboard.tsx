@@ -1,14 +1,14 @@
-import DashboardTabScreen from '@/screens/Tabs/dashboard';
-import ProfileTabScreen from '@/screens/Tabs/profile';
 import ProjectsTabScreen from '@/app/dashboards/projects';
-import ReportsTabScreen from '@/screens/Tabs/reports';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { FolderOpenDot, Home, User, FileCheck2 } from 'lucide-react-native';
-import React from 'react';
-import { Platform, StyleSheet, ActivityIndicator, View } from 'react-native';
-import { useSelector } from 'react-redux';
 import { RootState } from '@/redux/store';
-import { Redirect } from 'expo-router'
+import DashboardTabScreen from '@/screens/Tabs/dashboard';
+import MachineTabScreen from '@/screens/Tabs/machines';
+import ProfileTabScreen from '@/screens/Tabs/profile';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Redirect } from 'expo-router';
+import { FolderOpenDot, Home, User, WashingMachine } from 'lucide-react-native';
+import React from 'react';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
+import { useSelector } from 'react-redux';
 
 // Tab Navigator
 const Tab = createBottomTabNavigator();
@@ -71,11 +71,11 @@ export default function DashboardScreen() {
         }}
       />
       <Tab.Screen
-        name="Reports"
-        component={ReportsTabScreen}
+        name="Machine"
+        component={MachineTabScreen}
         options={{
             tabBarIcon: ({ color, size }) => (
-                <FileCheck2 size={24} color={color} />
+                <WashingMachine size={24} color={color} />
             ),
             headerShown: false,
         }}

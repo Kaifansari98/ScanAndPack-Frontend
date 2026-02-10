@@ -1,4 +1,3 @@
-import { ProjectData } from "@/components/ItemCards/ProjectCard";
 import { weight } from "@/data/generic";
 import axios from "@/lib/axios";
 import { ScanAndPackUrl } from "@/utils/getAssetUrls";

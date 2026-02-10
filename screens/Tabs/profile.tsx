@@ -1,14 +1,10 @@
-import {
-  Image,
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  ScrollView,
-} from "react-native";
-import React, { useRef, useState } from "react";
+import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
+import Loader from "@/components/generic/Loader"; // Ensure this exists
 import Navbar from "@/components/generic/Navbar";
 import { useAuth } from "@/hooks/useAuth";
+import { RootState } from "@/redux/store";
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { useRouter } from "expo-router";
 import {
   Bell,
   ChevronRight,
@@ -18,13 +14,16 @@ import {
   Palette,
   UserRoundCog,
 } from "lucide-react-native";
-import ConfirmationBox from "@/components/generic/ConfirmationBox";
-import { useRouter } from "expo-router";
+import React, { useRef } from "react";
+import {
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useSelector } from "react-redux";
-import { RootState } from "@/redux/store";
-import Loader from "@/components/generic/Loader"; // Ensure this exists
-import { BottomSheetModal } from "@gorhom/bottom-sheet";
-import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
 
 export default function ProfileTabScreen() {
   const User = useSelector((state: RootState) => state.auth.user);

@@ -43,6 +43,19 @@ export default function Navbar({
   }
 };
 
+const handleTrackTraceScanPress = async () => {
+  if (!permission || !permission.granted) {
+    const newPermission = await requestPermission();
+    if (newPermission?.granted) {
+      router.push('/scanner-track-trace');
+    } else {
+      console.warn('Camera permission not granted');
+    }
+  } else {
+    router.push('/scanner-track-trace');
+  }
+};
+
   return (
     <View
       className="bg-sapLight-background w-full px-5 py-4 flex-row items-center justify-between border-b border-gray-100"
@@ -74,6 +87,11 @@ export default function Navbar({
             <Search size={24} color="#171717" />
           </TouchableOpacity>
         )}
+        {/* {showScan && (
+          <TouchableOpacity onPress={() => handleTrackTraceScanPress()}>
+            <QrCode size={24} color="#171717" />
+          </TouchableOpacity>
+        )} */}
         {showScan && (
           <TouchableOpacity onPress={() => handleScanPress()}>
             <QrCode size={24} color="#171717" />
