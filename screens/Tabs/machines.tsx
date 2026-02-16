@@ -2,7 +2,7 @@ import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
 import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
-import { router, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
 import { useSelector } from "react-redux";
@@ -118,12 +118,12 @@ useFocusEffect(
         showBack={false}
         showSearch={false}
         showNotification={true}
-        showScan={true}
-        onScanPress={() => {
-          // Optional: Custom scan handler
-          // If not provided, it will navigate to '/scanner'
-          router.push('/scanner');
-        }}
+        // showScan={true}
+        // onScanPress={() => {
+        //   // Optional: Custom scan handler
+        //   // If not provided, it will navigate to '/scanner'
+        //   router.push('/scanner');
+        // }}
       />
 
       <FlatList

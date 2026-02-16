@@ -1,20 +1,26 @@
+import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
 import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
+import { ProjectCard } from "@/components/ItemCards/ProjectCard";
 import { AddBoxModal } from "@/components/modals/AddBoxModal";
+import { UpdateBoxModal } from "@/components/modals/UpdateBoxModal";
+import { useToast } from "@/components/Notification/ToastProvider";
+import { weight } from "@/data/generic";
 import axios from "@/lib/axios";
+import { RootState } from "@/redux/store";
+import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
+import { getBoxWeight } from "@/utils/BoxWeight";
+import { fetchProjectDetailsAndShare } from "@/utils/projectPdfUtils";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import LottieView from "lottie-react-native";
 import { Download, Plus, SquarePen, Trash2 } from "lucide-react-native";
-import { useSelector } from "react-redux";
-import { RootState } from "@/redux/store";
 import React, {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
-  useState,
+  useState
 } from "react";
 import {
   FlatList,
@@ -33,14 +39,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import { ConfirmationBottomSheet } from "@/components/bottomSheet/ConfirmationBottomSheet";
-import { useToast } from "@/components/Notification/ToastProvider";
-import { UpdateBoxModal } from "@/components/modals/UpdateBoxModal";
-import { ProjectCard } from "@/components/ItemCards/ProjectCard";
-import { fetchProjectDetailsAndShare } from "@/utils/projectPdfUtils";
-import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
-import { getBoxWeight } from "@/utils/BoxWeight";
-import { weight } from "@/data/generic";
+import { useSelector } from "react-redux";
 
 // Define Project interface
 interface Project {
