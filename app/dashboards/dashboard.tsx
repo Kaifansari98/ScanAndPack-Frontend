@@ -1,52 +1,72 @@
 import ProjectsTabScreen from '@/app/dashboards/projects';
+import { colors } from '@/components/theme/colors';
 import { RootState } from '@/redux/store';
 import DashboardTabScreen from '@/screens/Tabs/dashboard';
 import MachineTabScreen from '@/screens/Tabs/machines';
 import ProfileTabScreen from '@/screens/Tabs/profile';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Redirect } from 'expo-router';
-import { FolderOpenDot, Home, User, WashingMachine } from 'lucide-react-native';
-import React from 'react';
-import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
+import { FolderOpenDot, Home, Package, Settings } from 'lucide-react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import { useSelector } from 'react-redux';
 
-// Tab Navigator
 const Tab = createBottomTabNavigator();
 
-export default function DashboardScreen() {
+// ─── Shared tab bar style ────────────────────────────────────────────────────
+const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 88 : 72;
 
+const tabBarStyle = {
+  backgroundColor: colors.white,
+  borderTopColor: colors.border,
+  borderTopWidth: 1,
+  height: TAB_BAR_HEIGHT,
+  paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+  paddingTop: 8,
+  // Drop shadow above the bar
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: -4 },
+  shadowOpacity: 0.08,
+  shadowRadius: 12,
+  elevation: 12,
+};
+
+// ─── Tab icon builder ────────────────────────────────────────────────────────
+function tabIcon(Icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>) {
+  return ({ color, focused }: { color: string; focused: boolean }) => (
+    <Icon size={focused ? 26 : 23} color={color} strokeWidth={focused ? 2.5 : 1.8} />
+  );
+}
+
+export default function DashboardScreen() {
   const { token, isLoading } = useSelector((state: RootState) => state.auth);
 
   if (isLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-white">
-        <ActivityIndicator size="large" color="#000" />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white }}>
+        <ActivityIndicator size="large" color={colors.midBg} />
       </View>
     );
   }
 
-  if (!token) {
-    return <Redirect href="/auth/login" />;
-  }
+  if (!token) return <Redirect href="/auth/login" />;
 
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarStyle: {
-          backgroundColor: '#F5F5F5',
-          borderTopColor: '#E5E5E5',
-          borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 85 : 70,
-          
-          paddingBottom: 5,
-          paddingTop: 5,
-        },
-        tabBarActiveTintColor: '#171717',
-        tabBarInactiveTintColor: '#A0A0A0',
+        tabBarStyle,
+        tabBarActiveTintColor: colors.midBg,        // navy when active
+        tabBarInactiveTintColor: colors.label,       // gray when inactive
         tabBarLabelStyle: {
-          fontFamily: 'Montserrat-Medium',
-          fontSize: 12,
-          marginBottom: 5,
+          fontFamily: 'Montserrat-SemiBold',
+          fontSize: 11,
+          marginTop: 2,
+        },
+        // Active tab indicator — 3px navy bar at the bottom of each active tab
+        tabBarIndicatorStyle: {
+          backgroundColor: colors.midBg,
+          height: 3,
+          borderRadius: 3,
+          bottom: 0,
         },
       }}
     >
@@ -54,49 +74,34 @@ export default function DashboardScreen() {
         name="Home"
         component={DashboardTabScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <Home size={24} color={color} />
-          ),
           headerShown: false,
+          tabBarIcon: tabIcon(Home),
         }}
       />
       <Tab.Screen
-        name="Projects"
-        component={ProjectsTabScreen}
-        options={{
-            tabBarIcon: ({ color, size }) => (
-                <FolderOpenDot size={24} color={color} />
-            ),
-            headerShown: false,
-        }}
-      />
-      <Tab.Screen
-        name="Machine"
+        name="Track"
         component={MachineTabScreen}
         options={{
-            tabBarIcon: ({ color, size }) => (
-                <WashingMachine size={24} color={color} />
-            ),
-            headerShown: false,
+          headerShown: false,
+          tabBarIcon: tabIcon(FolderOpenDot),
         }}
       />
-        <Tab.Screen
-          name="Profile"
-          component={ProfileTabScreen}
-          options={{
-            tabBarIcon: ({ color, size }) => (
-              <User size={24} color={color} />
-            ),
-            headerShown: false,
-          }}
-        />
+      <Tab.Screen
+        name="Pack"
+        component={ProjectsTabScreen}
+        options={{
+          headerShown: false,
+          tabBarIcon: tabIcon(Package),
+        }}
+      />
+      <Tab.Screen
+        name="Settings"
+        component={ProfileTabScreen}
+        options={{
+          headerShown: false,
+          tabBarIcon: tabIcon(Settings),
+        }}
+      />
     </Tab.Navigator>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-});

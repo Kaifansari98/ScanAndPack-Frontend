@@ -48,7 +48,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   // ✅ Authenticated → go to dashboard
-  if (token) {
+  if (token) {    
     return <Redirect href="/dashboards/dashboard" />;
   }
 

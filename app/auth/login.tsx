@@ -1,16 +1,17 @@
 import { useToast } from "@/components/Notification/ToastProvider";
+import { colors } from "@/components/theme/colors";
+import { commonStyles } from "@/components/theme/commonStyles";
+import { headerLabel } from "@/components/theme/static";
 import { useAuth } from "@/hooks/useAuth";
 import axios from "@/lib/axios";
-import { useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Image,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -33,28 +34,51 @@ type LoginError = {
 
 export default function LoginScreen() {
   const { showToast } = useToast();
-  const imageOpacity = useSharedValue(0);
-  const imageScale = useSharedValue(0.8);
-  const inputOpacity = useSharedValue(0);
-  const inputTranslateY = useSharedValue(30);
-  const buttonOpacity = useSharedValue(0);
-  const buttonTranslateY = useSharedValue(30);
-
   const { login } = useAuth();
+  const router = useRouter();
+
   const [contact, setContact] = useState("+919833509275");
   const [password, setPassword] = useState("1234");
   const [errors, setErrors] = useState<LoginError>({});
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const navigation = useNavigation();
-  const router = useRouter();
+  // ─── Animations ──────────────────────────────────────
+  const heroOpacity = useSharedValue(0);
+  const heroTranslateY = useSharedValue(-20);
+  const cardOpacity = useSharedValue(0);
+  const cardTranslateY = useSharedValue(60);
+  const buttonScale = useSharedValue(0.95);
 
+  useEffect(() => {
+    heroOpacity.value = withTiming(1, { duration: 700, easing: Easing.out(Easing.cubic) });
+    heroTranslateY.value = withSpring(0, { damping: 14, stiffness: 100 });
+
+    cardOpacity.value = withDelay(250, withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) }));
+    cardTranslateY.value = withDelay(250, withSpring(0, { damping: 16, stiffness: 110 }));
+
+    buttonScale.value = withDelay(500, withSpring(1, { damping: 12, stiffness: 120 }));
+  }, []);
+
+  const animatedHeroStyle = useAnimatedStyle(() => ({
+    opacity: heroOpacity.value,
+    transform: [{ translateY: heroTranslateY.value }],
+  }));
+
+  const animatedCardStyle = useAnimatedStyle(() => ({
+    opacity: cardOpacity.value,
+    transform: [{ translateY: cardTranslateY.value }],
+  }));
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  // ─── Logic ───────────────────────────────────────────
   const validateFields = (): boolean => {
     const newErrors: LoginError = {};
-
     if (!contact.trim()) newErrors.contact = "Phone number is required";
     if (!password.trim()) newErrors.password = "Password is required";
-
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length > 0) {
@@ -67,189 +91,119 @@ export default function LoginScreen() {
       }
       return false;
     }
-
     return true;
   };
 
   const handleLogin = async () => {
-    
     if (!validateFields()) return;
-    
+    setLoading(true);
     try {
       const res = await axios.post("/auth/login", {
         identifier: contact,
         password,
       });
-
-      
- 
       const { token, user } = res.data;
       await login(user, token);
       showToast("success", "Login Successfully");
-
       router.replace("/dashboards/dashboard");
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message;
       showToast("error", msg);
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    imageOpacity.value = withTiming(1, {
-      duration: 600,
-      easing: Easing.out(Easing.cubic),
-    });
-    imageScale.value = withSpring(1, { damping: 12, stiffness: 100 });
-    inputOpacity.value = withDelay(
-      200,
-      withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) })
-    );
-    inputTranslateY.value = withDelay(
-      200,
-      withSpring(0, { damping: 15, stiffness: 120 })
-    );
-    buttonOpacity.value = withDelay(
-      400,
-      withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) })
-    );
-    buttonTranslateY.value = withDelay(
-      400,
-      withSpring(0, { damping: 15, stiffness: 120 })
-    );
-  }, []);
-
-  const animatedImageStyle = useAnimatedStyle(() => ({
-    opacity: imageOpacity.value,
-    transform: [{ scale: imageScale.value }],
-  }));
-
-  const animatedInputStyle = useAnimatedStyle(() => ({
-    opacity: inputOpacity.value,
-    transform: [{ translateY: inputTranslateY.value }],
-  }));
-
-  const animatedButtonStyle = useAnimatedStyle(() => ({
-    opacity: buttonOpacity.value,
-    transform: [{ translateY: buttonTranslateY.value }],
-  }));
-
+  // ─── UI ──────────────────────────────────────────────
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1}}
+        style={commonStyles.root}
         keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
       >
-        <View className="flex-1 bg-sapLight-background justify-center items-center px-8">
-          <Animated.View style={[animatedImageStyle, styles.imageContainer]}>
-            <Image
-              source={require("../../assets/images/LoginScreen/Login.png")}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-          </Animated.View>
+        {/* Dark Hero */}
+        <Animated.View style={[commonStyles.hero, animatedHeroStyle]}>
+          <Image
+            source={require("../../assets/images/furnix.jpeg")}
+            style={commonStyles.heroLogo}
+            resizeMode="contain"
+          />
+          <Text style={commonStyles.heroTitle}>{headerLabel.APPTITLE}</Text>
+          <Text style={commonStyles.heroSubtitle}>WORKER LOGIN</Text>
+        </Animated.View>
 
-          <Text className="text-3xl font-montserrat-semibold text-sapLight-text mb-10">
-            Lets Get Started
-          </Text>
+        {/* Light Card */}
+        <Animated.View style={[commonStyles.card, animatedCardStyle]}>
+          <Text style={commonStyles.cardHeading}>Welcome Back 👋</Text>
 
-          <Animated.View style={[animatedInputStyle, styles.inputContainer]}>
-            <Text className="text-sapLight-text font-montserrat-medium text-sm mb-2">
-              Phone Number
-            </Text>
+          {/* Phone */}
+          <View style={commonStyles.fieldGroup}>
+            <Text style={commonStyles.label}>📱  Mobile Number</Text>
             <TextInput
-              className={`bg-sapLight-card rounded-2xl px-5 py-4 mb-5 text-base font-montserrat ${
-                errors.contact ? "border border-red-500" : "border border-gray-200"
-              }`}
-              placeholder="+91 8676765656"
-              placeholderTextColor="#A0A0A0"
+              style={[commonStyles.input, errors.contact ? commonStyles.inputError : null]}
+              placeholder="Enter your number"
+              placeholderTextColor={colors.placeholder}
               keyboardType="phone-pad"
-              style={styles.input}
               value={contact}
               onChangeText={(text) => {
                 setContact(text);
-                if (errors.contact)
-                  setErrors((prev) => ({ ...prev, contact: "" }));
+                if (errors.contact) setErrors((p) => ({ ...p, contact: "" }));
               }}
             />
+          </View>
 
-            <Text className="text-sapLight-text font-montserrat-medium text-sm mb-2">
-              Password
-            </Text>
-            <View className="relative">
+          {/* Password */}
+          <View style={commonStyles.fieldGroup}>
+            <Text style={commonStyles.label}>🔒  Password</Text>
+            <View style={commonStyles.passwordWrapper}>
               <TextInput
-                className={`bg-sapLight-card rounded-2xl px-5 py-4 mb-5 text-base font-montserrat ${
-                  errors.password ? "border border-red-500" : "border border-gray-200"
-                }`}
-                placeholder="••••••••"
-                placeholderTextColor="#A0A0A0"
+                style={[
+                  commonStyles.input,
+                  errors.password ? commonStyles.inputError : null,
+                  { paddingRight: 52 },
+                ]}
+                placeholder="Enter password"
+                placeholderTextColor={colors.placeholder}
                 secureTextEntry={!showPassword}
-                style={styles.input}
                 value={password}
                 onChangeText={(text) => {
                   setPassword(text);
-                  if (errors.password)
-                    setErrors((prev) => ({ ...prev, password: "" }));
+                  if (errors.password) setErrors((p) => ({ ...p, password: "" }));
                 }}
               />
               <TouchableOpacity
                 onPress={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-4"
+                style={commonStyles.eyeButton}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                {showPassword ? (
-                  <EyeOff size={20} color="#A0A0A0" />
-                ) : (
-                  <Eye size={20} color="#A0A0A0" />
-                )}
+                {showPassword
+                  ? <EyeOff size={20} color={colors.placeholder} />
+                  : <Eye size={20} color={colors.placeholder} />}
               </TouchableOpacity>
             </View>
-          </Animated.View>
+          </View>
 
-          <Animated.View
-            style={[animatedButtonStyle, styles.buttonContainer]}
-          >
+          {/* Sign In Button */}
+          <Animated.View style={[animatedButtonStyle, commonStyles.buttonWrap]}>
             <TouchableOpacity
-              className="bg-sapLight-button rounded-2xl py-4 px-6 w-full shadow-lg mt-4"
+              style={[commonStyles.button, loading && commonStyles.buttonLoading]}
               onPress={handleLogin}
+              activeOpacity={0.85}
+              disabled={loading}
             >
-              <Text className="text-sapLight-background text-center font-montserrat-semibold text-lg">
-                Sign In
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity>
-              <Text
-                className="text-sapLight-button text-center mt-6 text-sm font-montserrat-medium tracking-wide"
-                onPress={() => router.push("./ResetPasswordScreen")}
-              >
-                Reset Password?
+              <Text style={commonStyles.buttonText}>
+                {loading ? "Signing in…" : "Sign In  →"}
               </Text>
             </TouchableOpacity>
           </Animated.View>
-        </View>
+
+          {/* Forgot */}
+          <TouchableOpacity onPress={() => router.push("./ResetPasswordScreen")}>
+            <Text style={commonStyles.forgotText}>Forgot password? Contact supervisor</Text>
+          </TouchableOpacity>
+        </Animated.View>
       </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
   );
 }
-
-const styles = StyleSheet.create({
-  imageContainer: {
-    marginBottom: 40,
-  },
-  logo: {
-    width: 200,
-    height: 200,
-  },
-  inputContainer: {
-    width: "100%",
-    maxWidth: 380,
-  },
-  input: {
-    fontSize: 16,
-  },
-  buttonContainer: {
-    width: "100%",
-    maxWidth: 380,
-    alignItems: "center",
-  },
-});

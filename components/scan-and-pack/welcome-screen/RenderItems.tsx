@@ -2,10 +2,10 @@ import { OnboardingData } from "@/data/welcomeData";
 import LottieView from "lottie-react-native";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, {
-    Extrapolation,
-    interpolate,
-    SharedValue,
-    useAnimatedStyle,
+  Extrapolation,
+  interpolate,
+  SharedValue,
+  useAnimatedStyle,
 } from "react-native-reanimated";
 
 type Props = {
