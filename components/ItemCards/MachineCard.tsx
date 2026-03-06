@@ -3,9 +3,7 @@
  * Selected: navy bg + amber border. Unselected: white bg + subtle shadow.
  */
 import { colors } from "@/components/theme/colors";
-import { useIsFocused } from "@react-navigation/native";
 import { useCameraPermissions } from "expo-camera";
-import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import {
   Image,
@@ -37,11 +35,12 @@ interface MachineCardProps {
   index: number;
   selected: boolean;
   onSelect: (machine: MachineData) => void;
+  /** Called when the card is tapped and camera permission is granted.
+   *  Parent controls navigation so it can pass the correct params. */
+  onNavigate: (machine: MachineData) => void;
 }
 
-export const MachineCard = ({ machine, index, selected, onSelect }: MachineCardProps) => {
-  const router = useRouter();
-  const isFocused = useIsFocused();
+export const MachineCard = ({ machine, index, selected, onSelect, onNavigate }: MachineCardProps) => {
   const [permission, requestPermission] = useCameraPermissions();
 
   // ─── Entrance animation ───────────────────────────────
@@ -66,14 +65,9 @@ export const MachineCard = ({ machine, index, selected, onSelect }: MachineCardP
 
   // ─── Navigate to scanner ──────────────────────────────
   const handlePress = async () => {
-    // Mark as selected first
     onSelect(machine);
 
-    const navigate = () =>
-      router.push({
-        pathname: "/scanner-track-trace",
-        params: { machine_id: String(machine.id) },
-      });
+    const navigate = () => onNavigate(machine);
 
     if (!permission?.granted) {
       const result = await requestPermission();

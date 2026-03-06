@@ -10,7 +10,7 @@ import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
 import { useFocusEffect, useRouter } from "expo-router";
 import { AlertTriangle, ArrowLeft } from "lucide-react-native";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   FlatList,
   StyleSheet,
@@ -36,6 +36,10 @@ export default function MachineTabScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
 
+  const flatListRef = useRef<FlatList<Machine>>(null);
+  // Track whether we've fetched at least once — skip re-fetch on back press
+  const hasFetched = useRef(false);
+
   // ─── Fetch ──────────────────────────────────────────────
   const fetchMachines = async () => {
     const vendorId = user?.vendor_id;
@@ -57,6 +61,7 @@ export default function MachineTabScreen() {
           image_path: mac.image_path,
         }))
       );
+      hasFetched.current = true;
     } catch (error) {
       console.warn("Failed to fetch machines:", error);
     } finally {
@@ -66,9 +71,30 @@ export default function MachineTabScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (user?.vendor_id) fetchMachines();
+      if (!hasFetched.current) {
+        // First visit — fetch fresh data
+        fetchMachines();
+      } else {
+        // Returning from scanner — skip fetch, just scroll to selected
+        scrollToSelected();
+      }
     }, [user?.vendor_id])
   );
+
+  // ─── Scroll to selected machine ──────────────────────────
+  const scrollToSelected = () => {
+    if (!selectedMachine || machines.length === 0) return;
+    const index = machines.findIndex((m) => m.id === selectedMachine.id);
+    if (index === -1) return;
+    // Small delay to let the layout settle
+    setTimeout(() => {
+      flatListRef.current?.scrollToIndex({
+        index,
+        animated: true,
+        viewPosition: 0.3, // Position selected item ~30% from top
+      });
+    }, 150);
+  };
 
   // ─── Loading ─────────────────────────────────────────────
   if (loading) {
@@ -100,10 +126,21 @@ export default function MachineTabScreen() {
 
       {/* ── Body ── */}
       <FlatList
+        ref={flatListRef}
         data={machines}
         keyExtractor={(item, index) => `${item.machine_name}-${index}`}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
+        // Fallback if scrollToIndex fails (item not yet measured)
+        onScrollToIndexFailed={({ index }) => {
+          setTimeout(() => {
+            flatListRef.current?.scrollToIndex({
+              index,
+              animated: true,
+              viewPosition: 0.3,
+            });
+          }, 300);
+        }}
 
         // Warning banner above the list
         ListHeaderComponent={
@@ -132,6 +169,13 @@ export default function MachineTabScreen() {
             onSelect={(m: Machine) =>
               setSelectedMachine((prev) => (prev?.id === m.id ? null : m))
             }
+            onNavigate={(m: Machine) => {
+              setSelectedMachine(m);
+              router.push({
+                pathname: "/scanner-track-trace",
+                params: { machine_id: String(m.id), machine_name: m.machine_name },
+              });
+            }}
           />
         )}
       />
@@ -140,7 +184,10 @@ export default function MachineTabScreen() {
       <View style={styles.ctaContainer}>
         <TouchableOpacity
           style={[commonStyles.button, !selectedMachine && styles.buttonDisabled]}
-          onPress={() => selectedMachine && router.push("/scanner")}
+          onPress={() => selectedMachine && router.push({
+            pathname: "/scanner-track-trace",
+            params: { machine_id: String(selectedMachine.id), machine_name: selectedMachine.machine_name },
+          })}
           activeOpacity={selectedMachine ? 0.85 : 1}
           disabled={!selectedMachine}
         >
@@ -148,10 +195,6 @@ export default function MachineTabScreen() {
             📷  Proceed to Scanner
           </Text>
         </TouchableOpacity>
-
-        {!selectedMachine && (
-          <Text style={commonStyles.hintText}>Select a machine first</Text>
-        )}
       </View>
 
     </View>
