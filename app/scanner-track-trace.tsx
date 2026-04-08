@@ -110,7 +110,7 @@ export default function TrackTraceBarcodeScanner() {
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
 
-  // ── Completion photo popup (when defect is pending) ───────────────────────
+  // ── Completion photo popup (when defect is pending rework) ────────────────
   const [showCompletionPopup, setShowCompletionPopup] = useState(false);
   const [completionPhotos, setCompletionPhotos] = useState<string[]>([]);
   const [completionLoading, setCompletionLoading] = useState(false);
@@ -380,13 +380,15 @@ export default function TrackTraceBarcodeScanner() {
 
   const handleMarkCompleted = async () => {
     if (!mappedItem) return;
-    // if there's a pending defect, show photo upload popup first
-    if (activeDefect && activeDefect.defect_status !== "Completed") {
+
+    // pending rework defect → show photo popup
+    // pending replace defect OR no defect → call directly
+    if (activeDefect && activeDefect.defect_status !== "Completed" && activeDefect.action !== "replace") {
       setCompletionPhotos([]);
       setShowCompletionPopup(true);
       return;
     }
-    // no pending defect — call directly
+
     setActionLoading(true);
     try {
       const apiResponse = await callScanItem(mappedItem.cut_list.unique_code);
@@ -973,7 +975,7 @@ export default function TrackTraceBarcodeScanner() {
               />
             )}
 
-            {/* ── Completion photo popup ── */}
+            {/* ── Completion photo popup (rework defects only) ── */}
             {showCompletionPopup && (
               <CompletionPhotoPopup
                 photos={completionPhotos}
@@ -1166,7 +1168,7 @@ function CompletionPhotoPopup({
             {/* Info banner */}
             <View style={styles.completionInfoBanner}>
               <Text style={styles.completionInfoText}>
-                📋 This item has a pending defect. Please upload photos confirming the fix before marking as completed.
+                📋 This item has a pending rework defect. Please upload photos confirming the fix before marking as completed.
               </Text>
             </View>
 
@@ -1181,11 +1183,19 @@ function CompletionPhotoPopup({
 
               {canAddMore && (
                 <View style={styles.photoButtonsRow}>
-                  <TouchableOpacity style={styles.photoBtn} onPress={onCapture} activeOpacity={0.8}>
+                  <TouchableOpacity
+                    style={[styles.photoBtn, { borderColor: "#2A9D8F", backgroundColor: "#F0FDF4" }]}
+                    onPress={onCapture}
+                    activeOpacity={0.8}
+                  >
                     <Camera size={18} color="#2A9D8F" />
                     <Text style={[styles.photoBtnText, { color: "#2A9D8F" }]}>Camera</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.photoBtn, { borderColor: "#2A9D8F" }]} onPress={onPick} activeOpacity={0.8}>
+                  <TouchableOpacity
+                    style={[styles.photoBtn, { borderColor: "#2A9D8F", backgroundColor: "#F0FDF4" }]}
+                    onPress={onPick}
+                    activeOpacity={0.8}
+                  >
                     <ImagePlus size={18} color="#2A9D8F" />
                     <Text style={[styles.photoBtnText, { color: "#2A9D8F" }]}>Gallery</Text>
                   </TouchableOpacity>
@@ -2238,8 +2248,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 5,
   },
   completionInfoBanner: {
-    backgroundColor: "#EFF6FF", borderRadius: 12, borderWidth: 1,
-    borderColor: "#BFDBFE", padding: 12, marginBottom: 16,
+    backgroundColor: "#F0FDF4", borderRadius: 12, borderWidth: 1,
+    borderColor: "#86EFAC", padding: 12, marginBottom: 16,
   },
-  completionInfoText: { fontSize: 13, color: "#1E40AF", lineHeight: 18 },
+  completionInfoText: { fontSize: 13, color: "#166534", lineHeight: 18 },
 });
