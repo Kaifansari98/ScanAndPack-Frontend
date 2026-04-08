@@ -4,13 +4,15 @@ import { RootState } from "@/redux/store";
 import { playErrorFeedback, playSuccessFeedback, preloadFeedbackSounds, unloadFeedbackSounds } from "@/utils/soundVibration";
 
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { AlertTriangle, ArrowLeft, CheckCircle, Flashlight, FlashlightOff, Focus, Keyboard, Send, X } from "lucide-react-native";
+import { AlertTriangle, ArrowLeft, Camera, CheckCircle, Flashlight, FlashlightOff, Focus, ImagePlus, Keyboard, Send, X } from "lucide-react-native";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   Dimensions,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -58,6 +60,26 @@ interface Defect {
   defect_name: string;
 }
 
+interface ActiveDefectImage {
+  id: number;
+  doc_og_name: string;
+  doc_sys_name: string;
+  created_at: string;
+  signed_url: string;
+}
+
+interface ActiveDefect {
+  id: number;
+  defect_id: number | null;
+  remark: string | null;
+  action: string | null;
+  rework_machine_id: number | null;
+  defect_status: string;
+  created_at: string;
+  defect: { id: number; defect_name: string } | null;
+  images: ActiveDefectImage[];
+}
+
 const OTHER_DEFECT: Defect = { id: 0, defect_name: "Other" };
 
 export default function TrackTraceBarcodeScanner() {
@@ -80,8 +102,18 @@ export default function TrackTraceBarcodeScanner() {
 
   // ── Item detail sheet (Scan Code mode) ───────────────────────────────────
   const [mappedItem, setMappedItem] = useState<MappedItem | null>(null);
+  const [activeDefect, setActiveDefect] = useState<ActiveDefect | null>(null);
   const [showItemDetail, setShowItemDetail] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // ── Gallery viewer ────────────────────────────────────────────────────────
+  const [galleryVisible, setGalleryVisible] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+
+  // ── Completion photo popup (when defect is pending) ───────────────────────
+  const [showCompletionPopup, setShowCompletionPopup] = useState(false);
+  const [completionPhotos, setCompletionPhotos] = useState<string[]>([]);
+  const [completionLoading, setCompletionLoading] = useState(false);
 
   // ── Defect item sheet (Mark Defect mode) ─────────────────────────────────
   const [defectMappedItem, setDefectMappedItem] = useState<MappedItem | null>(null);
@@ -97,6 +129,10 @@ export default function TrackTraceBarcodeScanner() {
   const [otherDefectText, setOtherDefectText] = useState("");
   const [defectSearchQuery, setDefectSearchQuery] = useState("");
   const [submitDefectLoading, setSubmitDefectLoading] = useState(false);
+  const [defectComment, setDefectComment] = useState("");
+  const [defectPhotos, setDefectPhotos] = useState<string[]>([]);
+  const [defectType, setDefectType] = useState<"rework" | "replace" | null>(null);
+  const [reworkMachineId, setReworkMachineId] = useState<number | null>(null);
 
   const router = useRouter();
   const scanLineAnimation = useRef(new Animated.Value(0)).current;
@@ -198,8 +234,12 @@ export default function TrackTraceBarcodeScanner() {
 
   // ─── Item detail sheet helpers ─────────────────────────────────────────────
 
-  const showItemDetailSheet = (item: MappedItemResponse) => {
-    setMappedItem(item.mappedItem);
+  const showItemDetailSheet = (data: any) => {
+    // API returns data.mappedItem.mappedItem (double nested) and data.mappedItem.activeDefect
+    const item: MappedItem = data.mappedItem?.mappedItem ?? data.mappedItem ?? data;
+    const defect: ActiveDefect | null = data.mappedItem?.activeDefect ?? data.activeDefect ?? null;
+    setMappedItem(item);
+    setActiveDefect(defect);
     setShowItemDetail(true);
     Animated.spring(slideAnim, {
       toValue: 0, useNativeDriver: true, tension: 65, friction: 11,
@@ -211,6 +251,7 @@ export default function TrackTraceBarcodeScanner() {
       .start(() => {
         setShowItemDetail(false);
         setMappedItem(null);
+        setActiveDefect(null);
         setScanned(false);
       });
   };
@@ -256,6 +297,10 @@ export default function TrackTraceBarcodeScanner() {
     setShowDefectModal(false);
     setSelectedDefect(null);
     setOtherDefectText("");
+    setDefectComment("");
+    setDefectPhotos([]);
+    setDefectType(null);
+    setReworkMachineId(null);
     setDefectSearchQuery("");
   };
 
@@ -335,6 +380,13 @@ export default function TrackTraceBarcodeScanner() {
 
   const handleMarkCompleted = async () => {
     if (!mappedItem) return;
+    // if there's a pending defect, show photo upload popup first
+    if (activeDefect && activeDefect.defect_status !== "Completed") {
+      setCompletionPhotos([]);
+      setShowCompletionPopup(true);
+      return;
+    }
+    // no pending defect — call directly
     setActionLoading(true);
     try {
       const apiResponse = await callScanItem(mappedItem.cut_list.unique_code);
@@ -353,6 +405,109 @@ export default function TrackTraceBarcodeScanner() {
     }
   };
 
+  // ─── Completion photo handlers ─────────────────────────────────────────────
+
+  const MAX_COMPLETION_PHOTOS = 10;
+
+  const handleCompletionCapturePhoto = async () => {
+    if (completionPhotos.length >= MAX_COMPLETION_PHOTOS) {
+      showToast("error", `Maximum ${MAX_COMPLETION_PHOTOS} photos allowed`);
+      return;
+    }
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      showToast("error", "Camera permission is required");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+      base64: false,
+      allowsEditing: false,
+    });
+    if (!result.canceled && result.assets[0]?.uri) {
+      setCompletionPhotos(prev => [...prev, result.assets[0].uri]);
+    }
+  };
+
+  const handleCompletionPickPhoto = async () => {
+    if (completionPhotos.length >= MAX_COMPLETION_PHOTOS) {
+      showToast("error", `Maximum ${MAX_COMPLETION_PHOTOS} photos allowed`);
+      return;
+    }
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      showToast("error", "Gallery permission is required");
+      return;
+    }
+    const remaining = MAX_COMPLETION_PHOTOS - completionPhotos.length;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      const uris = result.assets.map(a => a.uri);
+      setCompletionPhotos(prev => [...prev, ...uris].slice(0, MAX_COMPLETION_PHOTOS));
+    }
+  };
+
+  const handleCompletionRemovePhoto = (index: number) => {
+    setCompletionPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmitCompletion = async () => {
+    if (!mappedItem) return;
+    if (completionPhotos.length === 0) {
+      showToast("error", "Please attach at least 1 photo");
+      return;
+    }
+    setCompletionLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("project_id", String(1));
+      formData.append("vendor_id", String(vendor_id));
+      formData.append("machine_id", String(machine_id));
+      formData.append("unique_code", mappedItem.cut_list.unique_code);
+      formData.append("created_by", String(user?.id ?? 0));
+
+      completionPhotos.forEach((uri, index) => {
+        const ext = uri.split(".").pop()?.toLowerCase() ?? "jpg";
+        const mime = ext === "png" ? "image/png" : "image/jpeg";
+        formData.append("photos[]", {
+          uri,
+          name: `completion_photo_${index + 1}.${ext}`,
+          type: mime,
+        } as any);
+      });
+
+      const res = await axios.post("/track-trace/scan/item", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          "Accept": "application/json",
+        },
+        transformRequest: (data) => data,
+      });
+
+      const apiResponse = res.data;
+      if (apiResponse.success) {
+        showToast("success", apiResponse.message || "Marked completed successfully");
+        await playSuccessFeedback();
+        setShowCompletionPopup(false);
+        setCompletionPhotos([]);
+        hideItemDetailSheet();
+      } else {
+        showToast("error", apiResponse.message || "Failed to mark completed");
+        await playErrorFeedback();
+      }
+    } catch (err: any) {
+      showToast("error", err?.response?.data?.message || "Failed to mark completed");
+    } finally {
+      setCompletionLoading(false);
+    }
+  };
+
   const handleMarkDefectFromScanMode = async () => {
     if (!mappedItem) return;
     await fetchAndOpenDefectSheet(mappedItem);
@@ -361,6 +516,58 @@ export default function TrackTraceBarcodeScanner() {
   const handleMarkDefectFromDefectMode = async () => {
     if (!defectMappedItem) return;
     await fetchAndOpenDefectSheet(defectMappedItem);
+  };
+
+  // ─── Photo handlers ───────────────────────────────────────────────────────
+
+  const MAX_PHOTOS = 10;
+
+  const handleCapturePhoto = async () => {
+    if (defectPhotos.length >= MAX_PHOTOS) {
+      showToast("error", `Maximum ${MAX_PHOTOS} photos allowed`);
+      return;
+    }
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      showToast("error", "Camera permission is required");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+      base64: false,
+      allowsEditing: false,
+    });
+    if (!result.canceled && result.assets[0]?.uri) {
+      setDefectPhotos(prev => [...prev, result.assets[0].uri]);
+    }
+  };
+
+  const handlePickPhoto = async () => {
+    if (defectPhotos.length >= MAX_PHOTOS) {
+      showToast("error", `Maximum ${MAX_PHOTOS} photos allowed`);
+      return;
+    }
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      showToast("error", "Gallery permission is required");
+      return;
+    }
+    const remaining = MAX_PHOTOS - defectPhotos.length;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      const uris = result.assets.map(a => a.uri);
+      setDefectPhotos(prev => [...prev, ...uris].slice(0, MAX_PHOTOS));
+    }
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    setDefectPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmitDefect = async () => {
@@ -373,21 +580,57 @@ export default function TrackTraceBarcodeScanner() {
       return;
     }
 
+    if (!defectType) {
+      showToast("error", "Please select Rework or Replace");
+      return;
+    }
+
+    if (defectType === "rework" && !reworkMachineId) {
+      showToast("error", "Please select a machine for rework");
+      return;
+    }
+
+    if (defectPhotos.length === 0) {
+      showToast("error", "Please attach at least 1 photo");
+      return;
+    }
+
     setSubmitDefectLoading(true);
     try {
-      const payload = {
-        vendor_id,
-        project_id: activeItem.project_id,
-        cut_list_machine_mapping_id: activeItem.id,
-        cut_list_id: activeItem.cut_list_id,
-        machine_id: activeItem.machine.id,
-        unique_code: activeItem.cut_list.unique_code,
-        created_by: Number(user?.id),
-        defect_id: selectedDefect.id,
-        defect_name: isOther ? otherDefectText.trim() : selectedDefect.defect_name,
-      };
+      const formData = new FormData();
+      formData.append("vendor_id", String(vendor_id));
+      formData.append("project_id", String(activeItem.project_id));
+      formData.append("cut_list_machine_mapping_id", String(activeItem.id));
+      formData.append("cut_list_id", String(activeItem.cut_list_id));
+      formData.append("machine_id", String(activeItem.machine.id));
+      formData.append("unique_code", activeItem.cut_list.unique_code);
+      formData.append("created_by", String(user?.id ?? 0));
+      formData.append("defect_id", String(selectedDefect.id));
+      formData.append("defect_name", isOther ? otherDefectText.trim() : defectComment.trim());
+      formData.append("comment", isOther ? "" : defectComment.trim());
+      formData.append("defect_type", defectType);
+      if (defectType === "rework" && reworkMachineId) {
+        formData.append("rework_machine_id", String(reworkMachineId));
+      }
 
-      const res = await axios.post("/track-trace/mark-defect", payload);
+      defectPhotos.forEach((uri, index) => {
+        const ext = uri.split(".").pop()?.toLowerCase() ?? "jpg";
+        const mime = ext === "png" ? "image/png" : "image/jpeg";
+        formData.append("photos[]", {
+          uri,
+          name: `defect_photo_${index + 1}.${ext}`,
+          type: mime,
+        } as any);
+      });
+
+      const res = await axios.post("/track-trace/mark-defect", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          "Accept": "application/json",
+        },
+        transformRequest: (data) => data,
+      });
+
       const apiResponse = res.data;
 
       if (apiResponse.success) {
@@ -400,7 +643,10 @@ export default function TrackTraceBarcodeScanner() {
           hideDefectItemDetailSheet();
         }
       } else {
+        closeDefectModal();
+        hideDefectItemDetailSheet();
         showToast("error", apiResponse.message || "Failed to mark defect");
+
         await playErrorFeedback();
       }
     } catch (err: any) {
@@ -636,6 +882,46 @@ export default function TrackTraceBarcodeScanner() {
             <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetScrollContent} showsVerticalScrollIndicator={false}>
               <ItemCard item={mappedItem} />
 
+              {/* ── Active defect images ── */}
+              {activeDefect && activeDefect.images.length > 0 && (
+                <View style={styles.defectImageSection}>
+                  <View style={styles.defectImageSectionHeader}>
+                    <View style={styles.defectImageSectionBadge}>
+                      <Text style={styles.defectImageSectionBadgeText}>⚠️ Defect Reported</Text>
+                    </View>
+                    <Text style={styles.defectImageSectionMeta}>
+                      {activeDefect.defect?.defect_name ?? activeDefect.remark ?? "Unknown defect"}
+                      {activeDefect.action ? ` · ${activeDefect.action.charAt(0).toUpperCase() + activeDefect.action.slice(1)}` : ""}
+                    </Text>
+                  </View>
+                  {/* Remark */}
+{activeDefect.remark && (
+  <Text style={styles.defectImageSectionRemark}>
+    💬 {activeDefect.remark}
+  </Text>
+)}
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.defectImageGrid}
+                  >
+                    {activeDefect.images.map((img, idx) => (
+                      <TouchableOpacity
+                        key={img.id}
+                        onPress={() => { setGalleryIndex(idx); setGalleryVisible(true); }}
+                        activeOpacity={0.85}
+                        style={styles.defectImageThumbWrapper}
+                      >
+                        <Image source={{ uri: img.signed_url }} style={styles.defectImageThumb} resizeMode="cover" />
+                        <View style={styles.defectImageIndexBadge}>
+                          <Text style={styles.defectImageIndexText}>{idx + 1}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
               <Text style={styles.markLabel}>MARK STATUS</Text>
 
               <TouchableOpacity
@@ -648,7 +934,7 @@ export default function TrackTraceBarcodeScanner() {
                 <Text style={styles.actionBtnText}>{actionLoading ? "Saving..." : "Mark Completed"}</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
+              {/* <TouchableOpacity
                 style={[styles.actionBtn, styles.actionBtnDefect, (actionLoading || defectListLoading) && styles.actionBtnDisabled]}
                 onPress={handleMarkDefectFromScanMode}
                 activeOpacity={0.85}
@@ -656,7 +942,7 @@ export default function TrackTraceBarcodeScanner() {
               >
                 {defectListLoading ? <ActivityIndicator size="small" color="white" /> : <AlertTriangle size={20} color="white" />}
                 <Text style={styles.actionBtnText}>{defectListLoading ? "Loading..." : "Mark as Defect"}</Text>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
               <View style={{ height: 32 }} />
             </ScrollView>
 
@@ -667,12 +953,95 @@ export default function TrackTraceBarcodeScanner() {
                 setSelectedDefect={setSelectedDefect}
                 otherDefectText={otherDefectText}
                 setOtherDefectText={setOtherDefectText}
+                defectComment={defectComment}
+                setDefectComment={setDefectComment}
                 defectSearchQuery={defectSearchQuery}
                 setDefectSearchQuery={setDefectSearchQuery}
+                defectPhotos={defectPhotos}
+                onCapturePhoto={handleCapturePhoto}
+                onPickPhoto={handlePickPhoto}
+                onRemovePhoto={handleRemovePhoto}
+                defectType={defectType}
+                setDefectType={setDefectType}
+                reworkMachineId={reworkMachineId}
+                setReworkMachineId={setReworkMachineId}
+                vendorId={Number(vendor_id)}
+                machineId={mappedItem?.machine?.id ?? 0}
                 submitDefectLoading={submitDefectLoading}
                 onClose={closeDefectModal}
                 onSubmit={handleSubmitDefect}
               />
+            )}
+
+            {/* ── Completion photo popup ── */}
+            {showCompletionPopup && (
+              <CompletionPhotoPopup
+                photos={completionPhotos}
+                onCapture={handleCompletionCapturePhoto}
+                onPick={handleCompletionPickPhoto}
+                onRemove={handleCompletionRemovePhoto}
+                loading={completionLoading}
+                onClose={() => { setShowCompletionPopup(false); setCompletionPhotos([]); }}
+                onSubmit={handleSubmitCompletion}
+              />
+            )}
+
+            {/* ── Gallery viewer ── */}
+            {galleryVisible && activeDefect && activeDefect.images.length > 0 && (
+              <Modal transparent animationType="fade" visible={galleryVisible} onRequestClose={() => setGalleryVisible(false)}>
+                <View style={styles.galleryOverlay}>
+                  <TouchableOpacity style={styles.galleryClose} onPress={() => setGalleryVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <X size={24} color="white" />
+                  </TouchableOpacity>
+                  <Text style={styles.galleryCounter}>{galleryIndex + 1} / {activeDefect.images.length}</Text>
+
+                  <Image
+                    source={{ uri: activeDefect.images[galleryIndex].signed_url }}
+                    style={styles.galleryImage}
+                    resizeMode="contain"
+                  />
+
+                  {/* Previous */}
+                  {galleryIndex > 0 && (
+                    <TouchableOpacity
+                      style={[styles.galleryNavBtn, styles.galleryNavLeft]}
+                      onPress={() => setGalleryIndex(i => i - 1)}
+                      activeOpacity={0.8}
+                    >
+                      <ArrowLeft size={22} color="white" />
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Next */}
+                  {galleryIndex < activeDefect.images.length - 1 && (
+                    <TouchableOpacity
+                      style={[styles.galleryNavBtn, styles.galleryNavRight]}
+                      onPress={() => setGalleryIndex(i => i + 1)}
+                      activeOpacity={0.8}
+                    >
+                      <ArrowLeft size={22} color="white" style={{ transform: [{ scaleX: -1 }] }} />
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Thumbnail strip */}
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.galleryStrip}
+                    style={styles.galleryStripWrapper}
+                  >
+                    {activeDefect.images.map((img, idx) => (
+                      <TouchableOpacity key={img.id} onPress={() => setGalleryIndex(idx)} activeOpacity={0.8}>
+                        <Image
+                          source={{ uri: img.signed_url }}
+                          style={[styles.galleryStripThumb, idx === galleryIndex && styles.galleryStripThumbActive]}
+                          resizeMode="cover"
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              </Modal>
             )}
           </Animated.View>
         </Modal>
@@ -723,8 +1092,20 @@ export default function TrackTraceBarcodeScanner() {
                 setSelectedDefect={setSelectedDefect}
                 otherDefectText={otherDefectText}
                 setOtherDefectText={setOtherDefectText}
+                defectComment={defectComment}
+                setDefectComment={setDefectComment}
                 defectSearchQuery={defectSearchQuery}
                 setDefectSearchQuery={setDefectSearchQuery}
+                defectPhotos={defectPhotos}
+                onCapturePhoto={handleCapturePhoto}
+                onPickPhoto={handlePickPhoto}
+                onRemovePhoto={handleRemovePhoto}
+                defectType={defectType}
+                setDefectType={setDefectType}
+                reworkMachineId={reworkMachineId}
+                setReworkMachineId={setReworkMachineId}
+                vendorId={Number(vendor_id)}
+                machineId={defectMappedItem?.machine?.id ?? 0}
                 submitDefectLoading={submitDefectLoading}
                 onClose={closeDefectModal}
                 onSubmit={handleSubmitDefect}
@@ -734,6 +1115,134 @@ export default function TrackTraceBarcodeScanner() {
         </Modal>
       )}
     </View>
+  );
+}
+
+// ─── Completion Photo Popup ───────────────────────────────────────────────────
+
+interface CompletionPhotoPopupProps {
+  photos: string[];
+  onCapture: () => void;
+  onPick: () => void;
+  onRemove: (index: number) => void;
+  loading: boolean;
+  onClose: () => void;
+  onSubmit: () => void;
+}
+
+function CompletionPhotoPopup({
+  photos, onCapture, onPick, onRemove, loading, onClose, onSubmit,
+}: CompletionPhotoPopupProps) {
+  const MAX_PHOTOS = 10;
+  const canAddMore = photos.length < MAX_PHOTOS;
+
+  return (
+    <Modal transparent animationType="fade" visible onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.popupOverlay}
+      >
+        <TouchableOpacity style={styles.popupBackdrop} activeOpacity={1} onPress={onClose} />
+
+        <View style={styles.popupCard}>
+          {/* Header */}
+          <View style={styles.popupHeader}>
+            <TouchableOpacity onPress={onClose} style={styles.popupBackBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <X size={20} color="#374151" />
+            </TouchableOpacity>
+            <View style={styles.popupHeaderCenter}>
+              <Text style={styles.popupTitle}>Completion Photos</Text>
+              <Text style={styles.popupSubtitle}>Upload photos to complete this item</Text>
+            </View>
+            <View style={{ width: 36 }} />
+          </View>
+
+          <ScrollView
+            style={styles.popupScroll}
+            contentContainerStyle={styles.popupScrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Info banner */}
+            <View style={styles.completionInfoBanner}>
+              <Text style={styles.completionInfoText}>
+                📋 This item has a pending defect. Please upload photos confirming the fix before marking as completed.
+              </Text>
+            </View>
+
+            {/* Photos */}
+            <View style={styles.popupSection}>
+              <View style={styles.popupSectionRow}>
+                <Text style={styles.popupSectionLabel}>
+                  📷 Photos <Text style={styles.popupRequired}>*required</Text>
+                </Text>
+                <Text style={styles.popupPhotoCount}>{photos.length}/{MAX_PHOTOS}</Text>
+              </View>
+
+              {canAddMore && (
+                <View style={styles.photoButtonsRow}>
+                  <TouchableOpacity style={styles.photoBtn} onPress={onCapture} activeOpacity={0.8}>
+                    <Camera size={18} color="#2A9D8F" />
+                    <Text style={[styles.photoBtnText, { color: "#2A9D8F" }]}>Camera</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.photoBtn, { borderColor: "#2A9D8F" }]} onPress={onPick} activeOpacity={0.8}>
+                    <ImagePlus size={18} color="#2A9D8F" />
+                    <Text style={[styles.photoBtnText, { color: "#2A9D8F" }]}>Gallery</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {photos.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.photoGrid}
+                  keyboardShouldPersistTaps="handled"
+                  style={{ marginTop: 10 }}
+                >
+                  {photos.map((uri, index) => (
+                    <View key={`${uri}-${index}`} style={styles.photoThumbWrapper}>
+                      <Image source={{ uri }} style={styles.photoThumb} resizeMode="cover" />
+                      <TouchableOpacity
+                        style={[styles.photoRemoveBtn, { backgroundColor: "#2A9D8F" }]}
+                        onPress={() => onRemove(index)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <X size={12} color="white" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <View style={styles.photoEmptyHint}>
+                  <Text style={styles.photoEmptyText}>At least 1 photo is required</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={{ height: 8 }} />
+          </ScrollView>
+
+          {/* Submit */}
+          <View style={styles.popupFooter}>
+            <TouchableOpacity
+              style={[styles.completionSubmitBtn, (photos.length === 0 || loading) && styles.defectSubmitBtnDisabled]}
+              onPress={onSubmit}
+              activeOpacity={0.85}
+              disabled={photos.length === 0 || loading}
+            >
+              {loading
+                ? <ActivityIndicator size="small" color="white" />
+                : <CheckCircle size={18} color="white" />
+              }
+              <Text style={styles.defectSubmitText}>
+                {loading ? "Submitting..." : "Mark Completed"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -772,8 +1281,20 @@ interface DefectSheetProps {
   setSelectedDefect: (d: Defect) => void;
   otherDefectText: string;
   setOtherDefectText: (t: string) => void;
+  defectComment: string;
+  setDefectComment: (t: string) => void;
   defectSearchQuery: string;
   setDefectSearchQuery: (q: string) => void;
+  defectPhotos: string[];
+  onCapturePhoto: () => void;
+  onPickPhoto: () => void;
+  onRemovePhoto: (index: number) => void;
+  defectType: "rework" | "replace" | null;
+  setDefectType: (t: "rework" | "replace") => void;
+  reworkMachineId: number | null;
+  setReworkMachineId: (id: number | null) => void;
+  vendorId: number;
+  machineId: number;
   submitDefectLoading: boolean;
   onClose: () => void;
   onSubmit: () => void;
@@ -782,9 +1303,21 @@ interface DefectSheetProps {
 function DefectSheet({
   allDefects, selectedDefect, setSelectedDefect,
   otherDefectText, setOtherDefectText,
+  defectComment, setDefectComment,
   defectSearchQuery, setDefectSearchQuery,
+  defectPhotos, onCapturePhoto, onPickPhoto, onRemovePhoto,
+  defectType, setDefectType, reworkMachineId, setReworkMachineId,
+  vendorId, machineId,
   submitDefectLoading, onClose, onSubmit,
 }: DefectSheetProps) {
+  const [showDetailPopup, setShowDetailPopup] = useState(false);
+
+  const handleDefectPress = (defect: Defect) => {
+    setSelectedDefect(defect);
+    if (defect.id !== 0) setOtherDefectText("");
+    setShowDetailPopup(true);
+  };
+
   return (
     <View style={styles.defectOverlay}>
       <TouchableOpacity style={styles.defectBackdrop} activeOpacity={1} onPress={onClose} />
@@ -830,46 +1363,27 @@ function DefectSheet({
               const isSelected = selectedDefect?.id === defect.id;
               const isOther = defect.id === 0;
               return (
-                <View key={String(defect.id)}>
-                  <TouchableOpacity
-                    style={[styles.defectRow, isSelected && styles.defectRowSelected]}
-                    onPress={() => {
-                      setSelectedDefect(defect);
-                      if (!isOther) setOtherDefectText("");
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.defectRadio, isSelected && styles.defectRadioSelected]}>
-                      {isSelected && <View style={styles.defectRadioDot} />}
-                    </View>
-                    <Text style={[styles.defectRowText, isSelected && styles.defectRowTextSelected]}>
-                      {defect.defect_name}
-                    </Text>
-                    {isOther && (
-                      <View style={styles.otherBadge}>
-                        <Text style={styles.otherBadgeText}>Custom</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-
-                  {isOther && isSelected && (
-                    <View style={styles.otherInputWrapper}>
-                      <TextInput
-                        style={styles.otherInput}
-                        placeholder="Describe the defect..."
-                        placeholderTextColor="#9CA3AF"
-                        value={otherDefectText}
-                        onChangeText={setOtherDefectText}
-                        multiline
-                        autoFocus
-                        maxLength={200}
-                      />
-                      <Text style={styles.otherInputCount}>{otherDefectText.length}/200</Text>
+                <TouchableOpacity
+                  key={String(defect.id)}
+                  style={[styles.defectRow, isSelected && styles.defectRowSelected]}
+                  onPress={() => handleDefectPress(defect)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.defectRadio, isSelected && styles.defectRadioSelected]}>
+                    {isSelected && <View style={styles.defectRadioDot} />}
+                  </View>
+                  <Text style={[styles.defectRowText, isSelected && styles.defectRowTextSelected]}>
+                    {defect.defect_name}
+                  </Text>
+                  {isOther && (
+                    <View style={styles.otherBadge}>
+                      <Text style={styles.otherBadgeText}>Custom</Text>
                     </View>
                   )}
-                </View>
+                </TouchableOpacity>
               );
             })}
+
             {allDefects.length === 0 && (
               <View style={styles.defectNoResults}>
                 <Text style={styles.defectNoResultsText}>No defects match "{defectSearchQuery}"</Text>
@@ -877,15 +1391,309 @@ function DefectSheet({
             )}
             <View style={{ height: 16 }} />
           </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
 
-          <View style={styles.defectSubmitWrapper}>
+      {showDetailPopup && selectedDefect && (
+        <DefectDetailPopup
+          defect={selectedDefect}
+          otherDefectText={otherDefectText}
+          setOtherDefectText={setOtherDefectText}
+          defectComment={defectComment}
+          setDefectComment={setDefectComment}
+          defectPhotos={defectPhotos}
+          onCapturePhoto={onCapturePhoto}
+          onPickPhoto={onPickPhoto}
+          onRemovePhoto={onRemovePhoto}
+          defectType={defectType}
+          setDefectType={setDefectType}
+          reworkMachineId={reworkMachineId}
+          setReworkMachineId={setReworkMachineId}
+          vendorId={vendorId}
+          machineId={machineId}
+          submitDefectLoading={submitDefectLoading}
+          onBack={() => {
+            setShowDetailPopup(false);
+            setSelectedDefect(null);
+            setOtherDefectText("");
+            setDefectComment("");
+            setDefectType("rework");
+            setReworkMachineId(null);
+          }}
+          onSubmit={onSubmit}
+        />
+      )}
+    </View>
+  );
+}
+
+// ─── Defect Detail Popup ──────────────────────────────────────────────────────
+
+interface ReworkMachine {
+  id: number;
+  machine_name: string;
+}
+
+interface DefectDetailPopupProps {
+  defect: Defect;
+  otherDefectText: string;
+  setOtherDefectText: (t: string) => void;
+  defectComment: string;
+  setDefectComment: (t: string) => void;
+  defectPhotos: string[];
+  onCapturePhoto: () => void;
+  onPickPhoto: () => void;
+  onRemovePhoto: (index: number) => void;
+  defectType: "rework" | "replace" | null;
+  setDefectType: (t: "rework" | "replace") => void;
+  reworkMachineId: number | null;
+  setReworkMachineId: (id: number | null) => void;
+  vendorId: number;
+  machineId: number;
+  submitDefectLoading: boolean;
+  onBack: () => void;
+  onSubmit: () => void;
+}
+
+function DefectDetailPopup({
+  defect, otherDefectText, setOtherDefectText,
+  defectComment, setDefectComment,
+  defectPhotos, onCapturePhoto, onPickPhoto, onRemovePhoto,
+  defectType, setDefectType, reworkMachineId, setReworkMachineId,
+  vendorId, machineId,
+  submitDefectLoading, onBack, onSubmit,
+}: DefectDetailPopupProps) {
+  const MAX_PHOTOS = 10;
+  const isOther = defect.id === 0;
+  const canAddMore = defectPhotos.length < MAX_PHOTOS;
+
+  const [machines, setMachines] = useState<ReworkMachine[]>([]);
+  const [machinesLoading, setMachinesLoading] = useState(false);
+
+  React.useEffect(() => {
+    if (defectType !== "rework") return;
+    setMachinesLoading(true);
+    axios.get(`/track-trace/rework-machines/${vendorId}/${machineId}`)
+      .then(res => {
+        const d = res.data;
+        if (d.success) setMachines(d.data?.serviceResponse ?? d.data ?? []);
+      })
+      .catch(() => { })
+      .finally(() => setMachinesLoading(false));
+  }, [defectType]);
+
+  const canSubmit =
+    (!isOther || otherDefectText.trim().length > 0) &&
+    defectPhotos.length > 0 &&
+    defectType !== null &&
+    (defectType !== "rework" || reworkMachineId !== null);
+
+  return (
+    <Modal transparent animationType="fade" visible onRequestClose={onBack}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.popupOverlay}
+      >
+        <TouchableOpacity style={styles.popupBackdrop} activeOpacity={1} onPress={onBack} />
+
+        <View style={styles.popupCard}>
+          {/* Header */}
+          <View style={styles.popupHeader}>
+            <TouchableOpacity onPress={onBack} style={styles.popupBackBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <ArrowLeft size={20} color="#374151" />
+            </TouchableOpacity>
+            <View style={styles.popupHeaderCenter}>
+              <Text style={styles.popupTitle} numberOfLines={1}>{defect.defect_name}</Text>
+              <Text style={styles.popupSubtitle}>Add details for this defect</Text>
+            </View>
+            <View style={{ width: 36 }} />
+          </View>
+
+          <ScrollView
+            style={styles.popupScroll}
+            contentContainerStyle={styles.popupScrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Other — required description */}
+            {isOther && (
+              <View style={styles.popupSection}>
+                <Text style={styles.popupSectionLabel}>
+                  📝 Description <Text style={styles.popupRequired}>*required</Text>
+                </Text>
+                <View style={styles.popupInputBox}>
+                  <TextInput
+                    style={styles.popupTextInput}
+                    placeholder="Describe the defect..."
+                    placeholderTextColor="#9CA3AF"
+                    value={otherDefectText}
+                    onChangeText={setOtherDefectText}
+                    multiline
+                    autoFocus
+                    maxLength={200}
+                  />
+                  <Text style={styles.popupCharCount}>{otherDefectText.length}/200</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Comment — optional for non-Other */}
+            {!isOther && (
+              <View style={styles.popupSection}>
+                <Text style={styles.popupSectionLabel}>
+                  💬 Comment <Text style={styles.popupOptional}>(optional)</Text>
+                </Text>
+                <View style={styles.popupInputBox}>
+                  <TextInput
+                    style={styles.popupTextInput}
+                    placeholder="Add a comment..."
+                    placeholderTextColor="#9CA3AF"
+                    value={defectComment}
+                    onChangeText={setDefectComment}
+                    multiline
+                    maxLength={200}
+                  />
+                  <Text style={styles.popupCharCount}>{defectComment.length}/200</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Rework / Replace toggle */}
+            <View style={styles.popupSection}>
+              <Text style={styles.popupSectionLabel}>
+                🔁 Action <Text style={styles.popupRequired}>*required</Text>
+              </Text>
+              <View style={styles.actionToggleRow}>
+                <TouchableOpacity
+                  style={[styles.actionToggleBtn, defectType === "rework" && styles.actionToggleBtnActive]}
+                  onPress={() => { setDefectType("rework"); setReworkMachineId(null); }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.actionToggleBtnText, defectType === "rework" && styles.actionToggleBtnTextActive]}>
+                    🔧 Rework
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionToggleBtn, defectType === "replace" && styles.actionToggleBtnActive]}
+                  onPress={() => { setDefectType("replace"); setReworkMachineId(null); }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.actionToggleBtnText, defectType === "replace" && styles.actionToggleBtnTextActive]}>
+                    🔄 Replace
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Machine list — only for Rework */}
+            {defectType === "rework" && (
+              <View style={styles.popupSection}>
+                <Text style={styles.popupSectionLabel}>
+                  🏭 Rework Machine <Text style={styles.popupRequired}>*required</Text>
+                </Text>
+                {machinesLoading ? (
+                  <View style={styles.machineLoadingBox}>
+                    <ActivityIndicator size="small" color="#E63946" />
+                    <Text style={styles.machineLoadingText}>Loading machines...</Text>
+                  </View>
+                ) : machines.length === 0 ? (
+                  <View style={styles.machineLoadingBox}>
+                    <Text style={styles.machineLoadingText}>No machines available</Text>
+                  </View>
+                ) : (
+                  <ScrollView
+                    style={styles.machineListBox}
+                    nestedScrollEnabled
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {machines.map((m) => {
+                      const isSelected = reworkMachineId === m.id;
+                      return (
+                        <TouchableOpacity
+                          key={m.id}
+                          style={[styles.machineRow, isSelected && styles.machineRowSelected]}
+                          onPress={() => setReworkMachineId(m.id)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={[styles.machineRadio, isSelected && styles.machineRadioSelected]}>
+                            {isSelected && <View style={styles.machineRadioDot} />}
+                          </View>
+                          <Text style={[styles.machineRowText, isSelected && styles.machineRowTextSelected]}>
+                            {m.machine_name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                )}
+              </View>
+            )}
+
+            {/* Photos — required */}
+            <View style={styles.popupSection}>
+              <View style={styles.popupSectionRow}>
+                <Text style={styles.popupSectionLabel}>
+                  📷 Photos <Text style={styles.popupRequired}>*required</Text>
+                </Text>
+                <Text style={styles.popupPhotoCount}>{defectPhotos.length}/{MAX_PHOTOS}</Text>
+              </View>
+
+              {canAddMore && (
+                <View style={styles.photoButtonsRow}>
+                  <TouchableOpacity style={styles.photoBtn} onPress={onCapturePhoto} activeOpacity={0.8}>
+                    <Camera size={18} color="#E63946" />
+                    <Text style={styles.photoBtnText}>Camera</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.photoBtn} onPress={onPickPhoto} activeOpacity={0.8}>
+                    <ImagePlus size={18} color="#E63946" />
+                    <Text style={styles.photoBtnText}>Gallery</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {defectPhotos.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.photoGrid}
+                  keyboardShouldPersistTaps="handled"
+                  style={{ marginTop: 10 }}
+                >
+                  {defectPhotos.map((uri, index) => (
+                    <View key={`${uri}-${index}`} style={styles.photoThumbWrapper}>
+                      <Image source={{ uri }} style={styles.photoThumb} resizeMode="cover" />
+                      <TouchableOpacity
+                        style={styles.photoRemoveBtn}
+                        onPress={() => onRemovePhoto(index)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <X size={12} color="white" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <View style={styles.photoEmptyHint}>
+                  <Text style={styles.photoEmptyText}>At least 1 photo is required</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={{ height: 8 }} />
+          </ScrollView>
+
+          {/* Submit */}
+          <View style={styles.popupFooter}>
             <TouchableOpacity
-              style={[styles.defectSubmitBtn, (!selectedDefect || submitDefectLoading) && styles.defectSubmitBtnDisabled]}
+              style={[styles.defectSubmitBtn, (!canSubmit || submitDefectLoading) && styles.defectSubmitBtnDisabled]}
               onPress={onSubmit}
               activeOpacity={0.85}
-              disabled={!selectedDefect || submitDefectLoading}
+              disabled={!canSubmit || submitDefectLoading}
             >
-              {submitDefectLoading ? <ActivityIndicator size="small" color="white" /> : <Send size={18} color="white" />}
+              {submitDefectLoading
+                ? <ActivityIndicator size="small" color="white" />
+                : <Send size={18} color="white" />
+              }
               <Text style={styles.defectSubmitText}>
                 {submitDefectLoading ? "Submitting..." : "Submit Defect"}
               </Text>
@@ -893,7 +1701,7 @@ function DefectSheet({
           </View>
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </Modal>
   );
 }
 
@@ -1179,6 +1987,65 @@ const styles = StyleSheet.create({
   },
   otherInput: { fontSize: 15, color: "#111827", minHeight: 70, textAlignVertical: "top", lineHeight: 22 },
   otherInputCount: { fontSize: 11, color: "#9CA3AF", textAlign: "right", marginTop: 4 },
+  commentInputWrapper: {
+    backgroundColor: "white", borderRadius: 14, borderWidth: 1.5,
+    borderColor: "#D1D5DB", marginBottom: 10, padding: 12,
+  },
+  commentInput: { fontSize: 15, color: "#111827", minHeight: 56, textAlignVertical: "top", lineHeight: 22 },
+  selectedExtrasWrapper: {
+    marginTop: 4, marginBottom: 8,
+    backgroundColor: "#FFF9F9", borderRadius: 14, borderWidth: 1,
+    borderColor: "#FECACA", padding: 12, gap: 10,
+  },
+  extrasLabel: { fontSize: 12, fontWeight: "700", color: "#374151", marginBottom: 6 },
+  extrasOptional: { fontSize: 12, fontWeight: "400", color: "#9CA3AF" },
+
+  // Photo section
+  photoSection: {
+    backgroundColor: "white", borderRadius: 16, borderWidth: 1.5,
+    borderColor: "#E5E7EB", marginTop: 12, marginBottom: 4, padding: 14,
+  },
+  photoSectionHeader: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10,
+  },
+  photoSectionTitle: { fontSize: 13, fontWeight: "700", color: "#374151" },
+  photoRequired: { fontSize: 12, fontWeight: "600", color: "#E63946" },
+  photoCount: { fontSize: 12, fontWeight: "600", color: "#9CA3AF" },
+  photoButtonsRow: {
+    flexDirection: "row", gap: 10, marginBottom: 12,
+  },
+  photoBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 11, borderRadius: 12,
+    borderWidth: 1.5, borderColor: "#E63946",
+    backgroundColor: "#FFF5F5",
+  },
+  photoBtnText: { fontSize: 14, fontWeight: "600", color: "#E63946" },
+  photoGrid: {
+    flexDirection: "row", gap: 8, paddingBottom: 4,
+  },
+  photoThumbWrapper: {
+    width: 72, height: 72, borderRadius: 10,
+    position: "relative", marginRight: 4,
+  },
+  photoThumb: {
+    width: 72, height: 72, borderRadius: 10,
+    borderWidth: 1, borderColor: "#E5E7EB",
+  },
+  photoRemoveBtn: {
+    position: "absolute", top: -6, right: -6,
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: "#E63946",
+    justifyContent: "center", alignItems: "center",
+    zIndex: 10,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2, shadowRadius: 2, elevation: 3,
+  },
+  photoEmptyHint: {
+    paddingVertical: 10, alignItems: "center",
+  },
+  photoEmptyText: { fontSize: 13, color: "#9CA3AF" },
+
   defectSubmitWrapper: {
     padding: 16, paddingBottom: Platform.OS === "ios" ? 32 : 20,
     borderTopWidth: 1, borderTopColor: "#E5E7EB", backgroundColor: "#F9FAFB",
@@ -1191,4 +2058,188 @@ const styles = StyleSheet.create({
   },
   defectSubmitBtnDisabled: { opacity: 0.5 },
   defectSubmitText: { color: "white", fontSize: 16, fontWeight: "700" },
+
+  // Defect detail popup
+  popupOverlay: {
+    flex: 1, justifyContent: "center", alignItems: "center",
+  },
+  popupBackdrop: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  popupCard: {
+    width: width * 0.92,
+    maxHeight: height * 0.82,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    overflow: "hidden",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2, shadowRadius: 24, elevation: 20,
+  },
+  popupHeader: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 16, paddingTop: 18, paddingBottom: 12,
+    borderBottomWidth: 1, borderBottomColor: "#F3F4F6",
+    gap: 10,
+  },
+  popupBackBtn: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: "#F3F4F6", justifyContent: "center", alignItems: "center",
+  },
+  popupHeaderCenter: { flex: 1 },
+  popupTitle: { fontSize: 16, fontWeight: "800", color: "#111827" },
+  popupSubtitle: { fontSize: 12, color: "#9CA3AF", marginTop: 1 },
+  popupScroll: { flexGrow: 0 },
+  popupScrollContent: { paddingHorizontal: 16, paddingTop: 16 },
+  popupSection: { marginBottom: 16 },
+  popupSectionRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8,
+  },
+  popupSectionLabel: { fontSize: 13, fontWeight: "700", color: "#374151", marginBottom: 8 },
+  popupRequired: { fontSize: 12, fontWeight: "600", color: "#E63946" },
+  popupOptional: { fontSize: 12, fontWeight: "400", color: "#9CA3AF" },
+  popupPhotoCount: { fontSize: 12, fontWeight: "600", color: "#9CA3AF" },
+  popupInputBox: {
+    backgroundColor: "#F9FAFB", borderRadius: 14,
+    borderWidth: 1.5, borderColor: "#E5E7EB", padding: 12,
+  },
+  popupTextInput: {
+    fontSize: 15, color: "#111827", minHeight: 64,
+    textAlignVertical: "top", lineHeight: 22,
+  },
+  popupCharCount: { fontSize: 11, color: "#9CA3AF", textAlign: "right", marginTop: 4 },
+  popupFooter: {
+    padding: 16, paddingBottom: Platform.OS === "ios" ? 28 : 16,
+    borderTopWidth: 1, borderTopColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
+  },
+
+  // Rework / Replace toggle
+  actionToggleRow: {
+    flexDirection: "row", gap: 10,
+  },
+  actionToggleBtn: {
+    flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: "center",
+    borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F9FAFB",
+  },
+  actionToggleBtnActive: {
+    borderColor: "#E63946", backgroundColor: "#FFF5F5",
+  },
+  actionToggleBtnText: {
+    fontSize: 14, fontWeight: "600", color: "#6B7280",
+  },
+  actionToggleBtnTextActive: {
+    color: "#E63946",
+  },
+
+  // Machine list
+  machineListBox: {
+    maxHeight: 180, borderRadius: 12,
+    borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F9FAFB",
+  },
+  machineRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingVertical: 12, paddingHorizontal: 14,
+    borderBottomWidth: 1, borderBottomColor: "#F3F4F6",
+  },
+  machineRowSelected: { backgroundColor: "#FFF5F5" },
+  machineRadio: {
+    width: 20, height: 20, borderRadius: 10,
+    borderWidth: 2, borderColor: "#D1D5DB",
+    justifyContent: "center", alignItems: "center",
+  },
+  machineRadioSelected: { borderColor: "#E63946" },
+  machineRadioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#E63946" },
+  machineRowText: { flex: 1, fontSize: 14, color: "#374151", fontWeight: "500" },
+  machineRowTextSelected: { color: "#E63946", fontWeight: "700" },
+  machineLoadingBox: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    padding: 14, borderRadius: 12,
+    borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F9FAFB",
+  },
+  machineLoadingText: { fontSize: 14, color: "#9CA3AF" },
+
+  // Defect image section (in item detail sheet)
+  defectImageSection: {
+    backgroundColor: "#FFF5F5", borderRadius: 16,
+    borderWidth: 1.5, borderColor: "#FECACA",
+    padding: 14, marginBottom: 16,
+  },
+  defectImageSectionHeader: { marginBottom: 10 },
+  defectImageSectionBadge: {
+    backgroundColor: "#E63946", alignSelf: "flex-start",
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginBottom: 6,
+  },
+  defectImageSectionBadgeText: { color: "white", fontSize: 12, fontWeight: "700" },
+  defectImageSectionMeta: { fontSize: 13, color: "#374151", fontWeight: "500" },
+  defectImageGrid: { flexDirection: "row", gap: 8, paddingBottom: 4 },
+  defectImageThumbWrapper: {
+    width: 80, height: 80, borderRadius: 12, overflow: "hidden",
+    borderWidth: 2, borderColor: "#E63946", position: "relative",
+  },
+  defectImageThumb: { width: "100%", height: "100%" },
+  defectImageIndexBadge: {
+    position: "absolute", bottom: 4, right: 4,
+    backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 8,
+    paddingHorizontal: 5, paddingVertical: 1,
+  },
+  defectImageIndexText: { color: "white", fontSize: 10, fontWeight: "700" },
+
+  // Gallery viewer
+  galleryOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.95)",
+    justifyContent: "center", alignItems: "center",
+  },
+  galleryClose: {
+    position: "absolute", top: Platform.OS === "ios" ? 56 : 36, right: 20,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: "center", alignItems: "center", zIndex: 10,
+  },
+  galleryCounter: {
+    position: "absolute", top: Platform.OS === "ios" ? 62 : 42,
+    color: "white", fontSize: 14, fontWeight: "600", alignSelf: "center",
+  },
+  galleryImage: {
+    width: width, height: height * 0.6,
+  },
+  galleryNavBtn: {
+    position: "absolute", top: "45%",
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center", alignItems: "center",
+  },
+  galleryNavLeft: { left: 16 },
+  galleryNavRight: { right: 16 },
+  galleryStripWrapper: {
+    position: "absolute", bottom: Platform.OS === "ios" ? 48 : 28,
+    width: width,
+  },
+  galleryStrip: {
+    paddingHorizontal: 16, gap: 8,
+  },
+  galleryStripThumb: {
+    width: 56, height: 56, borderRadius: 8,
+    borderWidth: 2, borderColor: "transparent",
+    opacity: 0.6,
+  },
+  galleryStripThumbActive: {
+    borderColor: "white", opacity: 1,
+  },
+  defectImageSectionRemark: {
+    fontSize: 12, color: "#6B7280", marginTop: 4, marginBottom: 10, fontStyle: "italic",
+  },
+
+  // Completion photo popup
+  completionSubmitBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    backgroundColor: "#2A9D8F", paddingVertical: 16, borderRadius: 16,
+    shadowColor: "#2A9D8F", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 8, elevation: 5,
+  },
+  completionInfoBanner: {
+    backgroundColor: "#EFF6FF", borderRadius: 12, borderWidth: 1,
+    borderColor: "#BFDBFE", padding: 12, marginBottom: 16,
+  },
+  completionInfoText: { fontSize: 13, color: "#1E40AF", lineHeight: 18 },
 });
