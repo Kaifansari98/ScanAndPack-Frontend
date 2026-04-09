@@ -66,12 +66,12 @@ export default function RenderItems({ item, index, x }: Props) {
         />
       </View>
       <Animated.View style={lottieAnimationStyle}>
-        <LottieView
+        { <LottieView
           source={item.animation}
           style={{ width: SCREEN_WIDTH * 0.9, height: SCREEN_WIDTH * 0.9 }}
           autoPlay
           loop
-        />
+        /> }       
       </Animated.View>
       <Text
         className={`text-left text-4xl mb-[10px] mx-[20px] font-montserrat-bold pr-3`}

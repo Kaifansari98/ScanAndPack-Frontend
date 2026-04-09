@@ -1,32 +1,29 @@
-import {
-  FlatList,
-  Image,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  Platform,
-} from "react-native";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import Navbar from "@/components/generic/Navbar";
-import { ChevronRightIcon } from "lucide-react-native";
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withSpring,
-  withTiming,
-} from "react-native-reanimated";
-import BottomSheet, { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { NotificationBottomSheet } from "@/components/bottomSheet/NotificationBottomSheet";
-import Loader from "@/components/generic/Loader";
+import Navbar from "@/components/generic/Navbar";
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { ChevronRightIcon } from "lucide-react-native";
+import {
+    useEffect,
+    useRef,
+    useState
+} from "react";
+import {
+    FlatList,
+    Image,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import Animated, {
+    Easing,
+    useAnimatedStyle,
+    useSharedValue,
+    withDelay,
+    withSpring,
+    withTiming,
+} from "react-native-reanimated";
 // Notification item interface
 interface NotificationItem {
   id: number;
@@ -195,7 +192,7 @@ function NotificationCard({
             resizeMode="cover"
           />
         </View>
-        <View className="flex-1">
+        <View style={{ flex: 1 }}>
           <View className="flex-row justify-between items-center">
             <Text
               numberOfLines={1}

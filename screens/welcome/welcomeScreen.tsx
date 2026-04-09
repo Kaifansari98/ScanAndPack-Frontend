@@ -2,15 +2,16 @@ import CustomeButton from "@/components/scan-and-pack/welcome-screen/CustomeButt
 import Pagination from "@/components/scan-and-pack/welcome-screen/Pagination";
 import RenderItems from "@/components/scan-and-pack/welcome-screen/RenderItems";
 import data, { OnboardingData } from "@/data/welcomeData";
+import { useRef } from "react";
 import { FlatList, StyleSheet, View, ViewToken } from "react-native";
 import Animated, {
-  useAnimatedRef,
   useAnimatedScrollHandler,
   useSharedValue,
 } from "react-native-reanimated";
 
 export default function WelcomeScreen() {
-  const flatListRef = useAnimatedRef<FlatList<OnboardingData>>();
+  const flatListRef = useRef<FlatList<OnboardingData>>(null);
+
   const x = useSharedValue(0);
   const flatListIndex = useSharedValue(0);
 
@@ -21,11 +22,7 @@ export default function WelcomeScreen() {
   }) => {
     if (viewableItems && viewableItems.length > 0) {
       const firstItem = viewableItems[0];
-      if (
-        firstItem &&
-        firstItem.index !== null &&
-        firstItem.index !== undefined
-      ) {
+      if (firstItem?.index != null) {
         flatListIndex.value = firstItem.index;
       }
     }
@@ -39,25 +36,26 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Animated.FlatList
+      <Animated.FlatList<OnboardingData>
         data={data}
-        ref={flatListRef}
-        onScroll={onScroll}
-        renderItem={({ item, index }) => {
-          return <RenderItems item={item} index={index} x={x} />;
-        }}
+        ref={flatListRef as any}
+        renderItem={({ item, index }) => (
+          <RenderItems item={item} index={index} x={x} />
+        )}
         keyExtractor={(item) => item.id.toString()}
-        scrollEventThrottle={16}
-        horizontal={true}
+        horizontal
+        pagingEnabled
         bounces={false}
-        pagingEnabled={true}
         showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={onScroll}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{
           minimumViewTime: 300,
           viewAreaCoveragePercentThreshold: 10,
         }}
       />
+
       <View style={styles.bottomContainer}>
         <Pagination data={data} x={x} />
         <CustomeButton

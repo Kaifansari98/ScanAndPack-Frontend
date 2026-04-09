@@ -1,3 +1,5 @@
+import 'react-native-gesture-handler';
+
 import { ToastProvider } from "@/components/Notification/ToastProvider";
 import { store } from "@/redux/store";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
@@ -13,28 +15,26 @@ import "./globals.css";
 
 SplashScreen.preventAutoHideAsync();
 
-
-const LayoutWrapper = () => {
-  
+function LayoutWrapper() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <BottomSheetModalProvider>
-        <SafeAreaView
-          className="flex-1"
-          edges={Platform.OS === "ios" ? ["top"] : undefined}
-        >
-          <Provider store={store}>
-            <ToastProvider>
+      <Provider store={store}>
+        <BottomSheetModalProvider>
+          <ToastProvider>
+            <SafeAreaView
+              style={{ flex: 1 }}
+              edges={Platform.OS === "ios" ? ["top"] : undefined}
+            >
               <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="index" options={{ headerShown: false }}  />
+                <Stack.Screen name="index" />
               </Stack>
-            </ToastProvider>
-          </Provider>
-        </SafeAreaView>
-      </BottomSheetModalProvider>
+            </SafeAreaView>
+          </ToastProvider>
+        </BottomSheetModalProvider>
+      </Provider>
     </GestureHandlerRootView>
   );
-};
+}
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({

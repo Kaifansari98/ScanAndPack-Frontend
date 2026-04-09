@@ -1,13 +1,14 @@
 import { useRouter } from "expo-router";
-import React from "react";
+import { RefObject } from "react";
+
 import {
   FlatList,
   StyleSheet,
   TouchableWithoutFeedback,
   useWindowDimensions,
 } from "react-native";
+
 import Animated, {
-  AnimatedRef,
   SharedValue,
   interpolateColor,
   useAnimatedStyle,
@@ -19,7 +20,7 @@ import { OnboardingData } from "../../../data/welcomeData";
 type Props = {
   dataLength: number;
   flatListIndex: SharedValue<number>;
-  flatListRef: AnimatedRef<FlatList<OnboardingData>>;
+  flatListRef: RefObject<FlatList<OnboardingData>| null>;
   x: SharedValue<number>;
 };
 
@@ -68,13 +69,13 @@ const CustomButton = ({ flatListRef, flatListIndex, dataLength, x }: Props) => {
       ],
     };
   });
+
   const animatedColor = useAnimatedStyle(() => {
     const backgroundColor = interpolateColor(
       x.value,
       [0, SCREEN_WIDTH, 2 * SCREEN_WIDTH],
       ["#000000", "#000000", "#000000"]
     );
-
     return {
       backgroundColor: backgroundColor,
     };
@@ -88,7 +89,8 @@ const CustomButton = ({ flatListRef, flatListIndex, dataLength, x }: Props) => {
             index: flatListIndex.value + 1,
           });
         } else {
-          router.push('/auth/login');
+          // router.push('/auth/login');
+          router.replace('/auth/login');  
         }
       }}
     >
@@ -97,7 +99,7 @@ const CustomButton = ({ flatListRef, flatListIndex, dataLength, x }: Props) => {
       >
         <Animated.Text
           style={[styles.textButton, textAnimationStyle]}
-          className={"text-lg font-montserrat-semibold "}
+          className={"text-lg font-montserrat-semibold"}
         >
           Get Started
         </Animated.Text>

@@ -16,28 +16,28 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import LottieView from "lottie-react-native";
 import { Download, Plus, SquarePen, Trash2 } from "lucide-react-native";
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState
+import {
+    useCallback,
+    useEffect,
+    useRef,
+    useState
 } from "react";
 import {
-  FlatList,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    FlatList,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withSpring,
-  withTiming,
+    Easing,
+    useAnimatedStyle,
+    useSharedValue,
+    withDelay,
+    withSpring,
+    withTiming,
 } from "react-native-reanimated";
 import { useSelector } from "react-redux";
 
@@ -218,7 +218,7 @@ function BoxCard({
             </TouchableOpacity>
           </View>
           <View className="flex-row items-start justify-between mb-2 gap-1.5">
-            <View className="flex-1">
+            <View style={{ flex: 1 }}>
               <Text className="text-sapLight-text font-montserrat-bold text-lg">
                 {box.name}
               </Text>
