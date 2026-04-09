@@ -3,7 +3,7 @@ import { commonStyles } from "@/components/theme/commonStyles";
 import axios from "@/lib/axios";
 import type { RootState } from "@/redux/store";
 import { useNavigation } from "@react-navigation/native";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Camera, CheckSquare, Package, Settings } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
@@ -17,6 +17,7 @@ interface Modules {
 
 export default function DashboardTabScreen() {
   const navigation = useNavigation<any>();
+  const router = useRouter();
   const goToTab = (tabName: string) => navigation.navigate(tabName);
 
   const user = useSelector((state: RootState) => state.auth.user);
@@ -52,6 +53,7 @@ export default function DashboardTabScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.cardBg }}>
+
       {/* ── Dark Hero Header ── */}
       <View style={commonStyles.dashHero}>
         <View style={commonStyles.dashHeroRow}>
@@ -103,7 +105,7 @@ export default function DashboardTabScreen() {
         {!loading && modules?.track_and_trace && (
           <TouchableOpacity
             style={commonStyles.moduleCardDark}
-            onPress={() => goToTab("Track")}
+            onPress={() => router.push("/machines")}
             activeOpacity={0.92}
           >
             <View style={{
@@ -132,7 +134,7 @@ export default function DashboardTabScreen() {
               borderWidth: 1.5,
               borderColor: "#F4A261",
             }]}
-            onPress={() => goToTab("Quality")}
+            onPress={() => router.push("/quality-projects")}
             activeOpacity={0.92}
           >
             <View style={{
@@ -186,6 +188,7 @@ export default function DashboardTabScreen() {
             </View>
           </TouchableOpacity>
         )}
+
       </ScrollView>
     </View>
   );

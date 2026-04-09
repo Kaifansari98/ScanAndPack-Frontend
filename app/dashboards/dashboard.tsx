@@ -2,7 +2,7 @@ import ProjectsTabScreen from '@/app/dashboards/projects';
 import { colors } from '@/components/theme/colors';
 import { RootState } from '@/redux/store';
 import DashboardTabScreen from '@/screens/Tabs/dashboard';
-import MachineTabScreen from '@/screens/Tabs/machines';
+import MachineTabScreen from '@/app/machines';
 import ProfileTabScreen from '@/screens/Tabs/profile';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Redirect } from 'expo-router';
