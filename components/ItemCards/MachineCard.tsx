@@ -126,11 +126,11 @@ export const MachineCard = ({ machine, index, selected, onSelect, onNavigate }: 
         </View>
 
         {/* Status badge */}
-        <View style={[styles.badge, selected ? styles.badgeSelected : styles.badgeUnselected]}>
+        {/* <View style={[styles.badge, selected ? styles.badgeSelected : styles.badgeUnselected]}>
           <Text style={[styles.badgeText, selected && styles.badgeTextSelected]}>
             {selected ? "SELECTED" : "ACTIVE"}
           </Text>
-        </View>
+        </View> */}
       </TouchableOpacity>
     </Animated.View>
   );

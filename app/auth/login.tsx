@@ -37,7 +37,7 @@ export default function LoginScreen() {
   const { login } = useAuth();
   const router = useRouter();
 
-  const [contact, setContact] = useState("+919833509275");
+  const [contact, setContact] = useState("+918591013793");
   const [password, setPassword] = useState("1234");
   const [errors, setErrors] = useState<LoginError>({});
   const [showPassword, setShowPassword] = useState(false);

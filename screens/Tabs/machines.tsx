@@ -26,6 +26,7 @@ interface Machine {
   machine_code: string;
   machine_type: string;
   image_path: string;
+  pending_count: number;
 }
 
 export default function MachineTabScreen() {
@@ -37,8 +38,6 @@ export default function MachineTabScreen() {
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
 
   const flatListRef = useRef<FlatList<Machine>>(null);
-  // Track whether we've fetched at least once — skip re-fetch on back press
-  const hasFetched = useRef(false);
 
   // ─── Fetch ──────────────────────────────────────────────
   const fetchMachines = async () => {
@@ -59,9 +58,9 @@ export default function MachineTabScreen() {
           machine_code: mac.machine_code,
           machine_type: mac.machine_type,
           image_path: mac.image_path,
+          pending_count: mac.pending_count ?? 0,
         }))
       );
-      hasFetched.current = true;
     } catch (error) {
       console.warn("Failed to fetch machines:", error);
     } finally {
@@ -71,13 +70,7 @@ export default function MachineTabScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (!hasFetched.current) {
-        // First visit — fetch fresh data
-        fetchMachines();
-      } else {
-        // Returning from scanner — skip fetch, just scroll to selected
-        scrollToSelected();
-      }
+      fetchMachines();
     }, [user?.vendor_id])
   );
 
@@ -143,6 +136,7 @@ export default function MachineTabScreen() {
         }}
 
         // Warning banner above the list
+        
         ListHeaderComponent={
           <View style={commonStyles.warningBanner}>
             <AlertTriangle size={20} color={colors.accent} />
@@ -162,21 +156,35 @@ export default function MachineTabScreen() {
         }
 
         renderItem={({ item, index }) => (
-          <MachineCard
-            machine={item}
-            index={index}
-            selected={selectedMachine?.id === item.id}
-            onSelect={(m: Machine) =>
-              setSelectedMachine((prev) => (prev?.id === m.id ? null : m))
-            }
-            onNavigate={(m: Machine) => {
-              setSelectedMachine(m);
-              router.push({
-                pathname: "/scanner-track-trace",
-                params: { machine_id: String(m.id), machine_name: m.machine_name },
-              });
-            }}
-          />
+          <View style={{ position: "relative" }}>
+            <MachineCard
+              machine={item}
+              index={index}
+              selected={selectedMachine?.id === item.id}
+              onSelect={(m: Machine) =>
+                setSelectedMachine((prev) => (prev?.id === m.id ? null : m))
+              }
+              onNavigate={(m: Machine) => {
+                setSelectedMachine(m);
+                router.push({
+                  pathname: "/scanner-track-trace",
+                  params: { machine_id: String(m.id), machine_name: m.machine_name },
+                });
+              }}
+            />
+            {item.pending_count > 0 && (
+              <View style={styles.pendingBadge}>
+                <Text style={styles.pendingBadgeText}>{item.pending_count}</Text>
+                <Text style={styles.pendingBadgeLabel}>pending</Text>
+              </View>
+            )}
+            {item.pending_count === 0 && (
+              <View style={[styles.pendingBadge, styles.pendingBadgeDone]}>
+                <Text style={styles.pendingBadgeText}>✓</Text>
+                <Text style={styles.pendingBadgeLabel}>clear</Text>
+              </View>
+            )}
+          </View>
         )}
       />
 
@@ -235,5 +243,38 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.45,
+  },
+  pendingBadge: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    backgroundColor: "#E63946",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignItems: "center",
+    minWidth: 48,
+    shadowColor: "#E63946",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  pendingBadgeDone: {
+    backgroundColor: "#2A9D8F",
+    shadowColor: "#2A9D8F",
+  },
+  pendingBadgeText: {
+    color: "white",
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 16,
+  },
+  pendingBadgeLabel: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 9,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
 });

@@ -136,6 +136,9 @@ export default function TrackTraceBarcodeScanner() {
 
   const router = useRouter();
   const scanLineAnimation = useRef(new Animated.Value(0)).current;
+  const [scanLinePos, setScanLinePos] = useState(0);
+  const scanLineDir = useRef(1);
+  const scanLineInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const slideAnim = useRef(new Animated.Value(height)).current;
   const manualSlideAnim = useRef(new Animated.Value(300)).current;
   const { showToast } = useToast();
@@ -147,14 +150,21 @@ export default function TrackTraceBarcodeScanner() {
       await preloadFeedbackSounds();
     })();
 
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(scanLineAnimation, { toValue: 1, duration: 2000, useNativeDriver: true }),
-        Animated.timing(scanLineAnimation, { toValue: 0, duration: 2000, useNativeDriver: true }),
-      ])
-    ).start();
+    // scan line animation using interval
+    const step = 2;
+    scanLineInterval.current = setInterval(() => {
+      setScanLinePos(prev => {
+        const next = prev + scanLineDir.current * step;
+        if (next >= scanAreaSize - 4) scanLineDir.current = -1;
+        if (next <= 0) scanLineDir.current = 1;
+        return next;
+      });
+    }, 8);
 
-    return () => { unloadFeedbackSounds(); };
+    return () => {
+      unloadFeedbackSounds();
+      if (scanLineInterval.current) clearInterval(scanLineInterval.current);
+    };
   }, []);
 
   // ─── Mode toggle ──────────────────────────────────────────────────────────
@@ -176,20 +186,11 @@ export default function TrackTraceBarcodeScanner() {
 
   const openManualEntry = () => {
     setShowManualEntry(true);
-    Animated.spring(manualSlideAnim, {
-      toValue: 0, useNativeDriver: true, tension: 80, friction: 12,
-    }).start(() => {
-      manualInputRef.current?.focus();
-    });
   };
 
   const closeManualEntry = () => {
-    Animated.timing(manualSlideAnim, {
-      toValue: 300, duration: 250, useNativeDriver: true,
-    }).start(() => {
-      setShowManualEntry(false);
-      setManualCode("");
-    });
+    setShowManualEntry(false);
+    setManualCode("");
   };
 
   const handleManualSubmit = async () => {
@@ -235,25 +236,18 @@ export default function TrackTraceBarcodeScanner() {
   // ─── Item detail sheet helpers ─────────────────────────────────────────────
 
   const showItemDetailSheet = (data: any) => {
-    // API returns data.mappedItem.mappedItem (double nested) and data.mappedItem.activeDefect
-    const item: MappedItem = data.mappedItem?.mappedItem ?? data.mappedItem ?? data;
-    const defect: ActiveDefect | null = data.mappedItem?.activeDefect ?? data.activeDefect ?? null;
+    const item: MappedItem = data?.mappedItem?.mappedItem ?? data?.mappedItem ?? data;
+    const defect: ActiveDefect | null = data?.mappedItem?.activeDefect ?? data?.activeDefect ?? null;
     setMappedItem(item);
     setActiveDefect(defect);
     setShowItemDetail(true);
-    Animated.spring(slideAnim, {
-      toValue: 0, useNativeDriver: true, tension: 65, friction: 11,
-    }).start();
   };
 
   const hideItemDetailSheet = () => {
-    Animated.timing(slideAnim, { toValue: height, duration: 300, useNativeDriver: true })
-      .start(() => {
-        setShowItemDetail(false);
-        setMappedItem(null);
-        setActiveDefect(null);
-        setScanned(false);
-      });
+    setShowItemDetail(false);
+    setMappedItem(null);
+    setActiveDefect(null);
+    setScanned(false);
   };
 
   // ─── Defect item detail sheet helpers ─────────────────────────────────────
@@ -261,18 +255,12 @@ export default function TrackTraceBarcodeScanner() {
   const showDefectItemDetailSheet = (item: MappedItem) => {
     setDefectMappedItem(item);
     setShowDefectItemDetail(true);
-    Animated.spring(defectItemSlideAnim, {
-      toValue: 0, useNativeDriver: true, tension: 65, friction: 11,
-    }).start();
   };
 
   const hideDefectItemDetailSheet = () => {
-    Animated.timing(defectItemSlideAnim, { toValue: height, duration: 300, useNativeDriver: true })
-      .start(() => {
-        setShowDefectItemDetail(false);
-        setDefectMappedItem(null);
-        setScanned(false);
-      });
+    setShowDefectItemDetail(false);
+    setDefectMappedItem(null);
+    setScanned(false);
   };
 
   // ─── Defect selection sheet helpers ──────────────────────────────────────
@@ -356,7 +344,8 @@ export default function TrackTraceBarcodeScanner() {
         if (apiResponse.message !== "") showToast("success", apiResponse.message);
         await playSuccessFeedback();
         if (apiResponse.data) {
-          const item: MappedItem = apiResponse.data.mappedItem ?? apiResponse.data;
+          // check-defect returns { mappedItem: {...} }
+          const item: MappedItem = apiResponse.data?.mappedItem ?? apiResponse.data;
           showDefectItemDetailSheet(item);
         } else {
           setTimeout(() => setScanned(false), 1000);
@@ -573,7 +562,9 @@ export default function TrackTraceBarcodeScanner() {
   };
 
   const handleSubmitDefect = async () => {
+    
     const activeItem = mappedItem ?? defectMappedItem;
+    
     if (!activeItem || !selectedDefect) return;
 
     const isOther = selectedDefect.id === 0;
@@ -670,11 +661,6 @@ export default function TrackTraceBarcodeScanner() {
     );
   }
 
-  const scanLineTranslateY = scanLineAnimation.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, scanAreaSize - 4],
-  });
-
   const allDefects = [...defectListRef.current, OTHER_DEFECT].filter(d =>
     d.defect_name.toLowerCase().includes(defectSearchQuery.toLowerCase())
   );
@@ -718,8 +704,8 @@ export default function TrackTraceBarcodeScanner() {
 
           {/* Mode Toggle */}
           <View style={styles.toggleContainer}>
-            <Animated.View style={[styles.togglePill, {
-              left: pillLeft,
+            <View style={[styles.togglePill, {
+              left: isDefectMode ? (width * 0.7) / 2 : 2,
               width: (width * 0.7) / 2 - 2,
               backgroundColor: isDefectMode ? "#E63946" : "#007AFF",
             }]} />
@@ -760,9 +746,9 @@ export default function TrackTraceBarcodeScanner() {
             <View style={[styles.corner, styles.topRight, isDefectMode && styles.cornerDefect]} />
             <View style={[styles.corner, styles.bottomLeft, isDefectMode && styles.cornerDefect]} />
             <View style={[styles.corner, styles.bottomRight, isDefectMode && styles.cornerDefect]} />
-            <Animated.View style={[
+            <View style={[
               styles.scanLine,
-              { transform: [{ translateY: scanLineTranslateY }] },
+              { top: scanLinePos },
               isDefectMode && styles.scanLineDefect,
             ]} />
           </View>
@@ -794,84 +780,91 @@ export default function TrackTraceBarcodeScanner() {
 
       {/* ── Manual Entry Panel (slides up from bottom) ── */}
       {showManualEntry && (
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.manualOverlay}
-          pointerEvents="box-none"
-        >
-          <TouchableOpacity style={styles.manualBackdrop} activeOpacity={1} onPress={closeManualEntry} />
+        <Modal transparent animationType="slide" visible={showManualEntry} onRequestClose={closeManualEntry}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1, justifyContent: "flex-end" }}
+          >
+            <TouchableOpacity
+              style={StyleSheet.absoluteFillObject}
+              activeOpacity={1}
+              onPress={closeManualEntry}
+            >
+              <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }} />
+            </TouchableOpacity>
 
-          <Animated.View style={[
-            styles.manualPanel,
-            isDefectMode && styles.manualPanelDefect,
-            { transform: [{ translateY: manualSlideAnim }] }
-          ]}>
-            <View style={styles.sheetHandle} />
+            <View style={[styles.manualPanel, isDefectMode && styles.manualPanelDefect]}>
+              <View style={styles.sheetHandle} />
 
-            <View style={styles.manualPanelHeader}>
-              <View style={[styles.manualPanelIconBg, isDefectMode && styles.manualPanelIconBgDefect]}>
-                <Keyboard size={20} color={isDefectMode ? "#E63946" : "#007AFF"} />
+              <View style={styles.manualPanelHeader}>
+                <View style={[styles.manualPanelIconBg, isDefectMode && styles.manualPanelIconBgDefect]}>
+                  <Keyboard size={20} color={isDefectMode ? "#E63946" : "#007AFF"} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.manualPanelTitle}>Manual Entry</Text>
+                  <Text style={styles.manualPanelSubtitle}>
+                    {isDefectMode ? "Enter code to mark as defect" : "Enter barcode or QR code value"}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={closeManualEntry} style={styles.manualCloseBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <X size={18} color="#6B7280" />
+                </TouchableOpacity>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.manualPanelTitle}>Manual Entry</Text>
-                <Text style={styles.manualPanelSubtitle}>
-                  {isDefectMode ? "Enter code to mark as defect" : "Enter barcode or QR code value"}
-                </Text>
+
+              <View style={styles.manualInputRow}>
+                <TextInput
+                  ref={manualInputRef}
+                  style={[styles.manualInput, isDefectMode && styles.manualInputDefect]}
+                  placeholder="e.g. Facia_645_1"
+                  placeholderTextColor="#9CA3AF"
+                  value={manualCode}
+                  onChangeText={setManualCode}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="done"
+                  onSubmitEditing={handleManualSubmit}
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.manualSubmitBtn,
+                    isDefectMode && styles.manualSubmitBtnDefect,
+                    (!manualCode.trim() || manualLoading) && styles.manualSubmitBtnDisabled,
+                  ]}
+                  onPress={handleManualSubmit}
+                  activeOpacity={0.85}
+                  disabled={!manualCode.trim() || manualLoading}
+                >
+                  {manualLoading
+                    ? <ActivityIndicator size="small" color="white" />
+                    : <Send size={18} color="white" />
+                  }
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={closeManualEntry} style={styles.manualCloseBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <X size={18} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
 
-            <View style={styles.manualInputRow}>
-              <TextInput
-                ref={manualInputRef}
-                style={[styles.manualInput, isDefectMode && styles.manualInputDefect]}
-                placeholder="e.g. Facia_645_1"
-                placeholderTextColor="#9CA3AF"
-                value={manualCode}
-                onChangeText={setManualCode}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="done"
-                onSubmitEditing={handleManualSubmit}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.manualSubmitBtn,
-                  isDefectMode && styles.manualSubmitBtnDefect,
-                  (!manualCode.trim() || manualLoading) && styles.manualSubmitBtnDisabled,
-                ]}
-                onPress={handleManualSubmit}
-                activeOpacity={0.85}
-                disabled={!manualCode.trim() || manualLoading}
-              >
-                {manualLoading
-                  ? <ActivityIndicator size="small" color="white" />
-                  : <Send size={18} color="white" />
-                }
-              </TouchableOpacity>
+              <Text style={styles.manualHint}>
+                💡 Type the exact barcode or QR code value and tap send
+              </Text>
             </View>
-
-            <Text style={styles.manualHint}>
-              💡 Type the exact barcode or QR code value and tap send
-            </Text>
-          </Animated.View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </Modal>
       )}
 
       {/* ══════════════════════════════════════════════════════════════
           SCAN CODE MODE — Item Detail Modal
       ══════════════════════════════════════════════════════════════ */}
       {showItemDetail && mappedItem && (
-        <Modal transparent animationType="none" visible={showItemDetail} onRequestClose={showDefectModal ? closeDefectModal : hideItemDetailSheet}>
-          <TouchableOpacity
-            style={styles.backdrop}
-            activeOpacity={1}
-            onPress={showDefectModal ? closeDefectModal : hideItemDetailSheet}
-          />
+        <Modal transparent animationType="slide" visible={showItemDetail} onRequestClose={showDefectModal ? closeDefectModal : hideItemDetailSheet}>
+          <View style={{ flex: 1, justifyContent: "flex-end" }}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFillObject}
+              activeOpacity={1}
+              onPress={showDefectModal ? closeDefectModal : hideItemDetailSheet}
+            >
+              <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }} />
+            </TouchableOpacity>
 
-          <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
+            <View style={styles.sheet}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
               <TouchableOpacity onPress={hideItemDetailSheet} style={styles.sheetBackBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -1045,7 +1038,8 @@ export default function TrackTraceBarcodeScanner() {
                 </View>
               </Modal>
             )}
-          </Animated.View>
+          </View>
+          </View>
         </Modal>
       )}
 
@@ -1053,14 +1047,17 @@ export default function TrackTraceBarcodeScanner() {
           MARK DEFECT MODE — Defect Item Detail Modal
       ══════════════════════════════════════════════════════════════ */}
       {showDefectItemDetail && defectMappedItem && (
-        <Modal transparent animationType="none" visible={showDefectItemDetail} onRequestClose={showDefectModal ? closeDefectModal : hideDefectItemDetailSheet}>
-          <TouchableOpacity
-            style={styles.backdrop}
-            activeOpacity={1}
-            onPress={showDefectModal ? closeDefectModal : hideDefectItemDetailSheet}
-          />
+        <Modal transparent animationType="slide" visible={showDefectItemDetail} onRequestClose={showDefectModal ? closeDefectModal : hideDefectItemDetailSheet}>
+          <View style={{ flex: 1, justifyContent: "flex-end" }}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFillObject}
+              activeOpacity={1}
+              onPress={showDefectModal ? closeDefectModal : hideDefectItemDetailSheet}
+            >
+              <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }} />
+            </TouchableOpacity>
 
-          <Animated.View style={[styles.sheet, { transform: [{ translateY: defectItemSlideAnim }] }]}>
+            <View style={styles.sheet}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
               <TouchableOpacity onPress={hideDefectItemDetailSheet} style={styles.sheetBackBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -1113,7 +1110,8 @@ export default function TrackTraceBarcodeScanner() {
                 onSubmit={handleSubmitDefect}
               />
             )}
-          </Animated.View>
+          </View>
+          </View>
         </Modal>
       )}
     </View>
@@ -1300,7 +1298,7 @@ interface DefectSheetProps {
   onPickPhoto: () => void;
   onRemovePhoto: (index: number) => void;
   defectType: "rework" | "replace" | null;
-  setDefectType: (t: "rework" | "replace") => void;
+  setDefectType: (t: "rework" | "replace" | null) => void;
   reworkMachineId: number | null;
   setReworkMachineId: (id: number | null) => void;
   vendorId: number;
@@ -1321,6 +1319,14 @@ function DefectSheet({
   submitDefectLoading, onClose, onSubmit,
 }: DefectSheetProps) {
   const [showDetailPopup, setShowDetailPopup] = useState(false);
+
+  const isOther = selectedDefect?.id === 0;
+  const canSubmit =
+    !!selectedDefect &&
+    (!isOther || otherDefectText.trim().length > 0) &&
+    defectPhotos.length > 0 &&
+    defectType !== null &&
+    (defectType !== "rework" || reworkMachineId !== null);
 
   const handleDefectPress = (defect: Defect) => {
     setSelectedDefect(defect);
@@ -1421,13 +1427,14 @@ function DefectSheet({
           setReworkMachineId={setReworkMachineId}
           vendorId={vendorId}
           machineId={machineId}
+          canSubmit={canSubmit}
           submitDefectLoading={submitDefectLoading}
           onBack={() => {
             setShowDetailPopup(false);
             setSelectedDefect(null);
             setOtherDefectText("");
             setDefectComment("");
-            setDefectType("rework");
+            setDefectType(null);
             setReworkMachineId(null);
           }}
           onSubmit={onSubmit}
@@ -1455,11 +1462,12 @@ interface DefectDetailPopupProps {
   onPickPhoto: () => void;
   onRemovePhoto: (index: number) => void;
   defectType: "rework" | "replace" | null;
-  setDefectType: (t: "rework" | "replace") => void;
+  setDefectType: (t: "rework" | "replace" | null) => void;
   reworkMachineId: number | null;
   setReworkMachineId: (id: number | null) => void;
   vendorId: number;
   machineId: number;
+  canSubmit: boolean;
   submitDefectLoading: boolean;
   onBack: () => void;
   onSubmit: () => void;
@@ -1471,7 +1479,7 @@ function DefectDetailPopup({
   defectPhotos, onCapturePhoto, onPickPhoto, onRemovePhoto,
   defectType, setDefectType, reworkMachineId, setReworkMachineId,
   vendorId, machineId,
-  submitDefectLoading, onBack, onSubmit,
+  canSubmit, submitDefectLoading, onBack, onSubmit,
 }: DefectDetailPopupProps) {
   const MAX_PHOTOS = 10;
   const isOther = defect.id === 0;
@@ -1491,12 +1499,6 @@ function DefectDetailPopup({
       .catch(() => { })
       .finally(() => setMachinesLoading(false));
   }, [defectType]);
-
-  const canSubmit =
-    (!isOther || otherDefectText.trim().length > 0) &&
-    defectPhotos.length > 0 &&
-    defectType !== null &&
-    (defectType !== "rework" || reworkMachineId !== null);
 
   return (
     <Modal transparent animationType="fade" visible onRequestClose={onBack}>
@@ -1695,16 +1697,29 @@ function DefectDetailPopup({
           {/* Submit */}
           <View style={styles.popupFooter}>
             <TouchableOpacity
-              style={[styles.defectSubmitBtn, (!canSubmit || submitDefectLoading) && styles.defectSubmitBtnDisabled]}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
+                paddingVertical: 16,
+                borderRadius: 16,
+                backgroundColor: canSubmit && !submitDefectLoading ? "#E63946" : "#D1D5DB",
+                shadowColor: canSubmit && !submitDefectLoading ? "#E63946" : "transparent",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: canSubmit && !submitDefectLoading ? 0.3 : 0,
+                shadowRadius: 8,
+                elevation: canSubmit && !submitDefectLoading ? 5 : 0,
+              }}
               onPress={onSubmit}
               activeOpacity={0.85}
               disabled={!canSubmit || submitDefectLoading}
             >
               {submitDefectLoading
                 ? <ActivityIndicator size="small" color="white" />
-                : <Send size={18} color="white" />
+                : <Send size={18} color={canSubmit ? "white" : "#9CA3AF"} />
               }
-              <Text style={styles.defectSubmitText}>
+              <Text style={[styles.defectSubmitText, { color: canSubmit && !submitDefectLoading ? "white" : "#9CA3AF" }]}>
                 {submitDefectLoading ? "Submitting..." : "Submit Defect"}
               </Text>
             </TouchableOpacity>
@@ -1888,7 +1903,10 @@ const styles = StyleSheet.create({
   },
 
   // Shared sheet primitives
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
+  backdrop: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
   sheetHandle: {
     width: 40, height: 4, backgroundColor: "#D1D5DB", borderRadius: 2,
     alignSelf: "center", marginTop: 10, marginBottom: 4,
@@ -1905,14 +1923,14 @@ const styles = StyleSheet.create({
 
   // Item detail sheet
   sheet: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
     backgroundColor: "#F9FAFB", borderTopLeftRadius: 24, borderTopRightRadius: 24,
     maxHeight: height * 0.88,
+    flexShrink: 1,
     shadowColor: "#000", shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.15, shadowRadius: 16, elevation: 20,
   },
-  sheetScroll: { flex: 1 },
-  sheetScrollContent: { paddingHorizontal: 20, paddingTop: 8 },
+  sheetScroll: { flexGrow: 0 },
+  sheetScrollContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 32 },
 
   // Item card
   itemCard: {
