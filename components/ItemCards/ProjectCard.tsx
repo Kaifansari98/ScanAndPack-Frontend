@@ -1,6 +1,5 @@
 import { weight } from "@/data/generic";
 import { getProjectWeight } from "@/utils/ProjectWeight";
-import { } from "@gorhom/bottom-sheet";
 import { useIsFocused } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { Download } from "lucide-react-native";
@@ -53,7 +52,6 @@ export const ProjectCard = ({
   const cardTranslateY = useSharedValue(30);
   const [projectWeight, setProjectWeight] = useState<number | null>(null);
   const { showToast } = useToast();
-
   const isFocused = useIsFocused();
 
   useEffect(() => {
@@ -69,17 +67,11 @@ export const ProjectCard = ({
   useEffect(() => {
     cardOpacity.value = withDelay(
       index * 100,
-      withTiming(1, {
-        duration: 600,
-        easing: Easing.out(Easing.cubic),
-      })
+      withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) })
     );
     cardTranslateY.value = withDelay(
       index * 100,
-      withSpring(0, {
-        damping: 15,
-        stiffness: 120,
-      })
+      withSpring(0, { damping: 15, stiffness: 120 })
     );
   }, [index]);
 
@@ -106,89 +98,77 @@ export const ProjectCard = ({
       <Animated.View
         style={[
           animatedCardStyle,
-          styles.cardContainer,
+          styles.card,
           Platform.OS === "ios" ? { marginBottom: 16 } : { marginBottom: 20 },
         ]}
-        className="bg-sapLight-card w-full rounded-3xl p-5 border border-gray-100"
       >
-        <View className="flex-row justify-between items-center mb-4">
-          <View className="rounded-full px-3 py-1 bg-blue-100">
-            <Text className="text-sm font-montserrat-semibold text-blue-700 capitalize ">
-              {project.status}
-            </Text>
+        {/* Top row — status + date */}
+        <View style={styles.topRow}>
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusText}>{project.status}</Text>
           </View>
-          <View className="flex-col justify-center items-start">
-            <Text className="text-xs text-sapLight-infoText font-montserrat">
-              Est. Date
-            </Text>
-            <Text className="text-sapLight-infoText font-montserrat-medium text-md">
-              {project.date}
-            </Text>
+          <View style={styles.dateBlock}>
+            <Text style={styles.dateLabel}>Est. Date</Text>
+            <Text style={styles.dateValue}>{project.date}</Text>
           </View>
         </View>
 
-        <View className="w-full flex-row items-center justify-between mb-4">
-          <Text className="text-sapLight-text font-montserrat-bold text-xl flex-1">
+        {/* Project name + download */}
+        <View style={styles.nameRow}>
+          <Text style={styles.projectName} numberOfLines={2}>
             {project.projectName}
           </Text>
-
           {project.packedItems !== 0 && (
             <TouchableOpacity
+              style={styles.downloadBtn}
               onPress={() => {
                 if (project.packedItems <= 0) {
-                  showToast("warning", `This Project isn't started yet`);
+                  showToast("warning", "This Project isn't started yet");
                 } else {
                   onDownloadPress(project);
                 }
               }}
-              className="p-2 rounded-lg"
             >
               <Download size={22} color="#555555" />
             </TouchableOpacity>
           )}
         </View>
 
-        <View className="flex-row justify-between items-center">
-          <View className="flex-row space-x-6 gap-6">
-            <View>
-              <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                Items
-              </Text>
-              <Text className="text-sapLight-text font-montserrat-semibold text-xl">
+        {/* Stats */}
+        <View style={styles.statsRow}>
+          {/* Left — items + weight */}
+          <View style={styles.statsLeft}>
+            <View style={styles.statBlock}>
+              <Text style={styles.statLabel}>Items</Text>
+              <Text style={styles.statValue}>
                 {project.totalNoItems.toLocaleString()}
               </Text>
             </View>
-            <View>
-              <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                Weight
-              </Text>
-              <Text className="text-sapLight-text font-montserrat-semibold text-xl">
+            <View style={styles.statBlock}>
+              <Text style={styles.statLabel}>Weight</Text>
+              <Text style={styles.statValue}>
                 {projectWeight} {weight}
               </Text>
             </View>
           </View>
 
-          <View className="flex-row space-x-6 gap-4">
-            <View className="flex-col items-center">
-              <View className="flex-row items-center">
-                <View className="w-2 h-2 rounded-full mr-2 bg-green-400" />
-                <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                  Packed
-                </Text>
+          {/* Right — packed + unpacked */}
+          <View style={styles.statsRight}>
+            <View style={styles.statBlock}>
+              <View style={styles.dotRow}>
+                <View style={[styles.dot, styles.dotGreen]} />
+                <Text style={styles.statLabel}>Packed</Text>
               </View>
-              <Text className="text-sapLight-text font-montserrat-semibold text-base">
+              <Text style={styles.statValue}>
                 {project.packedItems.toLocaleString()}
               </Text>
             </View>
-
-            <View className="items-center flex-col">
-              <View className="flex-row items-center">
-                <View className="w-2 h-2 rounded-full mr-2 bg-red-400" />
-                <Text className="text-sapLight-infoText font-montserrat-medium text-sm">
-                  Unpacked
-                </Text>
+            <View style={styles.statBlock}>
+              <View style={styles.dotRow}>
+                <View style={[styles.dot, styles.dotRed]} />
+                <Text style={styles.statLabel}>Unpacked</Text>
               </View>
-              <Text className="text-sapLight-text font-montserrat-semibold text-base">
+              <Text style={styles.statValue}>
                 {project.unpackedItems.toLocaleString()}
               </Text>
             </View>
@@ -200,11 +180,111 @@ export const ProjectCard = ({
 };
 
 const styles = StyleSheet.create({
-  cardContainer: {
+  card: {
+    backgroundColor: "#FFFFFF",
+    width: "100%",
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
     elevation: 6,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 10,
+  },
+
+  // Top row
+  topRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  statusBadge: {
+    backgroundColor: "#DBEAFE",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1D4ED8",
+    textTransform: "capitalize",
+  },
+  dateBlock: {
+    alignItems: "flex-start",
+  },
+  dateLabel: {
+    fontSize: 11,
+    color: "#9CA3AF",
+  },
+  dateValue: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#6B7280",
+  },
+
+  // Name row
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  projectName: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  downloadBtn: {
+    padding: 8,
+    borderRadius: 10,
+  },
+
+  // Stats
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  statsLeft: {
+    flexDirection: "row",
+    gap: 24,
+  },
+  statsRight: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  statBlock: {
+    gap: 2,
+  },
+  statLabel: {
+    fontSize: 13,
+    color: "#9CA3AF",
+    fontWeight: "500",
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  dotRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  dotGreen: {
+    backgroundColor: "#4ADE80",
+  },
+  dotRed: {
+    backgroundColor: "#F87171",
   },
 });

@@ -1,4 +1,4 @@
-import ProjectsTabScreen from '@/app/dashboards/projects';
+import ProjectsTabScreen from '@/app/scan-pack';
 import { colors } from '@/components/theme/colors';
 import { RootState } from '@/redux/store';
 import DashboardTabScreen from '@/screens/Tabs/dashboard';

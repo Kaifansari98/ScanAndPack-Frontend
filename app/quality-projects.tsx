@@ -3,6 +3,7 @@ import { colors } from "@/components/theme/colors";
 import { commonStyles } from "@/components/theme/commonStyles";
 import axios from "@/lib/axios";
 import type { RootState } from "@/redux/store";
+import { useCameraPermissions } from "expo-camera";
 import { useFocusEffect, useRouter } from "expo-router";
 import { AlertTriangle, ArrowLeft, CheckSquare, ChevronRight, Clock } from "lucide-react-native";
 import { useCallback, useState } from "react";
@@ -32,6 +33,26 @@ export default function QualityProjectsScreen() {
 
   const [projects, setProjects] = useState<QualityProject[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [permission, requestPermission] = useCameraPermissions();
+
+  const handleProjectPress = async (item: QualityProject) => {
+    const navigate = () => router.push({
+      pathname: "/scanner-track-trace",
+      params: {
+        machine_id: String(item.qualityMachineId),
+        machine_name: String(item.qualityMachineName),
+        project_id: String(item.id),
+      },
+    });
+
+    if (!permission?.granted) {
+      const result = await requestPermission();
+      if (result?.granted) navigate();
+    } else {
+      navigate();
+    }
+  };
 
   const fetchProjects = async () => {
     const vendorId = user?.vendor_id;
@@ -109,13 +130,7 @@ export default function QualityProjectsScreen() {
           <TouchableOpacity
             style={styles.card}
             activeOpacity={0.85}
-            onPress={() => router.push({
-              pathname: "/scanner-track-trace",
-              params: {
-                machine_id: String(item.qualityMachineId),
-                machine_name:String(item.qualityMachineName),
-              },
-            })}
+            onPress={() => handleProjectPress(item)}
           >
             {/* Left accent */}
             <View style={styles.cardAccent} />

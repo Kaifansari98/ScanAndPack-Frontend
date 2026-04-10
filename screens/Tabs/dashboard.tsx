@@ -166,11 +166,18 @@ export default function DashboardTabScreen() {
 
         {/* ── 3. Scan & Pack ── */}
         {!loading && modules?.scan_and_pack && (
+
+          // <TouchableOpacity
+          //   style={commonStyles.moduleCardLight}
+          //   onPress={() => goToTab("Pack")}
+          //   activeOpacity={0.92}
+          // >
           <TouchableOpacity
             style={commonStyles.moduleCardLight}
-            onPress={() => goToTab("Pack")}
+            onPress={() => router.push("/scan-pack")}
             activeOpacity={0.92}
           >
+          
             <View style={{
               position: "absolute", right: -20, bottom: -20,
               width: 110, height: 110, borderRadius: 55,

@@ -83,7 +83,7 @@ interface ActiveDefect {
 const OTHER_DEFECT: Defect = { id: 0, defect_name: "Other" };
 
 export default function TrackTraceBarcodeScanner() {
-  const { machine_id, machine_name } = useLocalSearchParams<{ machine_id?: string; machine_name?: string }>();
+  const { machine_id, machine_name,project_id } = useLocalSearchParams<{ machine_id?: string; machine_name?: string;project_id?: string }>();
 
   // alert(machine_name)
   const [permission, requestPermission] = useCameraPermissions();
@@ -221,7 +221,7 @@ export default function TrackTraceBarcodeScanner() {
   // ─── Shared helpers ───────────────────────────────────────────────────────
 
   const buildPayload = (scannedCode: string) => ({
-    project_id: 1,
+    project_id: Number(project_id),
     vendor_id: Number(vendor_id),
     machine_id: Number(machine_id),
     unique_code: scannedCode,
@@ -457,7 +457,7 @@ export default function TrackTraceBarcodeScanner() {
     setCompletionLoading(true);
     try {
       const formData = new FormData();
-      formData.append("project_id", String(1));
+      formData.append("project_id", String(project_id));
       formData.append("vendor_id", String(vendor_id));
       formData.append("machine_id", String(machine_id));
       formData.append("unique_code", mappedItem.cut_list.unique_code);

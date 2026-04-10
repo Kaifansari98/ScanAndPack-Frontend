@@ -1,17 +1,21 @@
 import axios from "@/lib/axios";
-import {
-  BottomSheetBackdrop,
-  BottomSheetModal,
-  BottomSheetTextInput,
-  BottomSheetView,
-} from "@gorhom/bottom-sheet";
-import { X } from "lucide-react-native";
-import React, { useMemo, useState } from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useToast } from "../Notification/ToastProvider";
-import { useSelector } from "react-redux";
 import { RootState } from "@/redux/store";
 import { useRouter } from "expo-router";
+import { X } from "lucide-react-native";
+import React, { forwardRef, useImperativeHandle, useState } from "react";
+import {
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useSelector } from "react-redux";
+import { useToast } from "../Notification/ToastProvider";
 
 interface Project {
   id: number;
@@ -21,25 +25,44 @@ interface Project {
 }
 
 interface AddBoxModalProps {
-  ref: React.Ref<BottomSheetModal>;
   onSubmit: (boxName: string) => void;
   project: Project;
   setCreatingBox: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
+export interface AddBoxModalRef {
+  present: () => void;
+  dismiss: () => void;
+}
+
+export const AddBoxModal = forwardRef<AddBoxModalRef, AddBoxModalProps>(
   ({ onSubmit, project, setCreatingBox }, ref) => {
     const { showToast } = useToast();
-    const snapPoints = useMemo(() => ["50%", "80%"], []);
+    const [visible, setVisible] = useState(false);
     const [boxName, setBoxName] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const user = useSelector((state: RootState) => state.auth.user);
     const router = useRouter();
 
+    useImperativeHandle(ref, () => ({
+      present: () => setVisible(true),
+      dismiss: () => {
+        setVisible(false);
+        setBoxName("");
+        setError(null);
+      },
+    }));
+
+    const handleClose = () => {
+      setVisible(false);
+      setBoxName("");
+      setError(null);
+    };
+
     const handleAdd = async () => {
       if (!boxName.trim()) {
-        setError("Box name is invalid!");
+        setError("Box name is required!");
         showToast("error", "Box name is required");
         return;
       }
@@ -47,6 +70,7 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
       try {
         setLoading(true);
         setCreatingBox(true);
+
         const payload = {
           project_id: project.id,
           project_details_id: project.project_details_id,
@@ -57,38 +81,30 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
           created_by: user?.id,
         };
 
-        console.log(payload);
         if (!project.project_details_id) {
           setError("Project details ID is missing");
           setCreatingBox(false);
           return;
         }
 
-        console.log("Sending POST to /api/boxes with payload:", payload);
         const res = await axios.post("/boxes", payload);
         showToast("success", "Box created successfully");
         onSubmit(boxName.trim());
-        setBoxName("");
-        setError(null);
-        setLoading(false);
-        
-        const boxItemsScreenPayload ={
-            project_id: project.id,
-            client_id: project.client_id,
-            vendor_id: project.vendor_id,
-            id: res.data.box.id
-        }
+        handleClose();
+
         router.push({
           pathname: "/dashboards/boxItemsScreen",
           params: {
-            payload: JSON.stringify(boxItemsScreenPayload),
-          }
-        })
+            payload: JSON.stringify({
+              project_id: project.id,
+              client_id: project.client_id,
+              vendor_id: project.vendor_id,
+              id: res.data.box.id,
+            }),
+          },
+        });
       } catch (err: any) {
-        showToast(
-          "error",
-          `Failed to create box: ${err.response?.data?.message || err.message}`
-        );
+        showToast("error", `Failed to create box: ${err.response?.data?.message || err.message}`);
       } finally {
         setLoading(false);
         setCreatingBox(false);
@@ -96,76 +112,79 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
     };
 
     return (
-      <BottomSheetModal
-        ref={ref}
-        index={1}
-        snapPoints={snapPoints}
-        backdropComponent={(props) => (
-          <BottomSheetBackdrop
-            {...props}
-            // appearsOnIndex={0}
-            // disappearsOnIndex={-1}
-            // pressBehavior="close" // optional: tap outside to close
-          />
-        )}
-        keyboardBehavior="interactive"
+      <Modal
+        transparent
+        animationType="slide"
+        visible={visible}
+        onRequestClose={handleClose}
       >
-        <BottomSheetView style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Create new Box</Text>
-            <TouchableOpacity onPress={() => (ref as any).current.dismiss()}>
-              <X size={24} color="#000" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Image */}
-          <Image
-            source={require("@/assets/images/projects/Boxes0.jpg")}
-            style={styles.image}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1, justifyContent: "flex-end" }}
+        >
+          <TouchableOpacity
+            style={styles.backdrop}
+            activeOpacity={1}
+            onPress={handleClose}
           />
 
-          {/* Input */}
-          <Text style={styles.label}>Box Name</Text>
-          <BottomSheetTextInput
-            value={boxName}
-            onChangeText={(text) => {
-              setBoxName(text);
-              if (error) {
-                setError(null);
-              }
-            }}
-            placeholder="Enter box name"
-            style={[styles.input, error && styles.inputError]}
-            placeholderTextColor="#999"
-          />
+          <View style={styles.sheet}>
+            <View style={styles.handle} />
 
-          {/* Instructions */}
-          <Text style={styles.instruction}>
-            Please provide a relevant and descriptive name for the new box you
-            want to add.
-          </Text>
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.title}>Create new Box</Text>
+              <TouchableOpacity
+                onPress={handleClose}
+                style={styles.closeBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color="#374151" />
+              </TouchableOpacity>
+            </View>
 
-          {/* Actions */}
-          <View style={styles.actions}>
-            <TouchableOpacity
-              style={styles.cancelBtn}
-              onPress={() => (ref as any).current.dismiss()}
-            >
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.addBtn, loading && { opacity: 0.6 }]}
-              onPress={handleAdd}
-              disabled={loading}
-            >
-              <Text style={styles.addText}>
-                {loading ? "Adding..." : "Add"}
-              </Text>
-            </TouchableOpacity>
+            {/* Image */}
+            <Image
+              source={require("@/assets/images/projects/Boxes0.jpg")}
+              style={styles.image}
+            />
+
+            {/* Input */}
+            <Text style={styles.label}>Box Name</Text>
+            <TextInput
+              value={boxName}
+              onChangeText={(text) => {
+                setBoxName(text);
+                if (error) setError(null);
+              }}
+              placeholder="Enter box name"
+              placeholderTextColor="#9CA3AF"
+              style={[styles.input, error && styles.inputError]}
+            />
+            {error && <Text style={styles.errorText}>{error}</Text>}
+
+            {/* Instruction */}
+            <Text style={styles.instruction}>
+              Please provide a relevant and descriptive name for the new box you want to add.
+            </Text>
+
+            {/* Actions */}
+            <View style={styles.actions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={handleClose} activeOpacity={0.8}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.addBtn, loading && { opacity: 0.6 }]}
+                onPress={handleAdd}
+                disabled={loading}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.addText}>{loading ? "Adding..." : "Add"}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </BottomSheetView>
-      </BottomSheetModal>
+        </KeyboardAvoidingView>
+      </Modal>
     );
   }
 );
@@ -173,62 +192,59 @@ export const AddBoxModal = React.forwardRef<BottomSheetModal, AddBoxModalProps>(
 AddBoxModal.displayName = "AddBoxModal";
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
+  backdrop: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  sheet: {
+    backgroundColor: "white",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  handle: {
+    width: 40, height: 4, backgroundColor: "#D1D5DB", borderRadius: 2,
+    alignSelf: "center", marginBottom: 16,
+  },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    zIndex: 10,
+    flexDirection: "row", justifyContent: "space-between",
+    alignItems: "center", marginBottom: 16,
   },
-  title: { fontSize: 20, fontFamily: "Montserrat-Bold" },
-  image: { width: "100%", height: 180, borderRadius: 12, marginVertical: 16 },
-  label: { fontSize: 14, fontFamily: "Montserrat-Medium", marginBottom: 8 },
+  title: { fontSize: 20, fontWeight: "700", color: "#111827" },
+  closeBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: "#F3F4F6", justifyContent: "center", alignItems: "center",
+  },
+  image: { width: "100%", height: 160, borderRadius: 12, marginBottom: 16 },
+  label: { fontSize: 14, fontWeight: "500", color: "#374151", marginBottom: 8 },
   input: {
-    backgroundColor: "#EFEFF0",
+    backgroundColor: "#F3F4F6",
     borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    fontFamily: "Montserrat-Medium",
-    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: "#111827",
+    marginBottom: 8,
   },
-  inputError: {
-    borderWidth: 1,
-    borderColor: "red",
-  },
-  instruction: { fontSize: 13, color: "#6B7280", marginBottom: 20 },
-  actions: { flexDirection: "row", justifyContent: "space-between" },
+  inputError: { borderWidth: 1.5, borderColor: "#EF4444" },
+  errorText: { fontSize: 12, color: "#EF4444", marginBottom: 8 },
+  instruction: { fontSize: 13, color: "#6B7280", marginBottom: 20, lineHeight: 18 },
+  actions: { flexDirection: "row", gap: 12 },
   cancelBtn: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    borderColor: "#000",
-    borderWidth: 1,
-    marginRight: 8,
+    flex: 1, padding: 14, borderRadius: 12,
+    backgroundColor: "white", borderWidth: 1.5, borderColor: "#D1D5DB",
+    alignItems: "center",
   },
-  cancelText: {
-    textAlign: "center",
-    fontFamily: "Montserrat-Bold",
-    color: "#000",
-  },
+  cancelText: { fontSize: 15, fontWeight: "600", color: "#374151" },
   addBtn: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: "#000",
-    marginLeft: 8,
-    borderColor: "#000",
-    borderWidth: 1,
+    flex: 1, padding: 14, borderRadius: 12,
+    backgroundColor: "#111827", alignItems: "center",
   },
-  addText: {
-    textAlign: "center",
-    fontFamily: "Montserrat-Bold",
-    color: "#fff",
-  },
-  error: {
-    fontSize: 13,
-    color: "red",
-    marginBottom: 12,
-    fontFamily: "Montserrat-Medium",
-  },
+  addText: { fontSize: 15, fontWeight: "700", color: "white" },
 });
