@@ -1,9 +1,7 @@
-import { weight } from "@/data/generic";
-import { getProjectWeight } from "@/utils/ProjectWeight";
 import { useIsFocused } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { Download } from "lucide-react-native";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import {
   Platform,
   Pressable,
@@ -25,7 +23,7 @@ import { useToast } from "../Notification/ToastProvider";
 export interface ProjectData {
   id: number;
   vendor_id: number;
-  client_id: number;
+  lead_id: number;
   projectName: string;
   totalNoItems: number;
   unpackedItems: number;
@@ -49,29 +47,18 @@ export const ProjectCard = ({
 }: ProjectCardProps) => {
   const router = useRouter();
   const cardOpacity = useSharedValue(0);
-  const cardTranslateY = useSharedValue(30);
-  const [projectWeight, setProjectWeight] = useState<number | null>(null);
+  const cardTranslateY = useSharedValue(20);
   const { showToast } = useToast();
   const isFocused = useIsFocused();
 
   useEffect(() => {
-    if (isFocused) {
-      const fetchWeight = async () => {
-        const res = await getProjectWeight(project.vendor_id, project.id);
-        setProjectWeight(res.project_weight);
-      };
-      fetchWeight();
-    }
-  }, [isFocused, project.vendor_id, project.id]);
-
-  useEffect(() => {
     cardOpacity.value = withDelay(
       index * 100,
-      withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) })
+      withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) })
     );
     cardTranslateY.value = withDelay(
       index * 100,
-      withSpring(0, { damping: 15, stiffness: 120 })
+      withSpring(0, { damping: 18, stiffness: 130 })
     );
   }, [index]);
 
@@ -79,6 +66,13 @@ export const ProjectCard = ({
     opacity: cardOpacity.value,
     transform: [{ translateY: cardTranslateY.value }],
   }));
+
+  // Progress percentage
+  const pct = project.totalNoItems > 0
+    ? Math.round((project.packedItems / project.totalNoItems) * 100)
+    : 0;
+
+  const isCompleted = pct === 100;
 
   return (
     <Pressable
@@ -88,92 +82,84 @@ export const ProjectCard = ({
             pathname: "/dashboards/boxes",
             params: {
               id: String(project.id),
-              client_id: String(project.client_id),
+              lead_id: String(project.lead_id),
               vendor_id: String(project.vendor_id),
             },
           });
         }
       }}
     >
-      <Animated.View
-        style={[
-          animatedCardStyle,
-          styles.card,
-          Platform.OS === "ios" ? { marginBottom: 16 } : { marginBottom: 20 },
-        ]}
-      >
-        {/* Top row — status + date */}
-        <View style={styles.topRow}>
-          <View style={styles.statusBadge}>
-            <Text style={styles.statusText}>{project.status}</Text>
-          </View>
-          <View style={styles.dateBlock}>
-            <Text style={styles.dateLabel}>Est. Date</Text>
-            <Text style={styles.dateValue}>{project.date}</Text>
-          </View>
-        </View>
+      <Animated.View style={[animatedCardStyle, styles.card, Platform.OS === "ios" ? { marginBottom: 16 } : { marginBottom: 20 }]}>
 
-        {/* Project name + download */}
-        <View style={styles.nameRow}>
-          <Text style={styles.projectName} numberOfLines={2}>
-            {project.projectName}
-          </Text>
-          {project.packedItems !== 0 && (
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <View style={[styles.statusPill, isCompleted && styles.statusPillDone]}>
+              <View style={[styles.statusDot, isCompleted && styles.statusDotDone]} />
+              <Text style={[styles.statusText, isCompleted && styles.statusTextDone]}>
+                {project.status}
+              </Text>
+            </View>
+            <Text style={styles.projectName} numberOfLines={1}>
+              {project.projectName}
+            </Text>
+          </View>
+
+          {project.packedItems > 0 && (
             <TouchableOpacity
               style={styles.downloadBtn}
-              onPress={() => {
-                if (project.packedItems <= 0) {
-                  showToast("warning", "This Project isn't started yet");
-                } else {
-                  onDownloadPress(project);
-                }
-              }}
+              onPress={() => onDownloadPress(project)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Download size={22} color="#555555" />
+              <Download size={18} color="#6B7280" />
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Stats */}
-        <View style={styles.statsRow}>
-          {/* Left — items + weight */}
-          <View style={styles.statsLeft}>
-            <View style={styles.statBlock}>
-              <Text style={styles.statLabel}>Items</Text>
-              <Text style={styles.statValue}>
-                {project.totalNoItems.toLocaleString()}
-              </Text>
-            </View>
-            <View style={styles.statBlock}>
-              <Text style={styles.statLabel}>Weight</Text>
-              <Text style={styles.statValue}>
-                {projectWeight} {weight}
-              </Text>
-            </View>
+        {/* ── Progress bar ── */}
+        <View style={styles.progressSection}>
+          <View style={styles.progressLabelRow}>
+            <Text style={styles.progressLabel}>Packing progress</Text>
+            <Text style={[styles.progressPct, isCompleted && { color: "#2A9D8F" }]}>
+              {pct}%
+            </Text>
           </View>
-
-          {/* Right — packed + unpacked */}
-          <View style={styles.statsRight}>
-            <View style={styles.statBlock}>
-              <View style={styles.dotRow}>
-                <View style={[styles.dot, styles.dotGreen]} />
-                <Text style={styles.statLabel}>Packed</Text>
-              </View>
-              <Text style={styles.statValue}>
-                {project.packedItems.toLocaleString()}
-              </Text>
-            </View>
-            <View style={styles.statBlock}>
-              <View style={styles.dotRow}>
-                <View style={[styles.dot, styles.dotRed]} />
-                <Text style={styles.statLabel}>Unpacked</Text>
-              </View>
-              <Text style={styles.statValue}>
-                {project.unpackedItems.toLocaleString()}
-              </Text>
-            </View>
+          <View style={styles.progressTrack}>
+            <View style={[
+              styles.progressFill,
+              { width: `${pct}%` as any },
+              isCompleted && styles.progressFillDone,
+            ]} />
           </View>
         </View>
+
+        {/* ── Stats row ── */}
+        <View style={styles.statsRow}>
+          <View style={styles.statChip}>
+            <Text style={styles.statChipLabel}>Total</Text>
+            <Text style={styles.statChipValue}>{project.totalNoItems.toLocaleString()}</Text>
+          </View>
+
+          <View style={[styles.statChip, styles.statChipPacked]}>
+            <Text style={[styles.statChipLabel, { color: "#1A7A70" }]}>Packed</Text>
+            <Text style={[styles.statChipValue, { color: "#1A7A70" }]}>
+              {project.packedItems.toLocaleString()}
+            </Text>
+          </View>
+
+          <View style={[styles.statChip, styles.statChipUnpacked]}>
+            <Text style={[styles.statChipLabel, { color: "#C15C0A" }]}>Unpacked</Text>
+            <Text style={[styles.statChipValue, { color: "#C15C0A" }]}>
+              {project.unpackedItems.toLocaleString()}
+            </Text>
+          </View>
+
+          {/* <View style={styles.dateChip}>
+            <Text style={styles.dateChipLabel}>Est.</Text>
+            <Text style={styles.dateChipValue}>{project.date}</Text>
+          </View> */}
+        </View>
+
       </Animated.View>
     </Pressable>
   );
@@ -183,108 +169,90 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: "#FFFFFF",
     width: "100%",
-    borderRadius: 24,
-    padding: 20,
+    borderRadius: 20,
+    padding: 18,
     borderWidth: 1,
     borderColor: "#F3F4F6",
-    elevation: 6,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
     shadowRadius: 10,
+    elevation: 4,
+    gap: 14,
   },
 
-  // Top row
-  topRow: {
+  // Header
+  header: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  statusBadge: {
-    backgroundColor: "#DBEAFE",
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  statusText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#1D4ED8",
-    textTransform: "capitalize",
-  },
-  dateBlock: {
     alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
   },
-  dateLabel: {
-    fontSize: 11,
-    color: "#9CA3AF",
-  },
-  dateValue: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#6B7280",
-  },
-
-  // Name row
-  nameRow: {
+  headerLeft: { flex: 1, gap: 6 },
+  statusPill: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
+    gap: 5,
+    alignSelf: "flex-start",
+    backgroundColor: "#DBEAFE",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
   },
-  projectName: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-  },
+  statusPillDone: { backgroundColor: "#E6F7F5" },
+  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#3B82F6" },
+  statusDotDone: { backgroundColor: "#2A9D8F" },
+  statusText: { fontSize: 11, fontWeight: "700", color: "#1D4ED8", textTransform: "capitalize" },
+  statusTextDone: { color: "#1A7A70" },
+  projectName: { fontSize: 17, fontWeight: "800", color: "#111827", lineHeight: 22 },
   downloadBtn: {
-    padding: 8,
-    borderRadius: 10,
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center", alignItems: "center",
+    marginTop: 2,
   },
+
+  // Progress
+  progressSection: { gap: 6 },
+  progressLabelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  progressLabel: { fontSize: 11, color: "#9CA3AF", fontWeight: "500" },
+  progressPct: { fontSize: 12, fontWeight: "800", color: "#2A9D8F" },
+  progressTrack: {
+    height: 6, backgroundColor: "#F3F4F6", borderRadius: 99, overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#2A9D8F",
+    borderRadius: 99,
+  },
+  progressFillDone: { backgroundColor: "#2A9D8F" },
 
   // Stats
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  statsLeft: {
-    flexDirection: "row",
-    gap: 24,
-  },
-  statsRight: {
-    flexDirection: "row",
-    gap: 16,
-  },
-  statBlock: {
+  statsRow: { flexDirection: "row", gap: 8 },
+  statChip: {
+    flex: 1,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     gap: 2,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
   },
-  statLabel: {
-    fontSize: 13,
-    color: "#9CA3AF",
-    fontWeight: "500",
+  statChipPacked: { backgroundColor: "#E6F7F5", borderColor: "#B2E8E4" },
+  statChipUnpacked: { backgroundColor: "#FFF8EE", borderColor: "#FDDCB0" },
+  statChipLabel: { fontSize: 10, color: "#9CA3AF", fontWeight: "600" },
+  statChipValue: { fontSize: 16, fontWeight: "800", color: "#111827" },
+  dateChip: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    gap: 2,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+    justifyContent: "center",
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  dotRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  dotGreen: {
-    backgroundColor: "#4ADE80",
-  },
-  dotRed: {
-    backgroundColor: "#F87171",
-  },
+  dateChipLabel: { fontSize: 10, color: "#9CA3AF", fontWeight: "600" },
+  dateChipValue: { fontSize: 12, fontWeight: "700", color: "#374151" },
 });

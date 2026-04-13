@@ -5,22 +5,15 @@ import { UpdateBoxModal } from "@/components/modals/UpdateBoxModal";
 import { useToast } from "@/components/Notification/ToastProvider";
 import { colors } from "@/components/theme/colors";
 import { commonStyles } from "@/components/theme/commonStyles";
-import { weight } from "@/data/generic";
 import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
 import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
-import { getBoxWeight } from "@/utils/BoxWeight";
 import { fetchProjectDetailsAndShare } from "@/utils/projectPdfUtils";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import LottieView from "lottie-react-native";
-import { ArrowLeft, Download, Plus, SquarePen, Trash2, X } from "lucide-react-native";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { ArrowLeft, Box, Download, Package, Plus, SquarePen, X } from "lucide-react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlatList,
   Modal,
@@ -50,7 +43,7 @@ interface Project {
 interface ProjectDetailsResponse {
   id: number;
   vendor_id: number;
-  client_id: number;
+  lead_id: number;
   project_status: string;
   project_name: string;
   estimated_completion_date: string;
@@ -59,9 +52,11 @@ interface ProjectDetailsResponse {
   total_unpaked: number;
   total_weight: number;
   project_details_id: number | null;
+  machine_id: number;
+  machine_name: string;
 }
 
-interface Box {
+interface BoxItem {
   id: number;
   name: string;
   box_status: "packed" | "unpacked" | string;
@@ -70,9 +65,11 @@ interface Box {
   project_id: number;
   vendor_id: number;
   client_id: number;
+  machine_id: number | null;
+  machine_name: string;
 }
 
-// ─── Confirmation Modal ───────────────────────────────────────────────────────
+// ─── Confirm Modal ────────────────────────────────────────────────────────────
 
 interface ConfirmModalProps {
   visible: boolean;
@@ -89,7 +86,7 @@ function ConfirmModal({
   visible, title, message, confirmLabel, cancelLabel = "Cancel",
   type = "download", onConfirm, onCancel,
 }: ConfirmModalProps) {
-  const confirmBg = type === "delete" ? "#E63946" : type === "edit" ? "#F4A261" : "#2A9D8F";
+  const confirmBg = type === "delete" ? "#E63946" : type === "edit" ? "#2A9D8F" : "#2A9D8F";
   return (
     <Modal transparent animationType="slide" visible={visible} onRequestClose={onCancel}>
       <View style={cmStyles.overlay}>
@@ -142,28 +139,21 @@ const cmStyles = StyleSheet.create({
 // ─── Box Card ─────────────────────────────────────────────────────────────────
 
 function BoxCard({
-  box, index, handleDownload, handleDeletePress, handleEditPress,
+  box, index, handleDownload, handleEditPress, machine_id, machine_name,
 }: {
-  box: Box; index: number;
+  box: BoxItem;
+  index: number;
   handleDownload: () => void;
-  handleDeletePress: () => void;
   handleEditPress: () => void;
+  machine_id: number | null;
+  machine_name: string;
 }) {
   const router = useRouter();
   const { showToast } = useToast();
   const cardOpacity = useSharedValue(0);
-  const cardTranslateY = useSharedValue(30);
+  const cardTranslateY = useSharedValue(24);
   const scale = useSharedValue(1);
-  const [boxWeight, setBoxWeight] = useState<number | null>(null);
   const [groupedItemInfo, setGroupedItemInfo] = useState<{ group: string; roomName: string } | null>(null);
-
-  useEffect(() => {
-    const fetchBoxWeight = async () => {
-      const res = await getBoxWeight(box.vendor_id, box.project_id, box.id);
-      setBoxWeight(res.box_weight);
-    };
-    fetchBoxWeight();
-  }, [box.vendor_id, box.project_id, box.id]);
 
   useEffect(() => {
     if (!box?.id) return;
@@ -179,8 +169,8 @@ function BoxCard({
   }, [box.id]);
 
   useEffect(() => {
-    cardOpacity.value = withDelay(index * 100, withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) }));
-    cardTranslateY.value = withDelay(index * 100, withSpring(0, { damping: 15, stiffness: 120 }));
+    cardOpacity.value = withDelay(index * 80, withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) }));
+    cardTranslateY.value = withDelay(index * 80, withSpring(0, { damping: 18, stiffness: 130 }));
   }, [index]);
 
   const animatedCardStyle = useAnimatedStyle(() => ({
@@ -188,80 +178,94 @@ function BoxCard({
     transform: [{ translateY: cardTranslateY.value }, { scale: scale.value }],
   }));
 
-  const status = box.box_status || "In Progress";
-  const statusBg = status === "packed" ? "#DCFCE7" : status === "unpacked" ? "#FFEDD5" : "#F3F4F6";
-  const statusText = status === "packed" ? "#15803D" : status === "unpacked" ? "#92400E" : "#374151";
+  const isPacked = box.box_status === "packed";
+  const isEmpty = box.items_count === 0;
 
   const handleNavigate = () => {
     router.push({
       pathname: "./boxItemsScreen",
-      params: { payload: JSON.stringify({ project_id: box.project_id, vendor_id: box.vendor_id, client_id: box.client_id, id: box.id }) },
+      params: {
+        payload: JSON.stringify({
+          project_id: box.project_id,
+          vendor_id: box.vendor_id,
+          client_id: box.client_id,
+          id: box.id,
+          machine_id,
+          machine_name,
+        }),
+      },
     });
   };
 
   return (
     <TouchableOpacity
-      activeOpacity={0.8}
-      onPressIn={() => { scale.value = withSpring(0.98); }}
+      activeOpacity={0.85}
+      onPressIn={() => { scale.value = withSpring(0.97); }}
       onPressOut={() => { scale.value = withSpring(1); }}
       onPress={handleNavigate}
     >
       <Animated.View style={[animatedCardStyle, boxStyles.card]}>
-        {/* Top row */}
-        <View style={boxStyles.topRow}>
-          <View style={[boxStyles.statusBadge, { backgroundColor: statusBg }]}>
-            <Text style={[boxStyles.statusText, { color: statusText }]}>{status}</Text>
-          </View>
-          <TouchableOpacity
-            style={boxStyles.iconBtn}
-            onPress={() => {
-              if (status === "packed") showToast("warning", "Unable to Delete. Box is Packed");
-              else handleDeletePress();
-            }}
-          >
-            <Trash2 color="#EF4444" size={20} />
-          </TouchableOpacity>
-        </View>
 
-        {/* Name + group/room */}
-        <View style={boxStyles.nameRow}>
-          <Text style={boxStyles.boxName}>{box.name}</Text>
+        {/* Left accent strip */}
+        <View style={[boxStyles.accentStrip, { backgroundColor: isPacked ? "#2A9D8F" : "#2A9D8F" }]} />
+
+        <View style={boxStyles.cardBody}>
+          {/* Header row */}
+          <View style={boxStyles.headerRow}>
+            <View style={[boxStyles.iconWrap, { backgroundColor: isPacked ? "#E6F7F5" : "#FFF8EE" }]}>
+              <Package size={18} color={isPacked ? "#2A9D8F" : "#2A9D8F"} />
+            </View>
+
+            <Text style={boxStyles.boxName} numberOfLines={1}>{box.name}</Text>
+
+            <View style={[boxStyles.statusPill, { backgroundColor: isPacked ? "#E6F7F5" : "#FFF8EE" }]}>
+              <Text style={[boxStyles.statusPillText, { color: isPacked ? "#1A7A70" : "#C15C0A" }]}>
+                {isPacked ? "Packed" : "Unpacked"}
+              </Text>
+            </View>
+          </View>
+
+          {/* Meta row — group / room */}
           {groupedItemInfo && (
             <View style={boxStyles.metaRow}>
-              <View style={boxStyles.metaBlock}>
-                <Text style={boxStyles.metaLabel}>Group</Text>
-                <Text style={boxStyles.metaValue} numberOfLines={1}>{groupedItemInfo.group}</Text>
+              <View style={boxStyles.metaChip}>
+                <Text style={boxStyles.metaChipLabel}>Group </Text>
+                <Text style={boxStyles.metaChipValue} numberOfLines={1}>{groupedItemInfo.group}</Text>
               </View>
-              <View style={[boxStyles.metaBlock, { alignItems: "flex-end" }]}>
-                <Text style={boxStyles.metaLabel}>Room</Text>
-                <Text style={boxStyles.metaValue} numberOfLines={1}>{groupedItemInfo.roomName}</Text>
+              <View style={[boxStyles.metaChip, { marginLeft: 8 }]}>
+                <Text style={boxStyles.metaChipLabel}>Room </Text>
+                <Text style={boxStyles.metaChipValue} numberOfLines={1}>{groupedItemInfo.roomName}</Text>
               </View>
             </View>
           )}
-        </View>
 
-        {/* Stats */}
-        <View style={boxStyles.statsRow}>
-          <View style={boxStyles.statsLeft}>
-            <View>
-              <Text style={boxStyles.statLabel}>Items</Text>
-              <Text style={boxStyles.statValue}>{box.items_count}</Text>
+          {/* Footer row */}
+          <View style={boxStyles.footerRow}>
+            {/* Items count chip */}
+            <View style={boxStyles.countChip}>
+              <Box size={13} color="#6B7280" />
+              <Text style={boxStyles.countChipText}>
+                {box.items_count} {box.items_count === 1 ? "item" : "items"}
+              </Text>
             </View>
-            <View>
-              <Text style={boxStyles.statLabel}>Weight</Text>
-              <Text style={boxStyles.statValue}>{boxWeight} {weight}</Text>
+
+            {/* Actions */}
+            <View style={boxStyles.actions}>
+              <TouchableOpacity
+                style={boxStyles.actionBtn}
+                onPress={() => isEmpty ? showToast("warning", "Download Failed, Box is empty") : handleDownload()}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Download size={17} color="#6B7280" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={boxStyles.actionBtn}
+                onPress={handleEditPress}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <SquarePen size={17} color="#6B7280" />
+              </TouchableOpacity>
             </View>
-          </View>
-          <View style={boxStyles.actionsRow}>
-            <TouchableOpacity
-              style={boxStyles.iconBtn}
-              onPress={() => box.items_count <= 0 ? showToast("warning", "Download Failed, Box is empty") : handleDownload()}
-            >
-              <Download color="#555555" size={20} />
-            </TouchableOpacity>
-            <TouchableOpacity style={boxStyles.iconBtn} onPress={handleEditPress}>
-              <SquarePen color="#555555" size={20} />
-            </TouchableOpacity>
           </View>
         </View>
       </Animated.View>
@@ -271,33 +275,52 @@ function BoxCard({
 
 const boxStyles = StyleSheet.create({
   card: {
+    flexDirection: "row",
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 20,
-    marginBottom: 12,
+    borderRadius: 16,
+    overflow: "hidden",
+    marginBottom: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 3,
   },
-  topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  statusBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
-  statusText: { fontSize: 12, fontWeight: "600", textTransform: "capitalize" },
-  iconBtn: { padding: 8, backgroundColor: "#F3F4F6", borderRadius: 12 },
-  nameRow: { marginBottom: 12 },
-  boxName: { fontSize: 17, fontWeight: "700", color: "#111827", marginBottom: 6 },
-  metaRow: { flexDirection: "row", justifyContent: "space-between" },
-  metaBlock: { flex: 1 },
-  metaLabel: { fontSize: 11, color: "#9CA3AF" },
-  metaValue: { fontSize: 13, fontWeight: "500", color: "#374151" },
-  statsRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
-  statsLeft: { flexDirection: "row", gap: 24 },
-  statLabel: { fontSize: 13, color: "#9CA3AF", marginBottom: 2 },
-  statValue: { fontSize: 22, fontWeight: "600", color: "#111827" },
-  actionsRow: { flexDirection: "row", gap: 8 },
+  accentStrip: { width: 4 },
+  cardBody: { flex: 1, padding: 14, gap: 10 },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  iconWrap: {
+    width: 34, height: 34, borderRadius: 10,
+    justifyContent: "center", alignItems: "center",
+  },
+  boxName: { flex: 1, fontSize: 14, fontWeight: "700", color: "#111827" },
+  statusPill: {
+    paddingHorizontal: 10, paddingVertical: 3,
+    borderRadius: 20,
+  },
+  statusPillText: { fontSize: 11, fontWeight: "700" },
+  metaRow: { flexDirection: "row" },
+  metaChip: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: "#F9FAFB", borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 4,
+    flex: 1,
+  },
+  metaChipLabel: { fontSize: 11, color: "#9CA3AF" },
+  metaChipValue: { fontSize: 11, fontWeight: "600", color: "#374151", flex: 1 },
+  footerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  countChip: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: "#F3F4F6", borderRadius: 20,
+    paddingHorizontal: 10, paddingVertical: 4,
+  },
+  countChipText: { fontSize: 12, fontWeight: "600", color: "#6B7280" },
+  actions: { flexDirection: "row", gap: 4 },
+  actionBtn: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center", alignItems: "center",
+  },
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
@@ -316,23 +339,17 @@ export default function BoxesScreen() {
 
   const [projectDetails, setProjectDetails] = useState<ProjectDetailsResponse | null>(null);
   const [showGlobalLoader, setShowGlobalLoader] = useState(false);
-  const [boxes, setBoxes] = useState<Box[]>([]);
+  const [boxes, setBoxes] = useState<BoxItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [creatingBox, setCreatingBox] = useState(false);
 
-  const [selectedBox, setSelectedBox] = useState<Box | null>(null);
-  const [selectedBoxForDelete, setSelectedBoxForDelete] = useState<Box | null>(null);
-  const [selectedBoxForEdit, setSelectedBoxForEdit] = useState<Box | null>(null);
+  const [selectedBox, setSelectedBox] = useState<BoxItem | null>(null);
+  const [selectedBoxForEdit, setSelectedBoxForEdit] = useState<BoxItem | null>(null);
 
-  // Modal visibility states
-  const [showAddBox, setShowAddBox] = useState(false);
-  const [showUpdateBox, setShowUpdateBox] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showProjectDownloadModal, setShowProjectDownloadModal] = useState(false);
 
-  // Refs for modals that need ref-based control (AddBoxModal, UpdateBoxModal)
   const sheetRef = useRef<any>(null);
   const updateSheetRef = useRef<any>(null);
 
@@ -349,6 +366,7 @@ export default function BoxesScreen() {
         project_id: box.project_id,
         vendor_id: box.vendor_id,
         client_id: box.client_id,
+        lead_id: box.lead_id,
       })));
     } catch (error) {
       console.error("Failed to fetch boxes:", error);
@@ -378,9 +396,11 @@ export default function BoxesScreen() {
         total_unpaked: data.totals.total_unpacked,
         total_weight: data.totals.total_weight,
         vendor_id: data.vendor_id,
-        client_id: data.client_id,
+        lead_id: data.lead_id,
         estimated_completion_date: formatDate(rawDate),
         project_details_id: data.details[0]?.id,
+        machine_id: data.machine_id,
+        machine_name: data.machine_name,
       });
     } catch (error: any) {
       console.log("Fetch Project Details Failed:", error.message);
@@ -396,64 +416,19 @@ export default function BoxesScreen() {
     }, [project.id, project.vendor_id])
   );
 
-  // Animations
-  const cardOpacity = useSharedValue(0);
-  const cardTranslateY = useSharedValue(30);
-  const titleOpacity = useSharedValue(0);
   const addButtonScale = useSharedValue(1);
+  const animatedAddButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: addButtonScale.value }],
+  }));
 
-  useEffect(() => {
-    cardOpacity.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) });
-    cardTranslateY.value = withSpring(0, { damping: 15, stiffness: 120 });
-    titleOpacity.value = withTiming(1, { duration: 800, easing: Easing.out(Easing.cubic) });
-  }, []);
-
-  const animatedTitleStyle = useAnimatedStyle(() => ({ opacity: titleOpacity.value }));
-  const animatedAddButtonStyle = useAnimatedStyle(() => ({ transform: [{ scale: addButtonScale.value }] }));
-
-  // Handlers
-  const handleProjectDownload = () => setShowProjectDownloadModal(true);
-
-  const handleConfirmProjectDownload = async () => {
-    setShowProjectDownloadModal(false);
-    setShowGlobalLoader(true);
-    try {
-      if (project) await fetchProjectDetailsAndShare(project);
-    } catch (err: any) {
-      console.log("Download Error:", err.message);
-    } finally {
-      setShowGlobalLoader(false);
-    }
-  };
-
-  const handleDelete = (box: Box) => { setSelectedBoxForDelete(box); setShowDeleteModal(true); };
-
-  const handleConfirmDelete = async () => {
-    setShowDeleteModal(false);
-    setShowGlobalLoader(true);
-    if (!selectedBoxForDelete) return;
-    try {
-      await axios.delete(`/boxes/delete/${selectedBoxForDelete.id}`, { data: { deleted_by: user?.id } });
-      showToast("success", "Box deleted successfully");
-      fetchBoxes();
-    } catch (error) {
-      console.error("Failed to delete box:", error);
-      showToast("error", "Delete failed");
-    } finally {
-      setShowGlobalLoader(false);
-      fetchProjectDetails();
-    }
-  };
-
-  const handleEdit = (box: Box) => { setSelectedBoxForEdit(box); setShowEditModal(true); };
+  const handleEdit = (box: BoxItem) => { setSelectedBoxForEdit(box); setShowEditModal(true); };
+  const handleDownload = (box: BoxItem) => { setSelectedBox(box); setShowDownloadModal(true); };
 
   const handleConfirmEdit = () => {
     setShowEditModal(false);
     setTimeout(() => { updateSheetRef.current?.present(); }, 300);
     fetchProjectDetails();
   };
-
-  const handleDownload = (box: Box) => { setSelectedBox(box); setShowDownloadModal(true); };
 
   const handleConfirmDownload = async () => {
     setShowDownloadModal(false);
@@ -467,7 +442,22 @@ export default function BoxesScreen() {
     }
   };
 
+  const handleConfirmProjectDownload = async () => {
+    setShowProjectDownloadModal(false);
+    setShowGlobalLoader(true);
+    try {
+      if (project) await fetchProjectDetailsAndShare(project);
+    } catch (err: any) {
+      console.log("Download Error:", err.message);
+    } finally {
+      setShowGlobalLoader(false);
+    }
+  };
+
   if (!projectDetails) return <Loader />;
+
+  const packedCount = boxes.filter(b => b.box_status === "packed").length;
+  const unpackedCount = boxes.filter(b => b.box_status === "unpacked").length;
 
   return (
     <View style={styles.root}>
@@ -491,78 +481,86 @@ export default function BoxesScreen() {
       </View>
 
       {showGlobalLoader ? (
-        <View style={styles.loaderContainer}>
+        <View style={styles.center}>
           <Loader />
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <View style={styles.body}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-            {/* Project Card */}
-            <ProjectCard
-              project={{
-                id: project.id,
-                vendor_id: project.vendor_id,
-                client_id: project.client_id,
-                projectName: projectDetails.project_name,
-                totalNoItems: projectDetails.total_items,
-                unpackedItems: projectDetails.total_unpaked,
-                packedItems: projectDetails.total_packed,
-                status: projectDetails.project_status,
-                date: projectDetails.estimated_completion_date,
-              }}
-              index={0}
-              disableNavigation={true}
-              onDownloadPress={handleProjectDownload}
-            />
+          {/* Project Card */}
+          <ProjectCard
+            project={{
+              id: project.id,
+              vendor_id: project.vendor_id,
+              projectName: projectDetails.project_name,
+              totalNoItems: projectDetails.total_items,
+              unpackedItems: projectDetails.total_unpaked,
+              packedItems: projectDetails.total_packed,
+              status: projectDetails.project_status,
+              date: projectDetails.estimated_completion_date,
+              lead_id: projectDetails.lead_id,
+            }}
+            index={0}
+            disableNavigation={true}
+            onDownloadPress={() => setShowProjectDownloadModal(true)}
+          />
 
-            {/* Boxes section */}
-            <View style={styles.boxesSection}>
-              <Animated.View style={[animatedTitleStyle, styles.boxesTitleRow]}>
-                <Text style={styles.boxesTitle}>
+          {/* ── Boxes section ── */}
+          <View style={styles.boxesSection}>
+
+            {/* Section header */}
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={styles.sectionTitle}>
                   {boxes.length} {boxes.length === 1 ? "Box" : "Boxes"}
                 </Text>
-              </Animated.View>
-
-              {loading ? (
-                <View style={styles.loaderContainer}>
-                  <Loader />
-                </View>
-              ) : (
-                <FlatList
-                  scrollEnabled={false}
-                  data={boxes}
-                  renderItem={({ item, index }) => (
-                    <BoxCard
-                      box={item}
-                      index={index}
-                      handleDownload={() => handleDownload(item)}
-                      handleDeletePress={() => handleDelete(item)}
-                      handleEditPress={() => handleEdit(item)}
-                    />
-                  )}
-                  keyExtractor={(item) => item.id.toString()}
-                  contentContainerStyle={styles.listContainer}
-                  showsVerticalScrollIndicator={false}
-                  ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                      <LottieView
-                        source={require("@/assets/animations/emptyBox.json")}
-                        autoPlay loop={false}
-                        style={styles.lottie}
-                      />
-                      <Text style={styles.emptyText}>0 Boxes Found</Text>
-                    </View>
-                  }
-                />
-              )}
+                {boxes.length > 0 && (
+                  <Text style={styles.sectionSubtitle}>
+                    {packedCount} packed · {unpackedCount} unpacked
+                  </Text>
+                )}
+              </View>
             </View>
+
+            {loading ? (
+              <View style={styles.center}>
+                <Loader />
+              </View>
+            ) : (
+              <FlatList
+                scrollEnabled={false}
+                data={boxes}
+                renderItem={({ item, index }) => (
+                  <BoxCard
+                    box={item}
+                    index={index}
+                    machine_id={projectDetails.machine_id}
+                    machine_name={projectDetails.machine_name}
+                    handleDownload={() => handleDownload(item)}
+                    handleEditPress={() => handleEdit(item)}
+                  />
+                )}
+                keyExtractor={(item) => item.id.toString()}
+                showsVerticalScrollIndicator={false}
+                ListEmptyComponent={
+                  <View style={styles.emptyState}>
+                    <LottieView
+                      source={require("@/assets/animations/emptyBox.json")}
+                      autoPlay loop={false}
+                      style={styles.lottie}
+                    />
+                    <Text style={styles.emptyTitle}>No boxes yet</Text>
+                    <Text style={styles.emptySubtitle}>Tap "Add Box" to create your first box</Text>
+                  </View>
+                }
+              />
+            )}
           </View>
         </ScrollView>
       )}
 
       {/* ── Add Box FAB ── */}
-      <View style={styles.addBoxBtn}>
+      <View style={styles.fabContainer}>
         <TouchableOpacity
           activeOpacity={0.9}
           onPress={() => sheetRef.current?.present()}
@@ -570,15 +568,14 @@ export default function BoxesScreen() {
           onPressOut={() => { addButtonScale.value = withSpring(1); }}
         >
           <Animated.View style={animatedAddButtonStyle}>
-            <LinearGradient colors={["#000000", "#222222"]} style={styles.addButton}>
-              <Plus size={28} color="#fff" />
-              <Text style={styles.addButtonText}>Add Box</Text>
+            <LinearGradient colors={["#111827", "#374151"]} style={styles.fabButton}>
+              <Plus size={22} color="#fff" />
+              <Text style={styles.fabText}>Add Box</Text>
             </LinearGradient>
           </Animated.View>
         </TouchableOpacity>
       </View>
 
-      {/* ── Loader Overlay ── */}
       {creatingBox && (
         <View style={styles.loaderOverlay}>
           <Loader />
@@ -592,9 +589,9 @@ export default function BoxesScreen() {
           onSubmit={onAdd}
           project={{
             id: projectDetails.id,
-            client_id: projectDetails.client_id,
             vendor_id: projectDetails.vendor_id,
             project_details_id: projectDetails.project_details_id,
+            lead_id: projectDetails.lead_id,
           }}
           setCreatingBox={setCreatingBox}
         />
@@ -624,16 +621,6 @@ export default function BoxesScreen() {
       />
 
       <ConfirmModal
-        visible={showDeleteModal}
-        title="Delete Box"
-        message={`Are you sure you want to delete "${selectedBoxForDelete?.name}"?`}
-        confirmLabel="Yes, Delete"
-        type="delete"
-        onConfirm={handleConfirmDelete}
-        onCancel={() => setShowDeleteModal(false)}
-      />
-
-      <ConfirmModal
         visible={showEditModal}
         title="Edit Box"
         message={`Are you sure you want to edit "${selectedBoxForEdit?.name}"?`}
@@ -658,27 +645,33 @@ export default function BoxesScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.cardBg },
-  loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  body: { flex: 1, marginHorizontal: 16, paddingVertical: 24 },
-  boxesSection: { flex: 1, marginTop: 24 },
-  boxesTitleRow: { marginBottom: 16 },
-  boxesTitle: { fontSize: 24, fontWeight: "700", color: "#111827" },
-  listContainer: { paddingBottom: 100, paddingHorizontal: 4 },
-  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  emptyText: { color: "#9CA3AF", fontSize: 14, marginTop: 8 },
-  lottie: { width: 220, height: 220 },
-  addBoxBtn: {
+  center: { flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 40 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 120 },
+  boxesSection: { marginTop: 20 },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    marginBottom: 14,
+  },
+  sectionTitle: { fontSize: 20, fontWeight: "800", color: "#111827" },
+  sectionSubtitle: { fontSize: 12, color: "#9CA3AF", marginTop: 2 },
+  emptyState: { alignItems: "center", paddingTop: 20 },
+  lottie: { width: 200, height: 200 },
+  emptyTitle: { fontSize: 16, fontWeight: "700", color: "#111827", marginTop: 4 },
+  emptySubtitle: { fontSize: 13, color: "#9CA3AF", marginTop: 4, textAlign: "center" },
+  fabContainer: {
     position: "absolute",
-    bottom: Platform.OS === "ios" ? 25 : 16,
+    bottom: Platform.OS === "ios" ? 32 : 20,
     right: 18, left: 18,
   },
-  addButton: {
+  fabButton: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    paddingVertical: 16, paddingHorizontal: 24, borderRadius: 50,
+    paddingVertical: 16, borderRadius: 50,
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
+    shadowOpacity: 0.25, shadowRadius: 10, elevation: 8,
   },
-  addButtonText: { color: "white", fontSize: 17, fontWeight: "700", marginLeft: 12 },
+  fabText: { color: "white", fontSize: 16, fontWeight: "700", marginLeft: 10 },
   loaderOverlay: {
     position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: "rgba(0,0,0,0.4)",

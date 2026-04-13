@@ -3,16 +3,16 @@ import {
   PermissionStatus,
   useCameraPermissions,
 } from 'expo-camera';
-import { X, Flashlight, FlashlightOff, Focus } from 'lucide-react-native';
+import { Flashlight, FlashlightOff, Focus, X } from 'lucide-react-native';
 import React, { useRef, useState } from 'react';
 import {
+  Animated,
   Dimensions,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  StatusBar,
-  Animated,
 } from 'react-native';
 
 interface QRScannerProps {

@@ -21,7 +21,7 @@ interface Project {
   id: number;
   vendor_id: number;
   project_details_id: number | null;
-  client_id: number;
+  lead_id: number;
 }
 
 interface AddBoxModalProps {
@@ -74,12 +74,13 @@ export const AddBoxModal = forwardRef<AddBoxModalRef, AddBoxModalProps>(
         const payload = {
           project_id: project.id,
           project_details_id: project.project_details_id,
-          vendor_id: project.vendor_id,
-          client_id: project.client_id,
+          vendor_id: project.vendor_id,          
+          lead_id: project.lead_id,
           box_name: boxName.trim(),
           box_status: "unpacked",
           created_by: user?.id,
         };
+        console.log(payload);
 
         if (!project.project_details_id) {
           setError("Project details ID is missing");
@@ -91,15 +92,18 @@ export const AddBoxModal = forwardRef<AddBoxModalRef, AddBoxModalProps>(
         showToast("success", "Box created successfully");
         onSubmit(boxName.trim());
         handleClose();
-
+        console.log("res.data.machine_id:",res.data.machine_id)
         router.push({
           pathname: "/dashboards/boxItemsScreen",
           params: {
             payload: JSON.stringify({
               project_id: project.id,
-              client_id: project.client_id,
+              lead_id: project.lead_id,
               vendor_id: project.vendor_id,
               id: res.data.box.id,
+              machine_id : res.data.machine_id,
+              machine_name:res.data.machine_name,
+              
             }),
           },
         });

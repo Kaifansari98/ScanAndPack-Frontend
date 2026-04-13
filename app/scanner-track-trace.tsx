@@ -83,7 +83,9 @@ interface ActiveDefect {
 const OTHER_DEFECT: Defect = { id: 0, defect_name: "Other" };
 
 export default function TrackTraceBarcodeScanner() {
-  const { machine_id, machine_name,project_id } = useLocalSearchParams<{ machine_id?: string; machine_name?: string;project_id?: string }>();
+  const { machine_id, machine_name, project_id, hide_defect, box_id } = useLocalSearchParams<{ machine_id?: string; machine_name?: string; project_id?: string; hide_defect?: string; box_id?: string }>();
+
+  const isDefectHidden = hide_defect === "true";
 
   // alert(machine_name)
   const [permission, requestPermission] = useCameraPermissions();
@@ -170,6 +172,7 @@ export default function TrackTraceBarcodeScanner() {
   // ─── Mode toggle ──────────────────────────────────────────────────────────
 
   const switchMode = (mode: ScanMode) => {
+    if (isDefectHidden) return;
     if (mode === scanMode) return;
     setScanMode(mode);
     setScanned(false);
@@ -226,6 +229,7 @@ export default function TrackTraceBarcodeScanner() {
     machine_id: Number(machine_id),
     unique_code: scannedCode,
     created_by: Number(user?.id),
+    ...(box_id ? { box_id: Number(box_id) } : {}),
   });
 
   const callScanItem = async (scannedCode: string) => {
@@ -298,6 +302,7 @@ export default function TrackTraceBarcodeScanner() {
     if (scanned || showManualEntry) return;
     setScanned(true);
     try {
+      
       if (scanMode === "scan") {
         await handleQRScanned(data);
       } else {
@@ -311,6 +316,7 @@ export default function TrackTraceBarcodeScanner() {
 
   const handleQRScanned = async (scannedCode: string): Promise<boolean> => {
     try {
+      
       const res = await axios.post("/track-trace/scan/check-item", buildPayload(scannedCode));
       const apiResponse = res.data;
       if (apiResponse.success) {
@@ -702,20 +708,29 @@ export default function TrackTraceBarcodeScanner() {
             <X size={28} color="white" />
           </TouchableOpacity>
 
-          {/* Mode Toggle */}
-          <View style={styles.toggleContainer}>
-            <View style={[styles.togglePill, {
-              left: isDefectMode ? (width * 0.7) / 2 : 2,
-              width: (width * 0.7) / 2 - 2,
-              backgroundColor: isDefectMode ? "#E63946" : "#007AFF",
-            }]} />
-            <TouchableOpacity style={styles.toggleOption} onPress={() => switchMode("scan")} activeOpacity={0.8}>
-              <Text style={[styles.toggleText, !isDefectMode && styles.toggleTextActive]}>Scan Code</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.toggleOption} onPress={() => switchMode("defect")} activeOpacity={0.8}>
-              <Text style={[styles.toggleText, isDefectMode && styles.toggleTextActive]}>Mark Defect</Text>
-            </TouchableOpacity>
-          </View>
+          {/* Mode Toggle — hidden when opened from ScanAndPack */}
+          {!isDefectHidden ? (
+            <View style={styles.toggleContainer}>
+              <View style={[styles.togglePill, {
+                left: isDefectMode ? (width * 0.7) / 2 : 2,
+                width: (width * 0.7) / 2 - 2,
+                backgroundColor: isDefectMode ? "#E63946" : "#007AFF",
+              }]} />
+              <TouchableOpacity style={styles.toggleOption} onPress={() => switchMode("scan")} activeOpacity={0.8}>
+                <Text style={[styles.toggleText, !isDefectMode && styles.toggleTextActive]}>Scan Code</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.toggleOption} onPress={() => switchMode("defect")} activeOpacity={0.8}>
+                <Text style={[styles.toggleText, isDefectMode && styles.toggleTextActive]}>Mark Defect</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.toggleContainer}>
+              <View style={[styles.togglePill, { left: 2, width: (width * 0.7) - 4, backgroundColor: "#007AFF" }]} />
+              <View style={styles.toggleOption}>
+                <Text style={[styles.toggleText, styles.toggleTextActive]}>Scan Code</Text>
+              </View>
+            </View>
+          )}
 
           <TouchableOpacity
             style={styles.flashButton}
@@ -1070,17 +1085,20 @@ export default function TrackTraceBarcodeScanner() {
             <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetScrollContent} showsVerticalScrollIndicator={false}>
               <ItemCard item={defectMappedItem} />
 
-              <Text style={styles.markLabel}>MARK DEFECT</Text>
-
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.actionBtnDefect, defectListLoading && styles.actionBtnDisabled]}
-                onPress={handleMarkDefectFromDefectMode}
-                activeOpacity={0.85}
-                disabled={defectListLoading}
-              >
-                {defectListLoading ? <ActivityIndicator size="small" color="white" /> : <AlertTriangle size={20} color="white" />}
-                <Text style={styles.actionBtnText}>{defectListLoading ? "Loading..." : "Mark as Defect"}</Text>
-              </TouchableOpacity>
+              {!isDefectHidden && (
+                <>
+                  <Text style={styles.markLabel}>MARK DEFECT</Text>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.actionBtnDefect, defectListLoading && styles.actionBtnDisabled]}
+                    onPress={handleMarkDefectFromDefectMode}
+                    activeOpacity={0.85}
+                    disabled={defectListLoading}
+                  >
+                    {defectListLoading ? <ActivityIndicator size="small" color="white" /> : <AlertTriangle size={20} color="white" />}
+                    <Text style={styles.actionBtnText}>{defectListLoading ? "Loading..." : "Mark as Defect"}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
               <View style={{ height: 32 }} />
             </ScrollView>
 
