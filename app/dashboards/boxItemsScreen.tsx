@@ -262,12 +262,13 @@ export default function BoxItemsScreen() {
 
   // ── Delete item — unsets box_id on CutListMachineMapping row ──────────────
   const handleConfirmDeleteItem = async () => {
+    
     setShowDeleteModal(false);
     setLoading(true);
     if (!selectedItemId) return;
     try {
       // selectedItemId is CutListMachineMapping.id — unset box_id to remove from box
-      await axios.patch(`/track-trace/mapping/${selectedItemId}/unset-box`);
+      await axios.patch(`/track-trace/mapping/${selectedItemId}/${box?.project_id}/${box?.vendor_id}/unset-box`);
       showToast("success", "Item removed from box");
       if (box) fetchScanItems(box);
     } catch (error) {
@@ -281,9 +282,11 @@ export default function BoxItemsScreen() {
 
   // ── Download ───────────────────────────────────────────────────────────────
   const handleConfirmDownload = async () => {
+    // alert(1)
     setShowDownloadModal(false);
     setLoading(true);
     try {
+      
       if (box) await fetchBoxtDetailsAndShare(box);
     } catch (err: any) {
       console.log("Download Error:", err.message);

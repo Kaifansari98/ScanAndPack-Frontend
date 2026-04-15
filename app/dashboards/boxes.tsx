@@ -8,11 +8,11 @@ import { commonStyles } from "@/components/theme/commonStyles";
 import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
 import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
-import { fetchProjectDetailsAndShare } from "@/utils/projectPdfUtils";
+import { fetchAllBoxesPdfAndShare, fetchProjectDetailsAndShare } from "@/utils/projectPdfUtils";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import LottieView from "lottie-react-native";
-import { ArrowLeft, Box, Download, Package, Plus, SquarePen, X } from "lucide-react-native";
+import { ArrowLeft, Box, Download, Package, Plus, ScanLine, SquarePen, X } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlatList,
@@ -37,7 +37,7 @@ import { useSelector } from "react-redux";
 interface Project {
   id: number;
   vendor_id: number;
-  client_id: number;
+  lead_id: number;
 }
 
 interface ProjectDetailsResponse {
@@ -64,7 +64,6 @@ interface BoxItem {
   details: any;
   project_id: number;
   vendor_id: number;
-  client_id: number;
   machine_id: number | null;
   machine_name: string;
 }
@@ -86,7 +85,7 @@ function ConfirmModal({
   visible, title, message, confirmLabel, cancelLabel = "Cancel",
   type = "download", onConfirm, onCancel,
 }: ConfirmModalProps) {
-  const confirmBg = type === "delete" ? "#E63946" : type === "edit" ? "#2A9D8F" : "#2A9D8F";
+  const confirmBg = type === "delete" ? "#E63946" : "#2A9D8F";
   return (
     <Modal transparent animationType="slide" visible={visible} onRequestClose={onCancel}>
       <View style={cmStyles.overlay}>
@@ -188,7 +187,6 @@ function BoxCard({
         payload: JSON.stringify({
           project_id: box.project_id,
           vendor_id: box.vendor_id,
-          client_id: box.client_id,
           id: box.id,
           machine_id,
           machine_name,
@@ -205,19 +203,13 @@ function BoxCard({
       onPress={handleNavigate}
     >
       <Animated.View style={[animatedCardStyle, boxStyles.card]}>
-
-        {/* Left accent strip */}
-        <View style={[boxStyles.accentStrip, { backgroundColor: isPacked ? "#2A9D8F" : "#2A9D8F" }]} />
-
+        <View style={[boxStyles.accentStrip, { backgroundColor: isPacked ? "#2A9D8F" : "#F4A261" }]} />
         <View style={boxStyles.cardBody}>
-          {/* Header row */}
           <View style={boxStyles.headerRow}>
             <View style={[boxStyles.iconWrap, { backgroundColor: isPacked ? "#E6F7F5" : "#FFF8EE" }]}>
-              <Package size={18} color={isPacked ? "#2A9D8F" : "#2A9D8F"} />
+              <Package size={18} color={isPacked ? "#2A9D8F" : "#F4A261"} />
             </View>
-
             <Text style={boxStyles.boxName} numberOfLines={1}>{box.name}</Text>
-
             <View style={[boxStyles.statusPill, { backgroundColor: isPacked ? "#E6F7F5" : "#FFF8EE" }]}>
               <Text style={[boxStyles.statusPillText, { color: isPacked ? "#1A7A70" : "#C15C0A" }]}>
                 {isPacked ? "Packed" : "Unpacked"}
@@ -225,7 +217,6 @@ function BoxCard({
             </View>
           </View>
 
-          {/* Meta row — group / room */}
           {groupedItemInfo && (
             <View style={boxStyles.metaRow}>
               <View style={boxStyles.metaChip}>
@@ -239,17 +230,13 @@ function BoxCard({
             </View>
           )}
 
-          {/* Footer row */}
           <View style={boxStyles.footerRow}>
-            {/* Items count chip */}
             <View style={boxStyles.countChip}>
               <Box size={13} color="#6B7280" />
               <Text style={boxStyles.countChipText}>
                 {box.items_count} {box.items_count === 1 ? "item" : "items"}
               </Text>
             </View>
-
-            {/* Actions */}
             <View style={boxStyles.actions}>
               <TouchableOpacity
                 style={boxStyles.actionBtn}
@@ -275,52 +262,33 @@ function BoxCard({
 
 const boxStyles = StyleSheet.create({
   card: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    overflow: "hidden",
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    flexDirection: "row", backgroundColor: "#FFFFFF", borderRadius: 16,
+    overflow: "hidden", marginBottom: 10,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
   },
   accentStrip: { width: 4 },
   cardBody: { flex: 1, padding: 14, gap: 10 },
   headerRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  iconWrap: {
-    width: 34, height: 34, borderRadius: 10,
-    justifyContent: "center", alignItems: "center",
-  },
+  iconWrap: { width: 34, height: 34, borderRadius: 10, justifyContent: "center", alignItems: "center" },
   boxName: { flex: 1, fontSize: 14, fontWeight: "700", color: "#111827" },
-  statusPill: {
-    paddingHorizontal: 10, paddingVertical: 3,
-    borderRadius: 20,
-  },
+  statusPill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
   statusPillText: { fontSize: 11, fontWeight: "700" },
   metaRow: { flexDirection: "row" },
   metaChip: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: "#F9FAFB", borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 4,
-    flex: 1,
+    flexDirection: "row", alignItems: "center", backgroundColor: "#F9FAFB",
+    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, flex: 1,
   },
   metaChipLabel: { fontSize: 11, color: "#9CA3AF" },
   metaChipValue: { fontSize: 11, fontWeight: "600", color: "#374151", flex: 1 },
   footerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   countChip: {
     flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: "#F3F4F6", borderRadius: 20,
-    paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: "#F3F4F6", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
   },
   countChipText: { fontSize: 12, fontWeight: "600", color: "#6B7280" },
   actions: { flexDirection: "row", gap: 4 },
-  actionBtn: {
-    width: 34, height: 34, borderRadius: 10,
-    backgroundColor: "#F3F4F6",
-    justifyContent: "center", alignItems: "center",
-  },
+  actionBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: "#F3F4F6", justifyContent: "center", alignItems: "center" },
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
@@ -328,12 +296,12 @@ const boxStyles = StyleSheet.create({
 export default function BoxesScreen() {
   const user = useSelector((state: RootState) => state.auth.user);
   const { showToast } = useToast();
-  const { id, client_id, vendor_id } = useLocalSearchParams();
+  const { id, lead_id, vendor_id } = useLocalSearchParams();
   const router = useRouter();
 
   const project: Project = {
     id: Number(id),
-    client_id: Number(client_id),
+    lead_id: Number(lead_id),
     vendor_id: Number(vendor_id),
   };
 
@@ -349,6 +317,7 @@ export default function BoxesScreen() {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showProjectDownloadModal, setShowProjectDownloadModal] = useState(false);
+  const [showAllBoxesDownloadModal, setShowAllBoxesDownloadModal] = useState(false); // ← new
 
   const sheetRef = useRef<any>(null);
   const updateSheetRef = useRef<any>(null);
@@ -365,7 +334,6 @@ export default function BoxesScreen() {
         details: box.details,
         project_id: box.project_id,
         vendor_id: box.vendor_id,
-        client_id: box.client_id,
         lead_id: box.lead_id,
       })));
     } catch (error) {
@@ -446,7 +414,7 @@ export default function BoxesScreen() {
     setShowProjectDownloadModal(false);
     setShowGlobalLoader(true);
     try {
-      if (project) await fetchProjectDetailsAndShare(project);
+      await fetchProjectDetailsAndShare(project);
     } catch (err: any) {
       console.log("Download Error:", err.message);
     } finally {
@@ -454,9 +422,26 @@ export default function BoxesScreen() {
     }
   };
 
+  // ── All boxes PDF ──────────────────────────────────────────────────────────
+  const handleConfirmAllBoxesDownload = async () => {
+    setShowAllBoxesDownloadModal(false);
+    setShowGlobalLoader(true);
+    try {
+      await fetchAllBoxesPdfAndShare({
+        id: project.id,
+        vendor_id: project.vendor_id,
+      });
+    } catch (err: any) {
+      console.log("All Boxes Download Error:", err.message);
+      showToast("error", "Failed to download boxes PDF");
+    } finally {
+      setShowGlobalLoader(false);
+    }
+  };
+
   if (!projectDetails) return <Loader />;
 
-  const packedCount = boxes.filter(b => b.box_status === "packed").length;
+  const packedCount   = boxes.filter(b => b.box_status === "packed").length;
   const unpackedCount = boxes.filter(b => b.box_status === "unpacked").length;
 
   return (
@@ -464,30 +449,45 @@ export default function BoxesScreen() {
 
       {/* ── Navbar ── */}
       <View style={commonStyles.navbar}>
-        <TouchableOpacity
-          style={commonStyles.navbarBackBtn}
-          onPress={() => router.back()}
-          activeOpacity={0.8}
-        >
+        <TouchableOpacity style={commonStyles.navbarBackBtn} onPress={() => router.back()} activeOpacity={0.8}>
           <ArrowLeft size={20} color={colors.white} />
         </TouchableOpacity>
         <View style={commonStyles.navbarTitleBlock}>
-          <Text style={commonStyles.navbarTitle} numberOfLines={1}>
-            {projectDetails.project_name}
-          </Text>
+          <Text style={commonStyles.navbarTitle} numberOfLines={1}>{projectDetails.project_name}</Text>
           <Text style={commonStyles.navbarSubtitle}>Project Details</Text>
         </View>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity
+          style={commonStyles.navbarBackBtn}
+          onPress={() => router.push("/scanner")}
+          activeOpacity={0.8}
+        >
+          <ScanLine size={20} color={colors.white} />
+        </TouchableOpacity>
+        {/* <TouchableOpacity
+          style={commonStyles.navbarBackBtn}
+          onPress={() => {
+            if (!projectDetails) return;
+            router.push({
+              pathname: "/scanner-track-trace",
+              params: {
+                project_id: String(project.id),
+                vendor_id: String(project.vendor_id),
+                machine_id: String(projectDetails.machine_id ?? ""),
+                machine_name: String(projectDetails.machine_name ?? ""),
+              },
+            });
+          }}
+          activeOpacity={0.8}
+        >
+          <ScanLine size={20} color={colors.white} />
+        </TouchableOpacity> */}
       </View>
 
       {showGlobalLoader ? (
-        <View style={styles.center}>
-          <Loader />
-        </View>
+        <View style={styles.center}><Loader /></View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-          {/* Project Card */}
           <ProjectCard
             project={{
               id: project.id,
@@ -505,10 +505,9 @@ export default function BoxesScreen() {
             onDownloadPress={() => setShowProjectDownloadModal(true)}
           />
 
-          {/* ── Boxes section ── */}
           <View style={styles.boxesSection}>
 
-            {/* Section header */}
+            {/* ── Section header with Download All button ── */}
             <View style={styles.sectionHeader}>
               <View>
                 <Text style={styles.sectionTitle}>
@@ -520,12 +519,22 @@ export default function BoxesScreen() {
                   </Text>
                 )}
               </View>
+
+              {/* Download All button — shown only when there are boxes */}
+              {boxes.length > 0 && (
+                <TouchableOpacity
+                  style={styles.downloadAllBtn}
+                  onPress={() => setShowAllBoxesDownloadModal(true)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Download size={15} color="#2A9D8F" />
+                  <Text style={styles.downloadAllText}>All Boxes</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {loading ? (
-              <View style={styles.center}>
-                <Loader />
-              </View>
+              <View style={styles.center}><Loader /></View>
             ) : (
               <FlatList
                 scrollEnabled={false}
@@ -577,9 +586,7 @@ export default function BoxesScreen() {
       </View>
 
       {creatingBox && (
-        <View style={styles.loaderOverlay}>
-          <Loader />
-        </View>
+        <View style={styles.loaderOverlay}><Loader /></View>
       )}
 
       {/* ── Modals ── */}
@@ -639,6 +646,17 @@ export default function BoxesScreen() {
         onConfirm={handleConfirmProjectDownload}
         onCancel={() => setShowProjectDownloadModal(false)}
       />
+
+      {/* ── All Boxes PDF confirm ── */}
+      <ConfirmModal
+        visible={showAllBoxesDownloadModal}
+        title="Download All Boxes"
+        message={`Download a combined PDF for all ${boxes.length} boxes in "${projectDetails.project_name}"?`}
+        confirmLabel="Yes, Download"
+        type="download"
+        onConfirm={handleConfirmAllBoxesDownload}
+        onCancel={() => setShowAllBoxesDownloadModal(false)}
+      />
     </View>
   );
 }
@@ -651,11 +669,24 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-end",
+    alignItems: "center",          // vertically center title + button
     marginBottom: 14,
   },
   sectionTitle: { fontSize: 20, fontWeight: "800", color: "#111827" },
   sectionSubtitle: { fontSize: 12, color: "#9CA3AF", marginTop: 2 },
+  // ── Download All button ──
+  downloadAllBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#E6F7F5",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#2A9D8F",
+  },
+  downloadAllText: { fontSize: 12, fontWeight: "700", color: "#2A9D8F" },
   emptyState: { alignItems: "center", paddingTop: 20 },
   lottie: { width: 200, height: 200 },
   emptyTitle: { fontSize: 16, fontWeight: "700", color: "#111827", marginTop: 4 },
