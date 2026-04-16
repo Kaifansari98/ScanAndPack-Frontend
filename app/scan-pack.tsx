@@ -16,6 +16,7 @@ import {
   Layers,
   LogIn,
   LogOut,
+  PackageCheck,
   ScanLine,
   X,
 } from "lucide-react-native";
@@ -101,7 +102,9 @@ export default function ProjectsTabScreen() {
 
   const handleScanOption = (scanType: "IN" | "OUT") => {
     setShowScanModal(false);
+    
     if (!scanProject) return;
+    
     router.push({
       pathname: "/scanner",
       params: {
@@ -238,9 +241,28 @@ export default function ProjectsTabScreen() {
                     </View>
                     <Text style={styles.title} numberOfLines={1}>{item.projectName}</Text>
                     <View style={styles.topActions}>
+                      {/* Scan Items button — shown when at least one box has site_in_at set */}
+                      {item.site_in_at !== null && (
+                        <TouchableOpacity
+                          style={[styles.iconBtn, { backgroundColor: "#EEF2FF" }]}
+                          onPress={() =>
+                            router.push({
+                              pathname: "/boxSiteInScreen",
+                              params: {
+                                project_id:   String(item.id),
+                                vendor_id:    String(item.vendor_id),
+                                project_name: item.projectName,
+                              },
+                            })
+                          }
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <PackageCheck size={15} color="#6366F1" />
+                        </TouchableOpacity>
+                      )}
                       {/* Scan button — colour shows current mode */}
                       <TouchableOpacity
-                        style={[styles.iconBtn, { backgroundColor: scanMode ? "#F3F4F6" : "#F3F4F6" }]}
+                        style={styles.iconBtn}
                         onPress={() => handleScanPress(item)}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >

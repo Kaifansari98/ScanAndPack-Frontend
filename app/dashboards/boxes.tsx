@@ -147,6 +147,7 @@ function BoxCard({
   machine_id: number | null;
   machine_name: string;
 }) {
+  
   const router = useRouter();
   const { showToast } = useToast();
   const cardOpacity = useSharedValue(0);
@@ -599,6 +600,8 @@ export default function BoxesScreen() {
             vendor_id: projectDetails.vendor_id,
             project_details_id: projectDetails.project_details_id,
             lead_id: projectDetails.lead_id,
+            machine_id:         projectDetails.machine_id,    // ← add this
+          machine_name:       projectDetails.machine_name,  // ← add this
           }}
           setCreatingBox={setCreatingBox}
         />

@@ -8,10 +8,10 @@ import { RootState } from "@/redux/store";
 import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
 import { useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import LottieView from "lottie-react-native";
 import { ArrowLeft, Download, ScanLine, X } from "lucide-react-native";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlatList,
   Modal,
@@ -33,6 +33,7 @@ interface Box {
   id: number;
   project_id: number;
   vendor_id: number;
+  client_id: number;
   machine_id: number | null;
   machine_name: string;
 }
@@ -43,8 +44,6 @@ interface ScanItem {
   qty: number;
   item_name: string;
   category: string;
-  group: string;
-  material_details: string;
   L1: string;
   L2: string;
   L3: string;
@@ -69,7 +68,7 @@ function ConfirmModal({
 }: ConfirmModalProps) {
   const confirmBg =
     type === "delete" ? "#E63946" :
-    type === "status" ? "#2A9D8F" :
+    type === "status" ? "#F4A261" :
     "#2A9D8F";
 
   return (
@@ -167,15 +166,14 @@ export default function BoxItemsScreen() {
     }
   }, [payloadString]);
 
-  // ── Fetch scan items from CutListMachineMapping ────────────────────────────
+  // ── Fetch scan items ───────────────────────────────────────────────────────
   const fetchScanItems = useCallback(async (b: Box) => {
     try {
       const { data } = await axios.post("/scan-items/by-fields", {
         project_id: b.project_id,
-        vendor_id: b.vendor_id,
-        box_id: b.id,
+        vendor_id:  b.vendor_id,
+        box_id:     b.id,
       });
-      // Each item: { id: mapping.id, project_item_details: { unique_id, item_name, L1, L2, L3, qty, category, ... } }
       const items =
         data?.data?.items?.map((item: any) => ({
           ...item.project_item_details,
@@ -189,31 +187,39 @@ export default function BoxItemsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    if (box) fetchScanItems(box);
-  }, [box?.project_id, box?.vendor_id, box?.id]);
+  // ── Keep a ref so useFocusEffect always sees the latest box ───────────────
+  const boxRef = useRef<Box | null>(null);
+  useEffect(() => { boxRef.current = box; }, [box]);
 
-  // ── Fetch box details — no client_id (removed from schema) ────────────────
-  useEffect(() => {
-    if (!box?.id || !box?.vendor_id || !box?.project_id) return;
-    const fetchBoxDetails = async () => {
-      try {
-        const res = await axios.get(
-          `/boxes/details/vendor/${box.vendor_id}/project/${box.project_id}/box/${box.id}`
-        );
-        setStatus(res.data.box.box_status);
-        setBoxName(res.data.box.box_name);
-      } catch (error) {
-        console.error("Failed to fetch box details:", error);
-        showToast("error", "Failed to load box details");
-      }
-    };
-    fetchBoxDetails();
-  }, [box]);
+  // ── Refetch everything when screen comes into focus (including back press) ─
+  useFocusEffect(
+    useCallback(() => {
+      const b = boxRef.current;
+      if (!b?.id || !b?.vendor_id || !b?.project_id) return;
 
-  // ── Open scanner ───────────────────────────────────────────────────────────
+      setLoading(true);
+
+      // Fetch box status + name
+      axios
+        .get(`/boxes/details/vendor/${b.vendor_id}/project/${b.project_id}/box/${b.id}`)
+        .then((res) => {
+          setStatus(res.data.box.box_status);
+          setBoxName(res.data.box.box_name);
+        })
+        .catch((error) => {
+          console.error("Failed to fetch box details:", error);
+          showToast("error", "Failed to load box details");
+        });
+
+      // Fetch items
+      fetchScanItems(b);
+    }, [fetchScanItems])
+  );
+
+  // ── Open scanner with permission check ────────────────────────────────────
   const openScanner = async () => {
     if (!box) return;
+    
     const navigate = () =>
       router.push({
         pathname: "/scanner-track-trace",
@@ -221,6 +227,7 @@ export default function BoxItemsScreen() {
           box_id: String(box.id),
           project_id: String(box.project_id),
           vendor_id: String(box.vendor_id),
+          client_id: String(box.client_id),
           machine_id: String(box.machine_id ?? ""),
           machine_name: String(box.machine_name ?? ""),
           hide_defect: "true",
@@ -260,20 +267,17 @@ export default function BoxItemsScreen() {
     }
   };
 
-  // ── Delete item — unsets box_id on CutListMachineMapping row ──────────────
+  // ── Delete item ────────────────────────────────────────────────────────────
   const handleConfirmDeleteItem = async () => {
-    
     setShowDeleteModal(false);
     setLoading(true);
     if (!selectedItemId) return;
     try {
-      // selectedItemId is CutListMachineMapping.id — unset box_id to remove from box
-      await axios.patch(`/track-trace/mapping/${selectedItemId}/${box?.project_id}/${box?.vendor_id}/unset-box`);
-      showToast("success", "Item removed from box");
+      await axios.delete(`/scan-items/scan-and-pack/delete/${selectedItemId}`);
+      showToast("success", "Item deleted successfully");
       if (box) fetchScanItems(box);
     } catch (error) {
-      console.error("Failed to remove item from box:", error);
-      showToast("error", "Failed to remove item");
+      console.error("Failed to delete scan item:", error);
     } finally {
       setSelectedItemId(null);
       setLoading(false);
@@ -282,11 +286,9 @@ export default function BoxItemsScreen() {
 
   // ── Download ───────────────────────────────────────────────────────────────
   const handleConfirmDownload = async () => {
-    // alert(1)
     setShowDownloadModal(false);
     setLoading(true);
     try {
-      
       if (box) await fetchBoxtDetailsAndShare(box);
     } catch (err: any) {
       console.log("Download Error:", err.message);
@@ -410,9 +412,9 @@ export default function BoxItemsScreen() {
       {/* ── Modals ── */}
       <ConfirmModal
         visible={showDeleteModal}
-        title="Remove Item?"
-        message="Are you sure you want to remove this item from the box?"
-        confirmLabel="Yes, Remove"
+        title="Delete Item?"
+        message="Are you sure you want to delete this scanned item?"
+        confirmLabel="Yes, Delete"
         type="delete"
         onConfirm={handleConfirmDeleteItem}
         onCancel={() => setShowDeleteModal(false)}
@@ -451,18 +453,42 @@ const styles = StyleSheet.create({
   listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 100 },
   lottie: { width: 220, height: 220 },
   emptyText: { color: "#9CA3AF", fontSize: 14, marginTop: 8 },
-  packBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10 },
-  packBtnText: { fontSize: 12, fontWeight: "700" },
+
+  // Navbar pack/unpack toggle
+  packBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  packBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  // FAB
   fabContainer: {
     position: "absolute",
     bottom: Platform.OS === "ios" ? 25 : 16,
-    right: 18, left: 18,
+    right: 18,
+    left: 18,
   },
   fabButton: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    paddingVertical: 16, paddingHorizontal: 24, borderRadius: 50,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 50,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  fabText: { color: "white", fontSize: 17, fontWeight: "700", marginLeft: 12 },
+  fabText: {
+    color: "white",
+    fontSize: 17,
+    fontWeight: "700",
+    marginLeft: 12,
+  },
 });

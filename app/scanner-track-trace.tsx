@@ -83,6 +83,7 @@ interface ActiveDefect {
 const OTHER_DEFECT: Defect = { id: 0, defect_name: "Other" };
 
 export default function TrackTraceBarcodeScanner() {
+  
   const { machine_id, machine_name, project_id, hide_defect, box_id } = useLocalSearchParams<{ machine_id?: string; machine_name?: string; project_id?: string; hide_defect?: string; box_id?: string }>();
 
   const isDefectHidden = hide_defect === "true";

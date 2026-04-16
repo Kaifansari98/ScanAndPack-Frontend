@@ -22,6 +22,9 @@ interface Project {
   vendor_id: number;
   project_details_id: number | null;
   lead_id: number;
+  machine_id:number;
+    machine_name: string;
+
 }
 
 interface AddBoxModalProps {
