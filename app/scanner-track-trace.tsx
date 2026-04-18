@@ -7,7 +7,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { AlertTriangle, ArrowLeft, Camera, CheckCircle, Flashlight, FlashlightOff, Focus, ImagePlus, Keyboard, Send, X } from "lucide-react-native";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -108,6 +108,56 @@ export default function TrackTraceBarcodeScanner() {
   const [activeDefect, setActiveDefect] = useState<ActiveDefect | null>(null);
   const [showItemDetail, setShowItemDetail] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // ── Auto-complete countdown ───────────────────────────────────────────────
+  // After a successful scan (no active defect), count 5→0 then auto-mark complete
+  const [countdown, setCountdown]           = useState<number | null>(null);
+  const countdownTimerRef                   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownValueRef                   = useRef<number>(0);
+  const pendingItemRef                      = useRef<MappedItem | null>(null);
+
+  const clearCountdown = () => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    setCountdown(null);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => () => clearCountdown(), []);
+
+  const startCountdown = (item: MappedItem, seconds: number = 5) => {
+    pendingItemRef.current = item;
+    countdownValueRef.current = seconds;
+    setCountdown(seconds);
+
+    countdownTimerRef.current = setInterval(async () => {
+      countdownValueRef.current -= 1;
+      setCountdown(countdownValueRef.current);
+
+      if (countdownValueRef.current <= 0) {
+        clearCountdown();
+        // Auto-fire mark completed
+        const currentItem = pendingItemRef.current;
+        if (!currentItem) return;
+        try {
+          const apiResponse = await callScanItem(currentItem.cut_list.unique_code);
+          if (apiResponse.success) {
+            showToast("success", apiResponse.message || "Marked as completed");
+            await playSuccessFeedback();
+          } else {
+            showToast("error", apiResponse.message);
+            await playErrorFeedback();
+          }
+        } catch (err: any) {
+          showToast("error", err?.response?.data?.message || "Failed to mark completed");
+        } finally {
+          hideItemDetailSheet();
+        }
+      }
+    }, 1000);
+  };
 
   // ── Gallery viewer ────────────────────────────────────────────────────────
   const [galleryVisible, setGalleryVisible] = useState(false);
@@ -241,14 +291,26 @@ export default function TrackTraceBarcodeScanner() {
   // ─── Item detail sheet helpers ─────────────────────────────────────────────
 
   const showItemDetailSheet = (data: any) => {
+    console.log(data);
     const item: MappedItem = data?.mappedItem?.mappedItem ?? data?.mappedItem ?? data;
     const defect: ActiveDefect | null = data?.mappedItem?.activeDefect ?? data?.activeDefect ?? null;
+    // countdown_timer comes from the server (check-item response) — fallback to 5
+    // alert(data?.mappedItem.countdown_timer);
+    const seconds: number = typeof data?.mappedItem.countdown_timer === "number" ? data?.mappedItem.countdown_timer : 5;
+    
     setMappedItem(item);
     setActiveDefect(defect);
     setShowItemDetail(true);
+
+    // Only auto-complete when there is no pending defect on this item
+    if (!defect || defect.defect_status === "Completed") {
+      startCountdown(item, seconds);
+    }
   };
 
   const hideItemDetailSheet = () => {
+    clearCountdown();
+    pendingItemRef.current = null;
     setShowItemDetail(false);
     setMappedItem(null);
     setActiveDefect(null);
@@ -376,6 +438,9 @@ export default function TrackTraceBarcodeScanner() {
 
   const handleMarkCompleted = async () => {
     if (!mappedItem) return;
+
+    // Cancel the auto-complete countdown — user is acting manually
+    clearCountdown();
 
     // pending rework defect → show photo popup
     // pending replace defect OR no defect → call directly
@@ -935,8 +1000,31 @@ export default function TrackTraceBarcodeScanner() {
 
               <Text style={styles.markLabel}>MARK STATUS</Text>
 
+              {/* ── Auto-complete countdown banner ── */}
+              {countdown !== null && (
+                <View style={styles.countdownBanner}>
+                  <View style={styles.countdownLeft}>
+                    <Text style={styles.countdownNumber}>{countdown}</Text>
+                    <View>
+                      <Text style={styles.countdownTitle}>Auto-completing</Text>
+                      <Text style={styles.countdownSub}>Tap cancel to stop</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.countdownCancelBtn}
+                    onPress={() => {
+                      clearCountdown();
+                      showToast("info", "Auto-complete cancelled");
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.countdownCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               <TouchableOpacity
-                style={[styles.actionBtn, styles.actionBtnComplete]}
+                style={[styles.actionBtn, styles.actionBtnComplete, actionLoading && styles.actionBtnDisabled]}
                 onPress={handleMarkCompleted}
                 activeOpacity={0.85}
                 disabled={actionLoading || defectListLoading}
@@ -2289,4 +2377,25 @@ const styles = StyleSheet.create({
     borderColor: "#86EFAC", padding: 12, marginBottom: 16,
   },
   completionInfoText: { fontSize: 13, color: "#166534", lineHeight: 18 },
+
+  // ── Auto-complete countdown banner ───────────────────────────────────────
+  countdownBanner: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: "#ECFDF5", borderRadius: 14,
+    borderWidth: 1.5, borderColor: "#10B981",
+    paddingVertical: 12, paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  countdownLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  countdownNumber: {
+    fontSize: 36, fontWeight: "900", color: "#059669", lineHeight: 40, minWidth: 36,
+  },
+  countdownTitle: { fontSize: 14, fontWeight: "700", color: "#065F46" },
+  countdownSub:   { fontSize: 12, color: "#6B7280", marginTop: 1 },
+  countdownCancelBtn: {
+    paddingVertical: 7, paddingHorizontal: 14,
+    borderRadius: 99, borderWidth: 1.5, borderColor: "#10B981",
+    backgroundColor: "white",
+  },
+  countdownCancelText: { fontSize: 13, fontWeight: "700", color: "#059669" },
 });

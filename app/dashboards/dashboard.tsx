@@ -1,12 +1,10 @@
-import ProjectsTabScreen from '@/app/scan-pack';
 import { colors } from '@/components/theme/colors';
 import { RootState } from '@/redux/store';
 import DashboardTabScreen from '@/screens/Tabs/dashboard';
-import MachineTabScreen from '@/app/machines';
 import ProfileTabScreen from '@/screens/Tabs/profile';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Redirect } from 'expo-router';
-import { FolderOpenDot, Home, Package, Settings } from 'lucide-react-native';
+import { Home, Settings } from 'lucide-react-native';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { useSelector } from 'react-redux';
 
@@ -78,22 +76,22 @@ export default function DashboardScreen() {
           tabBarIcon: tabIcon(Home),
         }}
       />
-      <Tab.Screen
+      {/* <Tab.Screen
         name="Track"
         component={MachineTabScreen}
         options={{
           headerShown: false,
           tabBarIcon: tabIcon(FolderOpenDot),
         }}
-      />
-      <Tab.Screen
+      /> */}
+      {/* <Tab.Screen
         name="Pack"
         component={ProjectsTabScreen}
         options={{
           headerShown: false,
           tabBarIcon: tabIcon(Package),
         }}
-      />
+      /> */}
       <Tab.Screen
         name="Settings"
         component={ProfileTabScreen}

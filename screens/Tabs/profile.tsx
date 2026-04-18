@@ -6,14 +6,8 @@ import { RootState } from "@/redux/store";
 import { useRouter } from "expo-router";
 import {
   ArrowLeft,
-  Bell,
-  ChevronRight,
-  Download,
-  Languages,
   LogOut,
-  Palette,
-  UserRoundCog,
-  X,
+  X
 } from "lucide-react-native";
 import { useState } from "react";
 import {
@@ -80,7 +74,7 @@ export default function ProfileTabScreen() {
         </View>
 
         {/* ── Personal ── */}
-        <View style={styles.section}>
+        {/* <View style={styles.section}>
           <Text style={styles.sectionLabel}>Personal</Text>
 
           <TouchableOpacity style={styles.menuRow}>
@@ -102,10 +96,10 @@ export default function ProfileTabScreen() {
             </View>
             <ChevronRight size={24} color="#9CA3AF" />
           </TouchableOpacity>
-        </View>
+        </View> */}
 
         {/* ── Preferences ── */}
-        <View style={styles.section}>
+        {/* <View style={styles.section}>
           <Text style={styles.sectionLabel}>Preferences</Text>
 
           <TouchableOpacity style={styles.menuRow}>
@@ -146,7 +140,7 @@ export default function ProfileTabScreen() {
               <ChevronRight size={24} color="#9CA3AF" />
             </View>
           </TouchableOpacity>
-        </View>
+        </View> */}
 
         {/* ── Logout ── */}
         <View style={styles.section}>
