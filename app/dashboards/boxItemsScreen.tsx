@@ -244,6 +244,7 @@ export default function BoxItemsScreen() {
 
   // ── Status toggle ──────────────────────────────────────────────────────────
   const handleUpdateStatus = () => {
+    // alert(status)
     if (status === "unpacked" && scanItems.length === 0) {
       showToast("warning", "Box is empty. Add items before packing.");
       return;
