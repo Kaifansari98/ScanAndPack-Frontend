@@ -2,9 +2,14 @@ import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
 import { useRouter } from "expo-router";
 import { X } from "lucide-react-native";
-import React, { forwardRef, useImperativeHandle, useState } from "react";
+import React, {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useState
+} from "react";
+
 import {
-  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -12,7 +17,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useSelector } from "react-redux";
 import { useToast } from "../Notification/ToastProvider";
@@ -22,10 +27,19 @@ interface Project {
   vendor_id: number;
   project_details_id: number | null;
   lead_id: number;
-  machine_id:number;
-    machine_name: string;
+  machine_id: number;
+  machine_name: string;
 
 }
+
+type BoxInfoField = {
+  id: number;
+  field_label: string;
+  field_key: string;
+  field_type: "TEXT" | "NUMBER" | "DATE" | "TEXTAREA";
+  is_required: boolean;
+  sort_order: number;
+};
 
 interface AddBoxModalProps {
   onSubmit: (boxName: string) => void;
@@ -46,7 +60,64 @@ export const AddBoxModal = forwardRef<AddBoxModalRef, AddBoxModalProps>(
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const user = useSelector((state: RootState) => state.auth.user);
+
+    const [boxInfoFields, setBoxInfoFields] =
+      useState<BoxInfoField[]>([]);
+
+    const [boxInfoValues, setBoxInfoValues] =
+      useState<Record<string, string>>({});
+
+
     const router = useRouter();
+
+
+    useEffect(() => {
+      if (
+        !visible ||
+        !project?.id ||
+        !project?.vendor_id
+      ) {
+        return;
+      }
+
+      const fetchBoxInfoFields = async () => {
+        try {
+          const res =
+            await axios.get(
+              `/boxes/project/${project.id}/vendor/${project.vendor_id}/box-info-fields`
+            );
+
+          const fields =
+            res.data?.data || [];
+
+          setBoxInfoFields(fields);
+
+          const initialValues: Record<string, string> = {};
+
+          fields.forEach(
+            (field: BoxInfoField) => {
+              initialValues[String(field.id)] = "";
+            }
+          );
+
+          setBoxInfoValues(initialValues);
+        } catch (error) {
+          console.log(
+            "Failed to fetch box info fields:",
+            error
+          );
+
+          setBoxInfoFields([]);
+          setBoxInfoValues({});
+        }
+      };
+
+      fetchBoxInfoFields();
+    }, [
+      visible,
+      project?.id,
+      project?.vendor_id,
+    ]);
 
     useImperativeHandle(ref, () => ({
       present: () => setVisible(true),
@@ -61,6 +132,7 @@ export const AddBoxModal = forwardRef<AddBoxModalRef, AddBoxModalProps>(
       setVisible(false);
       setBoxName("");
       setError(null);
+      setBoxInfoValues({});
     };
 
     const handleAdd = async () => {
@@ -74,14 +146,26 @@ export const AddBoxModal = forwardRef<AddBoxModalRef, AddBoxModalProps>(
         setLoading(true);
         setCreatingBox(true);
 
+        if (!validateBoxInfoFields()) {
+          return;
+        }
+
         const payload = {
           project_id: project.id,
           project_details_id: project.project_details_id,
-          vendor_id: project.vendor_id,          
+          vendor_id: project.vendor_id,
           lead_id: project.lead_id,
           box_name: boxName.trim(),
           box_status: "unpacked",
           created_by: user?.id,
+
+          box_info_values:
+            boxInfoFields.map((field) => ({
+              field_id: field.id,
+              field_value:
+                boxInfoValues[String(field.id)]
+                  ?.trim() || "",
+            })),
         };
         console.log(payload);
 
@@ -95,7 +179,7 @@ export const AddBoxModal = forwardRef<AddBoxModalRef, AddBoxModalProps>(
         showToast("success", "Box created successfully");
         onSubmit(boxName.trim());
         handleClose();
-        console.log("res.data.machine_id:",res.data.machine_id)
+        console.log("res.data.machine_id:", project.machine_id)
         router.push({
           pathname: "/dashboards/boxItemsScreen",
           params: {
@@ -104,9 +188,9 @@ export const AddBoxModal = forwardRef<AddBoxModalRef, AddBoxModalProps>(
               lead_id: project.lead_id,
               vendor_id: project.vendor_id,
               id: res.data.box.id,
-              machine_id : res.data.machine_id,
-              machine_name:res.data.machine_name,
-              
+              machine_id: project.machine_id,// res.data.machine_id,
+              machine_name: project.machine_name// res.data.machine_name,
+
             }),
           },
         });
@@ -116,6 +200,28 @@ export const AddBoxModal = forwardRef<AddBoxModalRef, AddBoxModalProps>(
         setLoading(false);
         setCreatingBox(false);
       }
+    };
+
+    const validateBoxInfoFields = () => {
+      for (const field of boxInfoFields) {
+        const value =
+          boxInfoValues[String(field.id)]
+            ?.trim();
+
+        if (
+          field.is_required &&
+          !value
+        ) {
+          showToast(
+            "error",
+            `${field.field_label} is required`
+          );
+
+          return false;
+        }
+      }
+
+      return true;
     };
 
     return (
@@ -136,11 +242,12 @@ export const AddBoxModal = forwardRef<AddBoxModalRef, AddBoxModalProps>(
           />
 
           <View style={styles.sheet}>
+            
             <View style={styles.handle} />
 
             {/* Header */}
             <View style={styles.header}>
-              <Text style={styles.title}>Create new Box</Text>
+              <Text style={styles.title}>Create New Box</Text>
               <TouchableOpacity
                 onPress={handleClose}
                 style={styles.closeBtn}
@@ -151,10 +258,10 @@ export const AddBoxModal = forwardRef<AddBoxModalRef, AddBoxModalProps>(
             </View>
 
             {/* Image */}
-            <Image
+            {/* <Image
               source={require("@/assets/images/projects/Boxes0.jpg")}
               style={styles.image}
-            />
+            /> */}
 
             {/* Input */}
             <Text style={styles.label}>Box Name</Text>
@@ -169,6 +276,52 @@ export const AddBoxModal = forwardRef<AddBoxModalRef, AddBoxModalProps>(
               style={[styles.input, error && styles.inputError]}
             />
             {error && <Text style={styles.errorText}>{error}</Text>}
+
+            {boxInfoFields.length > 0 && (
+  <View style={styles.dynamicFieldsWrap}>
+    {boxInfoFields.map((field) => {
+      const key =
+        String(field.id);
+
+      return (
+        <View
+          key={field.id}
+          style={styles.dynamicFieldItem}
+        >
+          <Text style={styles.label}>
+            {field.field_label}
+            {field.is_required ? " *" : ""}
+          </Text>
+
+          <TextInput
+            value={boxInfoValues[key] || ""}
+            onChangeText={(text) =>
+              setBoxInfoValues((prev) => ({
+                ...prev,
+                [key]: text,
+              }))
+            }
+            placeholder={`Enter ${field.field_label}`}
+            placeholderTextColor="#9CA3AF"
+            keyboardType={
+              field.field_type === "NUMBER"
+                ? "numeric"
+                : "default"
+            }
+            multiline={
+              field.field_type === "TEXTAREA"
+            }
+            style={[
+              styles.input,
+              field.field_type === "TEXTAREA" &&
+                styles.textAreaInput,
+            ]}
+          />
+        </View>
+      );
+    })}
+  </View>
+)}
 
             {/* Instruction */}
             <Text style={styles.instruction}>
@@ -254,4 +407,19 @@ const styles = StyleSheet.create({
     backgroundColor: "#111827", alignItems: "center",
   },
   addText: { fontSize: 15, fontWeight: "700", color: "white" },
+  dynamicFieldsWrap: {
+  marginTop: 12,
+},
+
+dynamicFieldItem: {
+  marginBottom: 12,
+},
+
+textAreaInput: {
+  minHeight: 78,
+  textAlignVertical: "top",
+  paddingTop: 12,
+},
 });
+
+

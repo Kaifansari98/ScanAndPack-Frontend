@@ -274,7 +274,7 @@ export default function TrackTraceBarcodeScanner() {
 
   // ─── Shared helpers ───────────────────────────────────────────────────────
 
-  const buildPayload = (scannedCode: string) => ({
+  const buildPayload = (scannedCode: string) => ({    
     project_id: Number(project_id),
     vendor_id: Number(vendor_id),
     machine_id: Number(machine_id),
@@ -367,6 +367,9 @@ export default function TrackTraceBarcodeScanner() {
     try {
       
       if (scanMode === "scan") {
+        // alert(1)
+        console.log("-------------------------");
+        console.log(data);
         await handleQRScanned(data);
       } else {
         await handleDefectQRScanned(data);

@@ -40,6 +40,19 @@ interface Project {
   lead_id: number;
 }
 
+type BoxInfoValue = {
+  id?: number;
+  field_id: number;
+  field_label: string;
+  field_key: string;
+  field_type: string;
+  field_value: string;
+  is_required?: boolean;
+  sort_order?: number;
+};
+
+
+
 interface ProjectDetailsResponse {
   id: number;
   vendor_id: number;
@@ -64,8 +77,10 @@ interface BoxItem {
   details: any;
   project_id: number;
   vendor_id: number;
+  lead_id: number;
   machine_id: number | null;
   machine_name: string;
+  box_info_values: BoxInfoValue[];
 }
 
 // ─── Confirm Modal ────────────────────────────────────────────────────────────
@@ -147,26 +162,19 @@ function BoxCard({
   machine_id: number | null;
   machine_name: string;
 }) {
-  
+
   const router = useRouter();
   const { showToast } = useToast();
   const cardOpacity = useSharedValue(0);
   const cardTranslateY = useSharedValue(24);
   const scale = useSharedValue(1);
-  const [groupedItemInfo, setGroupedItemInfo] = useState<{ group: string; roomName: string } | null>(null);
 
-  useEffect(() => {
-    if (!box?.id) return;
-    const fetchGroupedItemInfo = async () => {
-      try {
-        const response = await axios.get(`/boxes/grouped-info/${box.id}`);
-        setGroupedItemInfo(response.data);
-      } catch {
-        setGroupedItemInfo(null);
-      }
-    };
-    fetchGroupedItemInfo();
-  }, [box.id]);
+  const visibleBoxInfoValues =
+    box.box_info_values?.filter(
+      (item) =>
+        item.field_value &&
+        String(item.field_value).trim()
+    ) || [];
 
   useEffect(() => {
     cardOpacity.value = withDelay(index * 80, withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) }));
@@ -197,68 +205,173 @@ function BoxCard({
   };
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPressIn={() => { scale.value = withSpring(0.97); }}
-      onPressOut={() => { scale.value = withSpring(1); }}
-      onPress={handleNavigate}
+  <TouchableOpacity
+    activeOpacity={0.85}
+    onPressIn={() => {
+      scale.value = withSpring(0.97);
+    }}
+    onPressOut={() => {
+      scale.value = withSpring(1);
+    }}
+    onPress={handleNavigate}
+  >
+    <Animated.View
+      style={[
+        animatedCardStyle,
+        boxStyles.card,
+      ]}
     >
-      <Animated.View style={[animatedCardStyle, boxStyles.card]}>
-        <View style={[boxStyles.accentStrip, { backgroundColor: isPacked ? "#2A9D8F" : "#F4A261" }]} />
-        <View style={boxStyles.cardBody}>
-          <View style={boxStyles.headerRow}>
-            <View style={[boxStyles.iconWrap, { backgroundColor: isPacked ? "#E6F7F5" : "#FFF8EE" }]}>
-              <Package size={18} color={isPacked ? "#2A9D8F" : "#F4A261"} />
-            </View>
-            <Text style={boxStyles.boxName} numberOfLines={1}>{box.name}</Text>
-            <View style={[boxStyles.statusPill, { backgroundColor: isPacked ? "#E6F7F5" : "#FFF8EE" }]}>
-              <Text style={[boxStyles.statusPillText, { color: isPacked ? "#1A7A70" : "#C15C0A" }]}>
-                {isPacked ? "Packed" : "Unpacked"}
-              </Text>
-            </View>
+      <View
+        style={[
+          boxStyles.accentStrip,
+          {
+            backgroundColor:
+              isPacked
+                ? "#2A9D8F"
+                : "#F4A261",
+          },
+        ]}
+      />
+
+      <View style={boxStyles.cardBody}>
+        <View style={boxStyles.headerRow}>
+          <View
+            style={[
+              boxStyles.iconWrap,
+              {
+                backgroundColor:
+                  isPacked
+                    ? "#E6F7F5"
+                    : "#FFF8EE",
+              },
+            ]}
+          >
+            <Package
+              size={18}
+              color={
+                isPacked
+                  ? "#2A9D8F"
+                  : "#F4A261"
+              }
+            />
           </View>
 
-          {groupedItemInfo && (
-            <View style={boxStyles.metaRow}>
-              <View style={boxStyles.metaChip}>
-                <Text style={boxStyles.metaChipLabel}>Group </Text>
-                <Text style={boxStyles.metaChipValue} numberOfLines={1}>{groupedItemInfo.group}</Text>
-              </View>
-              <View style={[boxStyles.metaChip, { marginLeft: 8 }]}>
-                <Text style={boxStyles.metaChipLabel}>Room </Text>
-                <Text style={boxStyles.metaChipValue} numberOfLines={1}>{groupedItemInfo.roomName}</Text>
-              </View>
-            </View>
-          )}
+          <Text
+            style={boxStyles.boxName}
+            numberOfLines={1}
+          >
+            {box.name}
+          </Text>
 
-          <View style={boxStyles.footerRow}>
-            <View style={boxStyles.countChip}>
-              <Box size={13} color="#6B7280" />
-              <Text style={boxStyles.countChipText}>
-                {box.items_count} {box.items_count === 1 ? "item" : "items"}
-              </Text>
-            </View>
-            <View style={boxStyles.actions}>
-              <TouchableOpacity
-                style={boxStyles.actionBtn}
-                onPress={() => isEmpty ? showToast("warning", "Download Failed, Box is empty") : handleDownload()}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Download size={17} color="#6B7280" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={boxStyles.actionBtn}
-                onPress={handleEditPress}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <SquarePen size={17} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
+          <View
+            style={[
+              boxStyles.statusPill,
+              {
+                backgroundColor:
+                  isPacked
+                    ? "#E6F7F5"
+                    : "#FFF8EE",
+              },
+            ]}
+          >
+            <Text
+              style={[
+                boxStyles.statusPillText,
+                {
+                  color:
+                    isPacked
+                      ? "#1A7A70"
+                      : "#C15C0A",
+                },
+              ]}
+            >
+              {isPacked ? "Packed" : "Unpacked"}
+            </Text>
           </View>
         </View>
-      </Animated.View>
-    </TouchableOpacity>
-  );
+
+        {visibleBoxInfoValues.length > 0 && (
+          <View style={boxStyles.dynamicInfoWrap}>
+            {visibleBoxInfoValues.map((item) => (
+              <View
+                key={`${box.id}-${item.field_id}`}
+                style={boxStyles.dynamicInfoChip}
+              >
+                <Text style={boxStyles.dynamicInfoLabel}>
+                  {item.field_label}
+                </Text>
+
+                <Text
+                  style={boxStyles.dynamicInfoValue}
+                  numberOfLines={1}
+                >
+                  {item.field_value}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <View style={boxStyles.footerRow}>
+          <View style={boxStyles.countChip}>
+            <Box
+              size={13}
+              color="#6B7280"
+            />
+
+            <Text style={boxStyles.countChipText}>
+              {box.items_count}{" "}
+              {box.items_count === 1
+                ? "item"
+                : "items"}
+            </Text>
+          </View>
+
+          <View style={boxStyles.actions}>
+            <TouchableOpacity
+              style={boxStyles.actionBtn}
+              onPress={() =>
+                isEmpty
+                  ? showToast(
+                      "warning",
+                      "Download Failed, Box is empty"
+                    )
+                  : handleDownload()
+              }
+              hitSlop={{
+                top: 8,
+                bottom: 8,
+                left: 8,
+                right: 8,
+              }}
+            >
+              <Download
+                size={17}
+                color="#6B7280"
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={boxStyles.actionBtn}
+              onPress={handleEditPress}
+              hitSlop={{
+                top: 8,
+                bottom: 8,
+                left: 8,
+                right: 8,
+              }}
+            >
+              <SquarePen
+                size={17}
+                color="#6B7280"
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Animated.View>
+  </TouchableOpacity>
+);
 }
 
 const boxStyles = StyleSheet.create({
@@ -290,6 +403,38 @@ const boxStyles = StyleSheet.create({
   countChipText: { fontSize: 12, fontWeight: "600", color: "#6B7280" },
   actions: { flexDirection: "row", gap: 4 },
   actionBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: "#F3F4F6", justifyContent: "center", alignItems: "center" },
+   dynamicInfoWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+  },
+
+  dynamicInfoChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    maxWidth: "100%",
+    borderRadius: 10,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+
+  dynamicInfoLabel: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    fontWeight: "700",
+    marginRight: 4,
+  },
+
+  dynamicInfoValue: {
+    fontSize: 11,
+    color: "#374151",
+    fontWeight: "800",
+    maxWidth: 120,
+  },
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
@@ -327,16 +472,21 @@ export default function BoxesScreen() {
     try {
       setLoading(true);
       const res = await axios.get(`/boxes/vendor/${project.vendor_id}/project/${project.id}`);
-      setBoxes(res.data.map((box: any) => ({
-        id: box.id,
-        name: box.box_name,
-        box_status: box.box_status,
-        items_count: box.items_count,
-        details: box.details,
-        project_id: box.project_id,
-        vendor_id: box.vendor_id,
-        lead_id: box.lead_id,
-      })));
+      setBoxes(
+        res.data.map((box: any) => ({
+          id: box.id,
+          name: box.box_name,
+          box_status: box.box_status,
+          items_count: box.items_count,
+          details: box.details,
+          project_id: box.project_id,
+          vendor_id: box.vendor_id,
+          lead_id: box.lead_id,
+          machine_id: projectDetails?.machine_id || null,
+          machine_name: projectDetails?.machine_name || "",
+          box_info_values: box.box_info_values || [],
+        }))
+      );
     } catch (error) {
       console.error("Failed to fetch boxes:", error);
     } finally {
@@ -442,7 +592,7 @@ export default function BoxesScreen() {
 
   if (!projectDetails) return <Loader />;
 
-  const packedCount   = boxes.filter(b => b.box_status === "packed").length;
+  const packedCount = boxes.filter(b => b.box_status === "packed").length;
   const unpackedCount = boxes.filter(b => b.box_status === "unpacked").length;
 
   return (
@@ -600,8 +750,8 @@ export default function BoxesScreen() {
             vendor_id: projectDetails.vendor_id,
             project_details_id: projectDetails.project_details_id,
             lead_id: projectDetails.lead_id,
-            machine_id:         projectDetails.machine_id,    // ← add this
-          machine_name:       projectDetails.machine_name,  // ← add this
+            machine_id: projectDetails.machine_id,    // ← add this
+            machine_name: projectDetails.machine_name,  // ← add this
           }}
           setCreatingBox={setCreatingBox}
         />
@@ -612,10 +762,23 @@ export default function BoxesScreen() {
           ref={updateSheetRef}
           setLoading={setShowGlobalLoader}
           box={selectedBoxForEdit}
-          onSubmit={(updatedName) => {
+          onSubmit={(updatedName, updatedBox) => {
             setBoxes((prev) =>
-              prev.map((b) => b.id === selectedBoxForEdit.id ? { ...b, name: updatedName } : b)
+              prev.map((b) =>
+                b.id === selectedBoxForEdit.id
+                  ? {
+                    ...b,
+                    name: updatedName,
+                    box_info_values:
+                      updatedBox?.box_info_values ||
+                      b.box_info_values ||
+                      [],
+                  }
+                  : b
+              )
             );
+
+            fetchBoxes();
           }}
         />
       )}
@@ -711,4 +874,5 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "center", alignItems: "center", zIndex: 9999,
   },
+ 
 });

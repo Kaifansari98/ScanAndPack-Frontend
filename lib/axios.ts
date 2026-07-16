@@ -2,8 +2,8 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
 const instance = axios.create({
-  // baseURL: 'https://staging-api.furnixcrm.com/api', // base backend URL
-baseURL: 'http://192.168.1.110:7777/api', // change it with your ip address
+  baseURL: 'https://staging-api.furnixcrm.com/api', // base backend URL
+// baseURL: 'http://192.168.1.115:7777/api', // change it with your ip address
 });
 
 // Attach token before every request

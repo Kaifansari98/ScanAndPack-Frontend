@@ -1,14 +1,12 @@
 import { useIsFocused } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { Download } from "lucide-react-native";
 import { useEffect } from "react";
 import {
   Platform,
   Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import Animated, {
   Easing,
@@ -105,7 +103,7 @@ export const ProjectCard = ({
             </Text>
           </View>
 
-          {project.packedItems > 0 && (
+          {/* {project.packedItems > 0 && (
             <TouchableOpacity
               style={styles.downloadBtn}
               onPress={() => onDownloadPress(project)}
@@ -113,7 +111,7 @@ export const ProjectCard = ({
             >
               <Download size={18} color="#6B7280" />
             </TouchableOpacity>
-          )}
+          )} */}
         </View>
 
         {/* ── Progress bar ── */}

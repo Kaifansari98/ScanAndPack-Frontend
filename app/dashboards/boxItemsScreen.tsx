@@ -253,20 +253,69 @@ export default function BoxItemsScreen() {
   };
 
   const handleConfirmUpdateStatus = async () => {
-    setShowStatusModal(false);
-    setLoading(true);
-    if (!box?.id) return;
-    const newStatus = status === "unpacked" ? "packed" : "unpacked";
-    try {
-      await axios.put(`/boxes/status/${newStatus}/${box.id}`);
-      showToast("success", `Box status updated to ${newStatus}`);
-      setStatus(newStatus);
-    } catch (error: any) {
-      showToast("error", error?.response?.data?.error || "Failed to update status");
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (!box?.id) {
+    return;
+  }
+
+  if (!user?.id) {
+    showToast(
+      "error",
+      "User not found"
+    );
+
+    return;
+  }
+
+  setShowStatusModal(
+    false
+  );
+
+  setLoading(
+    true
+  );
+
+  const newStatus =
+    status ===
+    "unpacked"
+      ? "packed"
+      : "unpacked";
+
+  try {
+    await axios.put(
+      `/boxes/status/${newStatus}/${box.id}`,
+
+      {
+        user_id:
+          user.id,
+      }
+    );
+
+    showToast(
+      "success",
+
+      `Box status updated to ${newStatus}`
+    );
+
+    setStatus(
+      newStatus
+    );
+  } catch (
+    error: any
+  ) {
+    showToast(
+      "error",
+
+      error?.response
+        ?.data
+        ?.error ||
+        "Failed to update status"
+    );
+  } finally {
+    setLoading(
+      false
+    );
+  }
+};
 
   // ── Delete item ────────────────────────────────────────────────────────────
   const handleConfirmDeleteItem = async () => {

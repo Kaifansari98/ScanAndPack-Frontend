@@ -1,100 +1,234 @@
-import { useToast } from "@/components/Notification/ToastProvider";
 import axios from "@/lib/axios";
+import { RootState } from "@/redux/store";
 import { X } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useState,
+} from "react";
 import {
-  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSelector } from "react-redux";
+import { useToast } from "../Notification/ToastProvider";
 
-interface Box {
+type BoxInfoValue = {
+  field_id: number;
+  field_label: string;
+  field_key: string;
+  field_type: "TEXT" | "NUMBER" | "DATE" | "TEXTAREA";
+  field_value: string;
+  is_required?: boolean;
+  sort_order?: number;
+};
+
+type BoxItem = {
   id: number;
   name: string;
-  box_status: "packed" | "unpacked" | string;
-  items_count: number;
   project_id: number;
   vendor_id: number;
-}
+  lead_id: number;
+  box_info_values?: BoxInfoValue[];
+};
 
-interface UpdateBoxModalProps {
-  box: Box;
-  onSubmit: (updatedName: string) => void;
+type UpdateBoxModalProps = {
+  box: BoxItem;
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
-}
+  onSubmit: (
+    updatedName: string,
+    updatedBox?: any
+  ) => void;
+};
 
-// Expose present() / dismiss() via ref — matches existing usage in boxes.tsx
 export interface UpdateBoxModalRef {
   present: () => void;
   dismiss: () => void;
 }
 
-export const UpdateBoxModal = React.forwardRef<
+export const UpdateBoxModal = forwardRef<
   UpdateBoxModalRef,
   UpdateBoxModalProps
->(({ box, onSubmit, setLoading }, ref) => {
+>(({ box, setLoading, onSubmit }, ref) => {
   const { showToast } = useToast();
-  const [visible, setVisible] = useState(false);
-  const [boxName, setBoxName] = useState(box.name ?? "");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const user = useSelector(
+    (state: RootState) => state.auth.user
+  );
 
-  // Expose present/dismiss so caller uses same API as BottomSheetModal
-  React.useImperativeHandle(ref, () => ({
+  const [visible, setVisible] =
+    useState(false);
+
+  const [boxName, setBoxName] =
+    useState(box?.name || "");
+
+  const [boxInfoValues, setBoxInfoValues] =
+    useState<BoxInfoValue[]>([]);
+
+  const [localLoading, setLocalLoading] =
+    useState(false);
+
+  const [error, setError] =
+    useState<string | null>(null);
+
+  useImperativeHandle(ref, () => ({
     present: () => {
-      setBoxName(box.name ?? "");
-      setError(null);
       setVisible(true);
-      setTimeout(() => inputRef.current?.focus(), 300);
     },
+
     dismiss: () => {
-      Keyboard.dismiss();
-      setVisible(false);
+      handleClose();
     },
   }));
 
-  useEffect(() => {
-    setBoxName(box.name ?? "");
+  const handleClose = () => {
+    setVisible(false);
     setError(null);
-  }, [box]);
+  };
 
-  const handleUpdate = async () => {
-    if (!boxName.trim()) {
-      setError("Box name is required");
+  useEffect(() => {
+    if (!visible || !box?.id) {
       return;
     }
 
-    Keyboard.dismiss();
-    setSubmitting(true);
-    setLoading(true);
+    setBoxName(box.name || "");
+
+    const fetchValues = async () => {
+      try {
+        const res =
+          await axios.get(
+            `/boxes/${box.id}/info-values?project_id=${box.project_id}&vendor_id=${box.vendor_id}`
+          );
+
+        setBoxInfoValues(
+          res.data?.data || []
+        );
+      } catch (err) {
+        console.log(
+          "Failed to fetch box info values:",
+          err
+        );
+
+        setBoxInfoValues(
+          box.box_info_values || []
+        );
+      }
+    };
+
+    fetchValues();
+  }, [
+    visible,
+    box?.id,
+  ]);
+
+  const validate = () => {
+    if (!boxName.trim()) {
+      setError("Box name is required");
+      showToast(
+        "error",
+        "Box name is required"
+      );
+      return false;
+    }
+
+    for (const field of boxInfoValues) {
+      if (
+        field.is_required &&
+        !String(
+          field.field_value || ""
+        ).trim()
+      ) {
+        showToast(
+          "error",
+          `${field.field_label} is required`
+        );
+
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const handleUpdate = async () => {
+    if (!validate()) {
+      return;
+    }
 
     try {
-      await axios.put("/boxes/update-name", {
+      setLocalLoading(true);
+      setLoading(true);
+
+      const payload = {
         id: box.id,
         vendor_id: box.vendor_id,
         project_id: box.project_id,
+        lead_id: box.lead_id,
         box_name: boxName.trim(),
-      });
+        updated_by: user?.id,
 
-      showToast("success", "Box name updated successfully");
-      onSubmit(boxName.trim());
-      setVisible(false);
+        box_info_values:
+          boxInfoValues.map((field) => ({
+            field_id: field.field_id,
+            field_value:
+              String(
+                field.field_value || ""
+              ).trim(),
+          })),
+      };
+
+      const res =
+        await axios.put(
+          "/boxes/update-name",
+          payload
+        );
+
+      showToast(
+        "success",
+        "Box updated successfully"
+      );
+
+      onSubmit(
+        boxName.trim(),
+        res.data
+      );
+
+      handleClose();
     } catch (err: any) {
       showToast(
         "error",
-        `Failed to update box: ${err.response?.data?.message ?? err.message}`
+        err?.response?.data?.message ||
+          err?.response?.data?.error ||
+          err.message ||
+          "Failed to update box"
       );
     } finally {
-      setSubmitting(false);
+      setLocalLoading(false);
       setLoading(false);
     }
+  };
+
+  const updateFieldValue = (
+    fieldId: number,
+    value: string
+  ) => {
+    setBoxInfoValues((prev) =>
+      prev.map((field) =>
+        field.field_id === fieldId
+          ? {
+              ...field,
+              field_value: value,
+            }
+          : field
+      )
+    );
   };
 
   return (
@@ -102,133 +236,281 @@ export const UpdateBoxModal = React.forwardRef<
       transparent
       animationType="slide"
       visible={visible}
-      onRequestClose={() => setVisible(false)}
+      onRequestClose={handleClose}
     >
       <KeyboardAvoidingView
-        style={styles.overlay}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={
+          Platform.OS === "ios"
+            ? "padding"
+            : "height"
+        }
+        style={styles.root}
       >
         <TouchableOpacity
           style={styles.backdrop}
           activeOpacity={1}
-          onPress={() => setVisible(false)}
+          onPress={handleClose}
         />
+
         <View style={styles.sheet}>
-          <View style={styles.handle} />
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.handle} />
 
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Update Box Name</Text>
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={() => setVisible(false)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <X size={18} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Input */}
-          <Text style={styles.label}>Box Name</Text>
-          <TextInput
-            ref={inputRef}
-            style={[styles.input, error ? styles.inputError : null]}
-            value={boxName}
-            onChangeText={(text) => {
-              setBoxName(text);
-              if (error) setError(null);
-            }}
-            placeholder="Enter box name"
-            placeholderTextColor="#9CA3AF"
-            returnKeyType="done"
-            onSubmitEditing={handleUpdate}
-            autoCapitalize="words"
-          />
-          {error ? (
-            <Text style={styles.errorText}>{error}</Text>
-          ) : (
-            <Text style={styles.hintText}>
-              Use a descriptive name like "Kitchen Boxes" or "Box A".
-            </Text>
-          )}
-
-          {/* Buttons */}
-          <View style={styles.btnRow}>
-            <TouchableOpacity
-              style={[styles.btn, styles.btnCancel]}
-              onPress={() => setVisible(false)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.btnCancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.btn, styles.btnConfirm, submitting && { opacity: 0.7 }]}
-              onPress={handleUpdate}
-              activeOpacity={0.85}
-              disabled={submitting}
-            >
-              <Text style={styles.btnConfirmText}>
-                {submitting ? "Saving..." : "Update"}
+            <View style={styles.header}>
+              <Text style={styles.title}>
+                Edit Box
               </Text>
-            </TouchableOpacity>
-          </View>
+
+              <TouchableOpacity
+                onPress={handleClose}
+                style={styles.closeBtn}
+              >
+                <X
+                  size={20}
+                  color="#374151"
+                />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.label}>
+              Box Name
+            </Text>
+
+            <TextInput
+              value={boxName}
+              onChangeText={(text) => {
+                setBoxName(text);
+                setError(null);
+              }}
+              placeholder="Enter box name"
+              placeholderTextColor="#9CA3AF"
+              style={[
+                styles.input,
+                error && styles.inputError,
+              ]}
+            />
+
+            {error && (
+              <Text style={styles.errorText}>
+                {error}
+              </Text>
+            )}
+
+            {boxInfoValues.length > 0 && (
+              <View style={styles.dynamicFieldsWrap}>
+                {boxInfoValues.map((field) => (
+                  <View
+                    key={field.field_id}
+                    style={styles.dynamicFieldItem}
+                  >
+                    <Text style={styles.label}>
+                      {field.field_label}
+                      {field.is_required ? " *" : ""}
+                    </Text>
+
+                    <TextInput
+                      value={field.field_value || ""}
+                      onChangeText={(text) =>
+                        updateFieldValue(
+                          field.field_id,
+                          text
+                        )
+                      }
+                      placeholder={`Enter ${field.field_label}`}
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType={
+                        field.field_type === "NUMBER"
+                          ? "numeric"
+                          : "default"
+                      }
+                      multiline={
+                        field.field_type === "TEXTAREA"
+                      }
+                      style={[
+                        styles.input,
+                        field.field_type ===
+                          "TEXTAREA" &&
+                          styles.textAreaInput,
+                      ]}
+                    />
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <View style={styles.actions}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={handleClose}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.cancelText}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.addBtn,
+                  localLoading && {
+                    opacity: 0.6,
+                  },
+                ]}
+                onPress={handleUpdate}
+                disabled={localLoading}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.addText}>
+                  {localLoading
+                    ? "Updating..."
+                    : "Update"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>
   );
 });
 
-UpdateBoxModal.displayName = "UpdateBoxModal";
+UpdateBoxModal.displayName =
+  "UpdateBoxModal";
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: "flex-end" },
+  root: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+
   backdrop: {
-    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor:
+      "rgba(0,0,0,0.45)",
   },
+
   sheet: {
+    maxHeight: "88%",
     backgroundColor: "white",
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    paddingHorizontal: 24,
-    paddingBottom: Platform.OS === "ios" ? 48 : 32,
-    paddingTop: 12,
-    shadowColor: "#000", shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1, shadowRadius: 16, elevation: 20,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+    paddingBottom:
+      Platform.OS === "ios" ? 40 : 24,
   },
+
   handle: {
-    width: 40, height: 4, backgroundColor: "#D1D5DB",
-    borderRadius: 2, alignSelf: "center", marginBottom: 16,
+    width: 40,
+    height: 4,
+    backgroundColor: "#D1D5DB",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 16,
   },
+
   header: {
-    flexDirection: "row", justifyContent: "space-between",
-    alignItems: "center", marginBottom: 20,
+    flexDirection: "row",
+    justifyContent:
+      "space-between",
+    alignItems: "center",
+    marginBottom: 16,
   },
-  headerTitle: { fontSize: 18, fontWeight: "800", color: "#111827" },
+
+  title: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111827",
+  },
+
   closeBtn: {
-    width: 32, height: 32, borderRadius: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: "#F3F4F6",
-    justifyContent: "center", alignItems: "center",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  label: { fontSize: 13, fontWeight: "700", color: "#374151", marginBottom: 8 },
+
+  label: {
+    fontSize: 13,
+    color: "#374151",
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+
   input: {
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1.5, borderColor: "#E5E7EB",
-    borderRadius: 14, paddingHorizontal: 16,
-    paddingVertical: Platform.OS === "ios" ? 14 : 12,
-    fontSize: 15, color: "#111827",
-    marginBottom: 8,
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    color: "#111827",
+    fontSize: 14,
+    backgroundColor: "#FFFFFF",
   },
-  inputError: { borderColor: "#EF4444" },
-  errorText: { fontSize: 12, color: "#EF4444", marginBottom: 16 },
-  hintText: { fontSize: 12, color: "#9CA3AF", marginBottom: 24 },
-  btnRow: { flexDirection: "row", gap: 12 },
-  btn: { flex: 1, paddingVertical: 15, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  btnCancel: { backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#E5E7EB" },
-  btnCancelText: { fontSize: 15, fontWeight: "600", color: "#374151" },
-  btnConfirm: {
-    backgroundColor: "#2A9D8F",
-    shadowColor: "#2A9D8F", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 5,
+
+  textAreaInput: {
+    minHeight: 78,
+    textAlignVertical: "top",
+    paddingTop: 12,
   },
-  btnConfirmText: { fontSize: 15, fontWeight: "700", color: "white" },
+
+  inputError: {
+    borderColor: "#E63946",
+  },
+
+  errorText: {
+    color: "#E63946",
+    fontSize: 12,
+    marginTop: 6,
+  },
+
+  dynamicFieldsWrap: {
+    marginTop: 14,
+  },
+
+  dynamicFieldItem: {
+    marginBottom: 12,
+  },
+
+  actions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 18,
+  },
+
+  cancelBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  cancelText: {
+    color: "#374151",
+    fontWeight: "700",
+  },
+
+  addBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "#111827",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  addText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
 });
