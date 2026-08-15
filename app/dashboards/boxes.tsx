@@ -12,7 +12,7 @@ import { fetchAllBoxesPdfAndShare, fetchProjectDetailsAndShare } from "@/utils/p
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import LottieView from "lottie-react-native";
-import { ArrowLeft, Box, Download, Package, Plus, ScanLine, SquarePen, X } from "lucide-react-native";
+import { ArrowLeft, Box, Download, Package, Plus, SquarePen, X } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlatList,
@@ -607,13 +607,13 @@ export default function BoxesScreen() {
           <Text style={commonStyles.navbarTitle} numberOfLines={1}>{projectDetails.project_name}</Text>
           <Text style={commonStyles.navbarSubtitle}>Project Details</Text>
         </View>
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={commonStyles.navbarBackBtn}
           onPress={() => router.push("/scanner")}
           activeOpacity={0.8}
         >
           <ScanLine size={20} color={colors.white} />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
         {/* <TouchableOpacity
           style={commonStyles.navbarBackBtn}
           onPress={() => {

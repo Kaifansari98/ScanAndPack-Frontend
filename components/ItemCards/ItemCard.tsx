@@ -123,7 +123,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             </View>
             <View style={styles.qtyBlock}>
               <Text style={styles.qtyLabel}>Qty</Text>
-              <Text style={styles.qtyValue}>1</Text>
+              <Text style={styles.qtyValue}>{item.qty}</Text>
             </View>
           </View>
         </View>
