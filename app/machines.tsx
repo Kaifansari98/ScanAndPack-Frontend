@@ -62,7 +62,7 @@ export default function MachineTabScreen() {
         }))
       );
     } catch (error) {
-      console.warn("Failed to fetch machines:", error);
+      //console.warn("Failed to fetch machines:", error);
     } finally {
       setLoading(false);
     }

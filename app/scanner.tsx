@@ -99,8 +99,8 @@ export default function BarcodeScanner() {
     if (scanned || processing) return;
     setScanned(true);
 
-    console.log("Scanned data:", data);
-    console.log("scan_type:", resolvedScanType);
+    //console.log("Scanned data:", data);
+    //console.log("scan_type:", resolvedScanType);
 
     try {
       const cleanData  = data.replace(/"/g, "").trim();
@@ -228,7 +228,7 @@ export default function BarcodeScanner() {
       throw new Error("Invalid QR format");
 
     } catch (err) {
-      console.log("Failed to parse scanned data:", err);
+      //console.log("Failed to parse scanned data:", err);
       showToast("error", "Scan Failed — invalid QR code");
       router.back();
     }

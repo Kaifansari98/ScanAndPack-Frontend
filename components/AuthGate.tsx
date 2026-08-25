@@ -15,17 +15,17 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   // 🔁 Restore session directly inside AuthGate
  useEffect(() => {
   const restoreSession = async () => {
-    console.log('🔁 restoring session...');
+    //console.log('🔁 restoring session...');
     try {
       const session = await getSession();
-      console.log('✅ session:', session);
+      //console.log('✅ session:', session);
       if (session?.token && session?.user) {
         dispatch(setCredentials({ user: session.user, token: session.token }));
       }
     } catch (err) {
       console.error("Session restore error:", err);
     } finally {
-      console.log('✅ finishLoading dispatched');
+      //console.log('✅ finishLoading dispatched');
       dispatch(finishLoading());
     }
   };

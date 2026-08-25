@@ -4,6 +4,8 @@ import { commonStyles } from "@/components/theme/commonStyles";
 import { useAuth } from "@/hooks/useAuth";
 import { RootState } from "@/redux/store";
 import { useRouter } from "expo-router";
+import { cacheAuthToken } from "@/lib/axios";
+
 import {
   ArrowLeft,
   LogOut,
@@ -32,6 +34,7 @@ export default function ProfileTabScreen() {
     setShowLogoutModal(false);
     setTimeout(async () => {
       await logout();
+      cacheAuthToken(null);
       router.replace("/auth/login");
     }, 300);
   };

@@ -111,10 +111,7 @@ export const UpdateBoxModal = forwardRef<
           res.data?.data || []
         );
       } catch (err) {
-        console.log(
-          "Failed to fetch box info values:",
-          err
-        );
+        //console.log("Failed to fetch box info values:",err);
 
         setBoxInfoValues(
           box.box_info_values || []

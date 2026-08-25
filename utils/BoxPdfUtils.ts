@@ -16,7 +16,7 @@ export const fetchBoxtDetailsAndShare = async ({
   try {
     const sharingAvailable = await Sharing.isAvailableAsync();
     if (!sharingAvailable) {
-      console.error("Sharing is not available on this device");
+      //console.error("Sharing is not available on this device");
       return;
     }
 
@@ -26,17 +26,17 @@ export const fetchBoxtDetailsAndShare = async ({
     const fileName: string    = res.data?.data?.file_name;
 
     if (!downloadUrl || !fileName) {
-      console.error("PDF generation failed:", res.data?.message);
+      //console.error("PDF generation failed:", res.data?.message);
       return;
     }
 
-    console.log("Downloading PDF from:", downloadUrl);
+    //console.log("Downloading PDF from:", downloadUrl);
 
     const localUri = `${ExpoFS.cacheDirectory}${fileName}`;
 
     const downloadRes = await ExpoFS.downloadAsync(downloadUrl, localUri);
 
-    console.log("PDF saved at:", downloadRes.uri);
+    //console.log("PDF saved at:", downloadRes.uri);
 
     await Sharing.shareAsync(downloadRes.uri, {
       mimeType: "application/pdf",
@@ -45,6 +45,6 @@ export const fetchBoxtDetailsAndShare = async ({
     });
 
   } catch (err) {
-    console.error("Failed to fetch or share box PDF:", err);
+    //console.error("Failed to fetch or share box PDF:", err);
   }
 };

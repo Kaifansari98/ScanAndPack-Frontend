@@ -280,10 +280,7 @@ export default function ManualSiteInItemsScreen() {
         } catch (
           error: any
         ) {
-          console.error(
-            "Failed to fetch manual site-in items:",
-            error
-          );
+          //console.error("Failed to fetch manual site-in items:",error);
 
           showToast(
             "error",
@@ -529,10 +526,7 @@ export default function ManualSiteInItemsScreen() {
       } catch (
         error: any
       ) {
-        console.error(
-          "Failed to verify manual item:",
-          error
-        );
+        //console.error("Failed to verify manual item:",error);
 
         showToast(
           "error",

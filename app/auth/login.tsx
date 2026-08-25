@@ -1,9 +1,10 @@
+// Updated login: refreshes the Axios in-memory token cache after authentication.
 import { useToast } from "@/components/Notification/ToastProvider";
 import { colors } from "@/components/theme/colors";
 import { commonStyles } from "@/components/theme/commonStyles";
 import { headerLabel } from "@/components/theme/static";
 import { useAuth } from "@/hooks/useAuth";
-import axios from "@/lib/axios";
+import axios, { cacheAuthToken } from "@/lib/axios";
 import { useRouter } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
 import { useEffect, useState } from "react";
@@ -104,6 +105,7 @@ export default function LoginScreen() {
       });
       const { token, user } = res.data;
       await login(user, token);
+      cacheAuthToken(token);
       showToast("success", "Login Successfully");
       router.replace("/dashboards/dashboard");
     } catch (err: any) {

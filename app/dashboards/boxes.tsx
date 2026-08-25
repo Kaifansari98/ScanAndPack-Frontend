@@ -12,15 +12,28 @@ import { fetchAllBoxesPdfAndShare, fetchProjectDetailsAndShare } from "@/utils/p
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import LottieView from "lottie-react-native";
-import { ArrowLeft, Box, Download, Package, Plus, SquarePen, X } from "lucide-react-native";
-import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ArrowLeft,
+  Box,
+  ChevronRight,
+  Download,
+  ListChecks,
+  Package,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  SquarePen,
+  X,
+} from "lucide-react-native";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
   FlatList,
   Modal,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -81,7 +94,77 @@ interface BoxItem {
   machine_id: number | null;
   machine_name: string;
   box_info_values: BoxInfoValue[];
+  weight?: number;
 }
+
+type PackingStatusFilter = "all" | "packed" | "unpacked";
+
+interface BoxPaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+interface BoxCounts {
+  all: number;
+  packed: number;
+  unpacked: number;
+  projectTotal: number;
+}
+
+interface PaginatedBoxesResponse {
+  data: any[];
+  pagination: BoxPaginationMeta;
+  counts: BoxCounts;
+}
+
+const BOX_PAGE_SIZE = 10;
+const SEARCH_DEBOUNCE_MS = 400;
+
+const DEFAULT_PAGINATION: BoxPaginationMeta = {
+  page: 1,
+  limit: BOX_PAGE_SIZE,
+  total: 0,
+  totalPages: 0,
+  hasNextPage: false,
+  hasPreviousPage: false,
+};
+
+const DEFAULT_COUNTS: BoxCounts = {
+  all: 0,
+  packed: 0,
+  unpacked: 0,
+  projectTotal: 0,
+};
+
+const normalizePackingStatus = (status: string) =>
+  String(status || "")
+    .trim()
+    .replace(/[\s_-]/g, "")
+    .toLowerCase();
+
+const isCanceledRequest = (error: any) =>
+  error?.code === "ERR_CANCELED" ||
+  error?.name === "CanceledError" ||
+  error?.name === "AbortError";
+
+const mapApiBox = (box: any): BoxItem => ({
+  id: Number(box.id),
+  name: box.box_name ?? box.name ?? "Unnamed Box",
+  box_status: box.box_status ?? "unpacked",
+  items_count: Number(box.items_count ?? 0),
+  details: box.details,
+  project_id: Number(box.project_id),
+  vendor_id: Number(box.vendor_id),
+  lead_id: Number(box.lead_id ?? 0),
+  machine_id: box.machine_id ? Number(box.machine_id) : null,
+  machine_name: box.machine_name ?? "",
+  box_info_values: box.box_info_values ?? [],
+  weight: Number(box.weight ?? 0),
+});
 
 // ─── Confirm Modal ────────────────────────────────────────────────────────────
 
@@ -152,7 +235,7 @@ const cmStyles = StyleSheet.create({
 
 // ─── Box Card ─────────────────────────────────────────────────────────────────
 
-function BoxCard({
+const BoxCard = memo(function BoxCard({
   box, index, handleDownload, handleEditPress, machine_id, machine_name,
 }: {
   box: BoxItem;
@@ -177,8 +260,9 @@ function BoxCard({
     ) || [];
 
   useEffect(() => {
-    cardOpacity.value = withDelay(index * 80, withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) }));
-    cardTranslateY.value = withDelay(index * 80, withSpring(0, { damping: 18, stiffness: 130 }));
+    const delay = Math.min(index, 6) * 45;
+    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 350, easing: Easing.out(Easing.cubic) }));
+    cardTranslateY.value = withDelay(delay, withSpring(0, { damping: 18, stiffness: 130 }));
   }, [index]);
 
   const animatedCardStyle = useAnimatedStyle(() => ({
@@ -186,7 +270,7 @@ function BoxCard({
     transform: [{ translateY: cardTranslateY.value }, { scale: scale.value }],
   }));
 
-  const isPacked = box.box_status === "packed";
+  const isPacked = normalizePackingStatus(box.box_status) === "packed";
   const isEmpty = box.items_count === 0;
 
   const handleNavigate = () => {
@@ -372,7 +456,12 @@ function BoxCard({
     </Animated.View>
   </TouchableOpacity>
 );
-}
+}, (previous, next) =>
+  previous.box === next.box &&
+  previous.index === next.index &&
+  previous.machine_id === next.machine_id &&
+  previous.machine_name === next.machine_name,
+);
 
 const boxStyles = StyleSheet.create({
   card: {
@@ -455,7 +544,17 @@ export default function BoxesScreen() {
   const [showGlobalLoader, setShowGlobalLoader] = useState(false);
   const [boxes, setBoxes] = useState<BoxItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [pagination, setPagination] =
+    useState<BoxPaginationMeta>(DEFAULT_PAGINATION);
+  const [boxCounts, setBoxCounts] = useState<BoxCounts>(DEFAULT_COUNTS);
   const [creatingBox, setCreatingBox] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [packingStatusFilter, setPackingStatusFilter] =
+    useState<PackingStatusFilter>("all");
+  const [showFilters, setShowFilters] = useState(false);
 
   const [selectedBox, setSelectedBox] = useState<BoxItem | null>(null);
   const [selectedBoxForEdit, setSelectedBoxForEdit] = useState<BoxItem | null>(null);
@@ -467,39 +566,162 @@ export default function BoxesScreen() {
 
   const sheetRef = useRef<any>(null);
   const updateSheetRef = useRef<any>(null);
+  const boxesRequestControllerRef = useRef<AbortController | null>(null);
+  const projectRequestControllerRef = useRef<AbortController | null>(null);
+  const currentPageRef = useRef(1);
+  const hasNextPageRef = useRef(false);
+  const initialLoadingRef = useRef(true);
+  const loadingMoreRef = useRef(false);
 
-  const fetchBoxes = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await axios.get(`/boxes/vendor/${project.vendor_id}/project/${project.id}`);
-      setBoxes(
-        res.data.map((box: any) => ({
-          id: box.id,
-          name: box.box_name,
-          box_status: box.box_status,
-          items_count: box.items_count,
-          details: box.details,
-          project_id: box.project_id,
-          vendor_id: box.vendor_id,
-          lead_id: box.lead_id,
-          machine_id: projectDetails?.machine_id || null,
-          machine_name: projectDetails?.machine_name || "",
-          box_info_values: box.box_info_values || [],
-        }))
-      );
-    } catch (error) {
-      console.error("Failed to fetch boxes:", error);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const fetchBoxes = useCallback(async ({
+    pageNumber = 1,
+    append = false,
+    silent = false,
+  }: {
+    pageNumber?: number;
+    append?: boolean;
+    silent?: boolean;
+  } = {}) => {
+    if (append) {
+      if (
+        initialLoadingRef.current ||
+        loadingMoreRef.current ||
+        !hasNextPageRef.current
+      ) {
+        return;
+      }
+
+      loadingMoreRef.current = true;
+      setLoadingMore(true);
+    } else {
+      boxesRequestControllerRef.current?.abort();
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+      initialLoadingRef.current = true;
+      setLoadError(false);
+      setBoxes([]);
+
+      if (!silent) {
+        setLoading(true);
+      }
     }
-  }, [project.id, project.vendor_id]);
 
-  const onAdd = useCallback(() => { fetchBoxes(); }, [fetchBoxes]);
+    const controller = new AbortController();
+    boxesRequestControllerRef.current = controller;
+
+    try {
+      const res = await axios.get<PaginatedBoxesResponse>(
+        `/boxes/vendor/v1/${project.vendor_id}/project/${project.id}`,
+        {
+          params: {
+            page: pageNumber,
+            limit: BOX_PAGE_SIZE,
+            search: debouncedSearch || undefined,
+            packingStatus: packingStatusFilter,
+          },
+          signal: controller.signal,
+        },
+      );
+
+      const responseData: any = res.data;
+      const rows = Array.isArray(responseData)
+        ? responseData
+        : responseData?.data ?? [];
+      const mappedBoxes = rows.map(mapApiBox);
+
+      setBoxes((previous) => {
+        if (!append) return mappedBoxes;
+
+        const existingIds = new Set(previous.map((box) => box.id));
+        const newBoxes = mappedBoxes.filter(
+          (box: BoxItem) => !existingIds.has(box.id),
+        );
+        return [...previous, ...newBoxes];
+      });
+
+      const nextPagination: BoxPaginationMeta = responseData?.pagination ?? {
+        page: pageNumber,
+        limit: BOX_PAGE_SIZE,
+        total: mappedBoxes.length,
+        totalPages: mappedBoxes.length === 0 ? 0 : pageNumber,
+        hasNextPage: mappedBoxes.length === BOX_PAGE_SIZE,
+        hasPreviousPage: pageNumber > 1,
+      };
+
+      const nextCounts: BoxCounts = responseData?.counts ?? {
+        all: mappedBoxes.length,
+        packed: mappedBoxes.filter(
+          (box: BoxItem) =>
+            normalizePackingStatus(box.box_status) === "packed",
+        ).length,
+        unpacked: mappedBoxes.filter(
+          (box: BoxItem) =>
+            normalizePackingStatus(box.box_status) === "unpacked",
+        ).length,
+        projectTotal: mappedBoxes.length,
+      };
+
+      if (nextCounts.projectTotal === undefined) {
+        nextCounts.projectTotal = nextCounts.all;
+      }
+
+      currentPageRef.current = nextPagination.page;
+      hasNextPageRef.current = nextPagination.hasNextPage;
+      setPagination(nextPagination);
+      setBoxCounts(nextCounts);
+      setLoadError(false);
+    } catch (error: any) {
+      if (!isCanceledRequest(error)) {
+        console.error("Failed to fetch boxes:", error);
+        setLoadError(true);
+        showToast(
+          "error",
+          error?.response?.data?.error || "Failed to load boxes",
+        );
+      }
+    } finally {
+      if (boxesRequestControllerRef.current === controller) {
+        boxesRequestControllerRef.current = null;
+
+        if (append) {
+          loadingMoreRef.current = false;
+          setLoadingMore(false);
+        } else {
+          initialLoadingRef.current = false;
+          setLoading(false);
+        }
+      }
+    }
+  }, [
+    debouncedSearch,
+    packingStatusFilter,
+    project.id,
+    project.vendor_id,
+    showToast,
+  ]);
+
+  const onAdd = useCallback(() => {
+    void fetchBoxes({ pageNumber: 1 });
+  }, [fetchBoxes]);
 
   const fetchProjectDetails = useCallback(async () => {
+    const controller = new AbortController();
+    projectRequestControllerRef.current?.abort();
+    projectRequestControllerRef.current = controller;
     setShowGlobalLoader(true);
+
     try {
-      const res = await axios.get(`/projects/${project.id}`);
+      const res = await axios.get(`/projects/${project.id}`, {
+        signal: controller.signal,
+      });
       const data = res.data;
       const rawDate = data.details?.[0]?.estimated_completion_date || null;
       const formatDate = (d: string | null) => d
@@ -522,17 +744,39 @@ export default function BoxesScreen() {
         machine_name: data.machine_name,
       });
     } catch (error: any) {
-      console.log("Fetch Project Details Failed:", error.message);
+      if (!isCanceledRequest(error)) {
+        showToast("error", "Failed to load project details");
+      }
     } finally {
-      setShowGlobalLoader(false);
+      if (projectRequestControllerRef.current === controller) {
+        projectRequestControllerRef.current = null;
+        setShowGlobalLoader(false);
+      }
     }
-  }, [project.id]);
+  }, [project.id, showToast]);
 
   useFocusEffect(
     useCallback(() => {
-      fetchProjectDetails();
-      fetchBoxes();
-    }, [project.id, project.vendor_id])
+      void fetchProjectDetails();
+
+      return () => {
+        projectRequestControllerRef.current?.abort();
+        projectRequestControllerRef.current = null;
+      };
+    }, [fetchProjectDetails]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      void fetchBoxes({ pageNumber: 1 });
+
+      return () => {
+        boxesRequestControllerRef.current?.abort();
+        boxesRequestControllerRef.current = null;
+        initialLoadingRef.current = false;
+        loadingMoreRef.current = false;
+      };
+    }, [fetchBoxes]),
   );
 
   const addButtonScale = useSharedValue(1);
@@ -540,13 +784,24 @@ export default function BoxesScreen() {
     transform: [{ scale: addButtonScale.value }],
   }));
 
-  const handleEdit = (box: BoxItem) => { setSelectedBoxForEdit(box); setShowEditModal(true); };
-  const handleDownload = (box: BoxItem) => { setSelectedBox(box); setShowDownloadModal(true); };
+  const handleEdit = (box: BoxItem) => {
+    setSelectedBoxForEdit(box);
+    setShowEditModal(true);
+  };
+
+  const handleDownload = (box: BoxItem) => {
+    setSelectedBox({
+      ...box,
+      machine_id: projectDetails?.machine_id ?? box.machine_id,
+      machine_name: projectDetails?.machine_name ?? box.machine_name,
+    });
+    setShowDownloadModal(true);
+  };
 
   const handleConfirmEdit = () => {
     setShowEditModal(false);
     setTimeout(() => { updateSheetRef.current?.present(); }, 300);
-    fetchProjectDetails();
+    void fetchProjectDetails();
   };
 
   const handleConfirmDownload = async () => {
@@ -555,7 +810,7 @@ export default function BoxesScreen() {
     try {
       if (selectedBox) await fetchBoxtDetailsAndShare(selectedBox);
     } catch (err: any) {
-      console.log("Download Error:", err.message);
+      //console.log("Download Error:", err.message);
     } finally {
       setShowGlobalLoader(false);
     }
@@ -567,7 +822,7 @@ export default function BoxesScreen() {
     try {
       await fetchProjectDetailsAndShare(project);
     } catch (err: any) {
-      console.log("Download Error:", err.message);
+      //console.log("Download Error:", err.message);
     } finally {
       setShowGlobalLoader(false);
     }
@@ -583,17 +838,45 @@ export default function BoxesScreen() {
         vendor_id: project.vendor_id,
       });
     } catch (err: any) {
-      console.log("All Boxes Download Error:", err.message);
+      //console.log("All Boxes Download Error:", err.message);
       showToast("error", "Failed to download boxes PDF");
     } finally {
       setShowGlobalLoader(false);
     }
   };
 
-  if (!projectDetails) return <Loader />;
+  const handleLoadMore = useCallback(() => {
+    if (
+      loading ||
+      loadingMoreRef.current ||
+      !hasNextPageRef.current
+    ) {
+      return;
+    }
 
-  const packedCount = boxes.filter(b => b.box_status === "packed").length;
-  const unpackedCount = boxes.filter(b => b.box_status === "unpacked").length;
+    void fetchBoxes({
+      pageNumber: currentPageRef.current + 1,
+      append: true,
+    });
+  }, [fetchBoxes, loading]);
+
+  const handleRetry = useCallback(() => {
+    void fetchBoxes({ pageNumber: 1 });
+  }, [fetchBoxes]);
+
+  const packedCount = boxCounts.packed;
+  const unpackedCount = boxCounts.unpacked;
+
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 || packingStatusFilter !== "all";
+
+  const activeFilterCount =
+    (searchQuery.trim().length > 0 ? 1 : 0) +
+    (packingStatusFilter !== "all" ? 1 : 0);
+
+  const noBoxesExist = boxCounts.projectTotal === 0;
+
+  if (!projectDetails) return <Loader />;
 
   return (
     <View style={styles.root}>
@@ -634,89 +917,315 @@ export default function BoxesScreen() {
         </TouchableOpacity> */}
       </View>
 
-      {showGlobalLoader ? (
-        <View style={styles.center}><Loader /></View>
-      ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-
-          <ProjectCard
-            project={{
-              id: project.id,
-              vendor_id: project.vendor_id,
-              projectName: projectDetails.project_name,
-              totalNoItems: projectDetails.total_items,
-              unpackedItems: projectDetails.total_unpaked,
-              packedItems: projectDetails.total_packed,
-              status: projectDetails.project_status,
-              date: projectDetails.estimated_completion_date,
-              lead_id: projectDetails.lead_id,
-            }}
-            index={0}
-            disableNavigation={true}
-            onDownloadPress={() => setShowProjectDownloadModal(true)}
+      <FlatList
+        data={loading ? [] : boxes}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item, index }) => (
+          <BoxCard
+            box={item}
+            index={index}
+            machine_id={projectDetails.machine_id}
+            machine_name={projectDetails.machine_name}
+            handleDownload={() => handleDownload(item)}
+            handleEditPress={() => handleEdit(item)}
           />
+        )}
+        contentContainerStyle={[
+          styles.scrollContent,
+          boxes.length === 0 && !loading && styles.scrollContentEmpty,
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.35}
+        initialNumToRender={BOX_PAGE_SIZE}
+        maxToRenderPerBatch={BOX_PAGE_SIZE}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS === "android"}
+        ListHeaderComponent={
+          <>
+            <ProjectCard
+              project={{
+                id: project.id,
+                vendor_id: project.vendor_id,
+                projectName: projectDetails.project_name,
+                totalNoItems: projectDetails.total_items,
+                unpackedItems: projectDetails.total_unpaked,
+                packedItems: projectDetails.total_packed,
+                status: projectDetails.project_status,
+                date: projectDetails.estimated_completion_date,
+                lead_id: projectDetails.lead_id,
+              }}
+              index={0}
+              disableNavigation
+              onDownloadPress={() => setShowProjectDownloadModal(true)}
+            />
 
-          <View style={styles.boxesSection}>
-
-            {/* ── Section header with Download All button ── */}
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text style={styles.sectionTitle}>
-                  {boxes.length} {boxes.length === 1 ? "Box" : "Boxes"}
-                </Text>
-                {boxes.length > 0 && (
-                  <Text style={styles.sectionSubtitle}>
-                    {packedCount} packed · {unpackedCount} unpacked
-                  </Text>
-                )}
+            <TouchableOpacity
+              style={styles.projectItemsButton}
+              activeOpacity={0.82}
+              accessibilityRole="button"
+              accessibilityLabel="View project item tracking"
+              onPress={() =>
+                router.push({
+                  pathname: "/dashboards/project-item-tracking",
+                  params: {
+                    project_id: String(project.id),
+                    vendor_id: String(project.vendor_id),
+                    project_name: projectDetails.project_name,
+                  },
+                })
+              }
+            >
+              <View style={styles.projectItemsIcon}>
+                <ListChecks size={21} color="#177E73" />
               </View>
 
-              {/* Download All button — shown only when there are boxes */}
-              {boxes.length > 0 && (
+              <View style={styles.projectItemsTextBlock}>
+                <Text style={styles.projectItemsTitle}>View Item Tracking</Text>
+                <Text style={styles.projectItemsSubtitle} numberOfLines={1}>
+                  Items, assigned machines and scan progress
+                </Text>
+              </View>
+
+              <ChevronRight size={20} color="#177E73" />
+            </TouchableOpacity>
+
+            <View style={styles.boxesSection}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionTitleBlock}>
+                  <Text style={styles.sectionTitle}>
+                    {hasActiveFilters
+                      ? `${pagination.total} Matching ${pagination.total === 1 ? "Box" : "Boxes"}`
+                      : `${boxCounts.projectTotal} ${boxCounts.projectTotal === 1 ? "Box" : "Boxes"}`}
+                  </Text>
+
+                  {boxCounts.all > 0 && (
+                    <Text style={styles.sectionSubtitle}>
+                      {packedCount} packed · {unpackedCount} unpacked
+                    </Text>
+                  )}
+                </View>
+
+                <View style={styles.sectionHeaderActions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.filterToggleBtn,
+                      (showFilters || hasActiveFilters) &&
+                        styles.filterToggleBtnActive,
+                    ]}
+                    onPress={() => setShowFilters((current) => !current)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      showFilters ? "Hide box filters" : "Show box filters"
+                    }
+                    accessibilityState={{ expanded: showFilters }}
+                  >
+                    <SlidersHorizontal
+                      size={18}
+                      color={
+                        showFilters || hasActiveFilters ? "#1A7A70" : "#6B7280"
+                      }
+                    />
+
+                    {activeFilterCount > 0 && (
+                      <View style={styles.activeFilterBadge}>
+                        <Text style={styles.activeFilterBadgeText}>
+                          {activeFilterCount}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  {boxCounts.projectTotal > 0 && (
+                    <TouchableOpacity
+                      style={styles.downloadAllBtn}
+                      onPress={() => setShowAllBoxesDownloadModal(true)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Download size={15} color="#2A9D8F" />
+                      <Text style={styles.downloadAllText}>All Boxes</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
+              {showFilters && (
+                <View style={styles.searchFilterCard}>
+                  <View style={styles.searchInputWrap}>
+                    <Search size={18} color="#9CA3AF" />
+
+                    <TextInput
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                      placeholder="Search boxes"
+                      placeholderTextColor="#9CA3AF"
+                      style={styles.searchInput}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="search"
+                      accessibilityLabel="Search boxes"
+                    />
+
+                    {searchQuery.length > 0 && (
+                      <TouchableOpacity
+                        style={styles.clearSearchBtn}
+                        onPress={() => setSearchQuery("")}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Clear box search"
+                      >
+                        <X size={16} color="#6B7280" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  <View style={styles.filterHeaderRow}>
+                    <Text style={styles.filterLabel}>Packing Status</Text>
+
+                    {hasActiveFilters && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSearchQuery("");
+                          setPackingStatusFilter("all");
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={styles.resetFilterText}>Reset</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  <View style={styles.statusFilterRow}>
+                    {(
+                      [
+                        { label: `All (${boxCounts.all})`, value: "all" },
+                        { label: `Packed (${packedCount})`, value: "packed" },
+                        {
+                          label: `Unpacked (${unpackedCount})`,
+                          value: "unpacked",
+                        },
+                      ] as Array<{
+                        label: string;
+                        value: PackingStatusFilter;
+                      }>
+                    ).map((option) => {
+                      const isSelected = packingStatusFilter === option.value;
+
+                      return (
+                        <TouchableOpacity
+                          key={option.value}
+                          style={[
+                            styles.statusFilterChip,
+                            isSelected && styles.statusFilterChipActive,
+                          ]}
+                          onPress={() => setPackingStatusFilter(option.value)}
+                          activeOpacity={0.8}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: isSelected }}
+                        >
+                          <Text
+                            style={[
+                              styles.statusFilterChipText,
+                              isSelected && styles.statusFilterChipTextActive,
+                            ]}
+                          >
+                            {option.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+            </View>
+          </>
+        }
+        ListEmptyComponent={
+          loading ? (
+            <View style={styles.initialLoader}>
+              <Loader />
+            </View>
+          ) : loadError ? (
+            <View style={styles.emptyState}>
+              <View style={styles.noResultsIcon}>
+                <X size={26} color="#E63946" />
+              </View>
+              <Text style={styles.emptyTitle}>Unable to load boxes</Text>
+              <Text style={styles.emptySubtitle}>
+                Check your connection and try again
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyResetBtn}
+                onPress={handleRetry}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.emptyResetBtnText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              {noBoxesExist ? (
+                <LottieView
+                  source={require("@/assets/animations/emptyBox.json")}
+                  autoPlay
+                  loop={false}
+                  style={styles.lottie}
+                />
+              ) : (
+                <View style={styles.noResultsIcon}>
+                  <Search size={26} color="#9CA3AF" />
+                </View>
+              )}
+
+              <Text style={styles.emptyTitle}>
+                {noBoxesExist ? "No boxes yet" : "No matching boxes"}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {noBoxesExist
+                  ? 'Tap "Add Box" to create your first box'
+                  : "Try another search or packing status"}
+              </Text>
+
+              {!noBoxesExist && hasActiveFilters && (
                 <TouchableOpacity
-                  style={styles.downloadAllBtn}
-                  onPress={() => setShowAllBoxesDownloadModal(true)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.emptyResetBtn}
+                  onPress={() => {
+                    setSearchQuery("");
+                    setPackingStatusFilter("all");
+                  }}
+                  activeOpacity={0.8}
                 >
-                  <Download size={15} color="#2A9D8F" />
-                  <Text style={styles.downloadAllText}>All Boxes</Text>
+                  <Text style={styles.emptyResetBtnText}>Clear Filters</Text>
                 </TouchableOpacity>
               )}
             </View>
+          )
+        }
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.paginationLoader}>
+              <ActivityIndicator size="small" color="#2A9D8F" />
+              <Text style={styles.paginationLoaderText}>
+                Loading more boxes...
+              </Text>
+            </View>
+          ) : boxes.length > 0 && !pagination.hasNextPage ? (
+            <Text style={styles.endOfListText}>
+              All {pagination.total} boxes loaded
+            </Text>
+          ) : (
+            <View style={styles.listFooterSpacer} />
+          )
+        }
+      />
 
-            {loading ? (
-              <View style={styles.center}><Loader /></View>
-            ) : (
-              <FlatList
-                scrollEnabled={false}
-                data={boxes}
-                renderItem={({ item, index }) => (
-                  <BoxCard
-                    box={item}
-                    index={index}
-                    machine_id={projectDetails.machine_id}
-                    machine_name={projectDetails.machine_name}
-                    handleDownload={() => handleDownload(item)}
-                    handleEditPress={() => handleEdit(item)}
-                  />
-                )}
-                keyExtractor={(item) => item.id.toString()}
-                showsVerticalScrollIndicator={false}
-                ListEmptyComponent={
-                  <View style={styles.emptyState}>
-                    <LottieView
-                      source={require("@/assets/animations/emptyBox.json")}
-                      autoPlay loop={false}
-                      style={styles.lottie}
-                    />
-                    <Text style={styles.emptyTitle}>No boxes yet</Text>
-                    <Text style={styles.emptySubtitle}>Tap "Add Box" to create your first box</Text>
-                  </View>
-                }
-              />
-            )}
-          </View>
-        </ScrollView>
+      {showGlobalLoader && (
+        <View style={styles.loaderOverlay}>
+          <Loader />
+        </View>
       )}
 
       {/* ── Add Box FAB ── */}
@@ -778,7 +1287,7 @@ export default function BoxesScreen() {
               )
             );
 
-            fetchBoxes();
+            void fetchBoxes({ pageNumber: 1 });
           }}
         />
       )}
@@ -817,7 +1326,7 @@ export default function BoxesScreen() {
       <ConfirmModal
         visible={showAllBoxesDownloadModal}
         title="Download All Boxes"
-        message={`Download a combined PDF for all ${boxes.length} boxes in "${projectDetails.project_name}"?`}
+        message={`Download a combined PDF for all ${boxCounts.projectTotal} boxes in "${projectDetails.project_name}"?`}
         confirmLabel="Yes, Download"
         type="download"
         onConfirm={handleConfirmAllBoxesDownload}
@@ -831,6 +1340,44 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.cardBg },
   center: { flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 40 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 120 },
+  scrollContentEmpty: { flexGrow: 1 },
+  projectItemsButton: {
+    minHeight: 68,
+    marginTop: 12,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#CDE9E4",
+    shadowColor: "#101828",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 9,
+    elevation: 2,
+  },
+  projectItemsIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 13,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#E7F6F3",
+    marginRight: 11,
+  },
+  projectItemsTextBlock: { flex: 1, paddingRight: 8 },
+  projectItemsTitle: {
+    color: "#17212B",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  projectItemsSubtitle: {
+    color: "#667085",
+    fontSize: 11,
+    marginTop: 3,
+  },
   boxesSection: { marginTop: 20 },
   sectionHeader: {
     flexDirection: "row",
@@ -838,8 +1385,134 @@ const styles = StyleSheet.create({
     alignItems: "center",          // vertically center title + button
     marginBottom: 14,
   },
+  sectionTitleBlock: { flex: 1, paddingRight: 8 },
   sectionTitle: { fontSize: 20, fontWeight: "800", color: "#111827" },
   sectionSubtitle: { fontSize: 12, color: "#9CA3AF", marginTop: 2 },
+  sectionHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  filterToggleBtn: {
+    position: "relative",
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  filterToggleBtnActive: {
+    borderColor: "#2A9D8F",
+    backgroundColor: "#E6F7F5",
+  },
+  activeFilterBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: "#E63946",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  activeFilterBadgeText: {
+    fontSize: 9,
+    lineHeight: 11,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  searchFilterCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  searchInputWrap: {
+    height: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingHorizontal: 13,
+  },
+  searchInput: {
+    flex: 1,
+    height: "100%",
+    paddingVertical: 0,
+    fontSize: 14,
+    color: "#111827",
+  },
+  clearSearchBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#E5E7EB",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  filterHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 13,
+    marginBottom: 8,
+  },
+  filterLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#6B7280",
+  },
+  resetFilterText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#2A9D8F",
+  },
+  statusFilterRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  statusFilterChip: {
+    flex: 1,
+    minHeight: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 8,
+  },
+  statusFilterChipActive: {
+    borderColor: "#2A9D8F",
+    backgroundColor: "#E6F7F5",
+  },
+  statusFilterChipText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#6B7280",
+    textAlign: "center",
+  },
+  statusFilterChipTextActive: {
+    color: "#1A7A70",
+  },
   // ── Download All button ──
   downloadAllBtn: {
     flexDirection: "row",
@@ -857,6 +1530,54 @@ const styles = StyleSheet.create({
   lottie: { width: 200, height: 200 },
   emptyTitle: { fontSize: 16, fontWeight: "700", color: "#111827", marginTop: 4 },
   emptySubtitle: { fontSize: 13, color: "#9CA3AF", marginTop: 4, textAlign: "center" },
+  noResultsIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  emptyResetBtn: {
+    marginTop: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: "#E6F7F5",
+    borderWidth: 1,
+    borderColor: "#2A9D8F",
+  },
+  emptyResetBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#1A7A70",
+  },
+  initialLoader: {
+    minHeight: 220,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  paginationLoader: {
+    minHeight: 64,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 10,
+  },
+  paginationLoaderText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  endOfListText: {
+    paddingTop: 12,
+    paddingBottom: 8,
+    textAlign: "center",
+    fontSize: 12,
+    color: "#9CA3AF",
+  },
+  listFooterSpacer: { height: 20 },
   fabContainer: {
     position: "absolute",
     bottom: Platform.OS === "ios" ? 32 : 20,

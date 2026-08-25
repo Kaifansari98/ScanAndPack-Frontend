@@ -288,10 +288,7 @@ export default function BoxSiteInScreen() {
         } catch (
           error
         ) {
-          console.error(
-            "Failed to fetch boxes:",
-            error
-          );
+          //console.error("Failed to fetch boxes:",error);
 
           showToast(
             "error",

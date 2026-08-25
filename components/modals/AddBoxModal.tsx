@@ -102,10 +102,7 @@ export const AddBoxModal = forwardRef<AddBoxModalRef, AddBoxModalProps>(
 
           setBoxInfoValues(initialValues);
         } catch (error) {
-          console.log(
-            "Failed to fetch box info fields:",
-            error
-          );
+          //console.log("Failed to fetch box info fields:",error);
 
           setBoxInfoFields([]);
           setBoxInfoValues({});
@@ -167,7 +164,7 @@ export const AddBoxModal = forwardRef<AddBoxModalRef, AddBoxModalProps>(
                   ?.trim() || "",
             })),
         };
-        console.log(payload);
+        //console.log(payload);
 
         if (!project.project_details_id) {
           setError("Project details ID is missing");
@@ -179,7 +176,7 @@ export const AddBoxModal = forwardRef<AddBoxModalRef, AddBoxModalProps>(
         showToast("success", "Box created successfully");
         onSubmit(boxName.trim());
         handleClose();
-        console.log("res.data.machine_id:", project.machine_id)
+        //console.log("res.data.machine_id:", project.machine_id)
         router.push({
           pathname: "/dashboards/boxItemsScreen",
           params: {

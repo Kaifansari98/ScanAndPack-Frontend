@@ -1,17 +1,20 @@
+// Updated scanner: shared completeScannedItem handles auto and manual completion.
 import { useToast } from "@/components/Notification/ToastProvider";
 import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
 import { playErrorFeedback, playSuccessFeedback, preloadFeedbackSounds, unloadFeedbackSounds } from "@/utils/soundVibration";
 
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { CameraView, useCameraPermissions, type BarcodeType } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { AlertTriangle, ArrowLeft, Camera, CheckCircle, Flashlight, FlashlightOff, Focus, ImagePlus, Keyboard, Send, X } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  AppState,
   Dimensions,
+  FlatList,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -29,6 +32,19 @@ import { useSelector } from "react-redux";
 
 const { width, height } = Dimensions.get("window");
 const scanAreaSize = width * 0.7;
+
+const BARCODE_SCANNER_SETTINGS: { barcodeTypes: BarcodeType[] } = {
+  barcodeTypes: [
+    "qr", "ean13", "ean8", "code39", "code128",
+    "upc_a", "upc_e", "codabar", "code93",
+    "itf14", "datamatrix", "pdf417",
+  ],
+};
+
+const isCanceledRequest = (error: any) =>
+  error?.code === "ERR_CANCELED" ||
+  error?.name === "CanceledError" ||
+  error?.name === "AbortError";
 
 type ScanMode = "scan" | "defect";
 
@@ -92,15 +108,41 @@ export default function TrackTraceBarcodeScanner() {
   const [permission, requestPermission] = useCameraPermissions();
   const [flashMode, setFlashMode] = useState(false);
   const [scanned, setScanned] = useState(false);
+  const scanLockRef = useRef(false);
+  const scanResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scanRequestControllerRef = useRef<AbortController | null>(null);
+  const actionRequestControllerRef = useRef<AbortController | null>(null);
+  const completionRequestControllerRef = useRef<AbortController | null>(null);
+  const defectRequestControllerRef = useRef<AbortController | null>(null);
+  const defectListRequestControllerRef = useRef<AbortController | null>(null);
+
+  const resetScanner = useCallback((delay = 0) => {
+    if (scanResetTimerRef.current) {
+      clearTimeout(scanResetTimerRef.current);
+      scanResetTimerRef.current = null;
+    }
+
+    const unlock = () => {
+      scanLockRef.current = false;
+      setScanned(false);
+      scanResetTimerRef.current = null;
+    };
+
+    if (delay > 0) {
+      scanResetTimerRef.current = setTimeout(unlock, delay);
+    } else {
+      unlock();
+    }
+  }, []);
 
   // ── Mode toggle ──────────────────────────────────────────────────────────
   const [scanMode, setScanMode] = useState<ScanMode>("scan");
-  const toggleAnim = useRef(new Animated.Value(0)).current;
 
   // ── Manual entry ─────────────────────────────────────────────────────────
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [manualLoading, setManualLoading] = useState(false);
+  const manualSubmitInFlightRef = useRef(false);
   const manualInputRef = useRef<TextInput>(null);
 
   // ── Item detail sheet (Scan Code mode) ───────────────────────────────────
@@ -108,56 +150,31 @@ export default function TrackTraceBarcodeScanner() {
   const [activeDefect, setActiveDefect] = useState<ActiveDefect | null>(null);
   const [showItemDetail, setShowItemDetail] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const actionInFlightRef = useRef(false);
 
   // ── Auto-complete countdown ───────────────────────────────────────────────
-  // After a successful scan (no active defect), count 5→0 then auto-mark complete
-  const [countdown, setCountdown]           = useState<number | null>(null);
-  const countdownTimerRef                   = useRef<ReturnType<typeof setInterval> | null>(null);
-  const countdownValueRef                   = useRef<number>(0);
-  const pendingItemRef                      = useRef<MappedItem | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownValueRef = useRef(0);
+  const pendingItemRef = useRef<MappedItem | null>(null);
 
-  const clearCountdown = () => {
+  const clearCountdown = useCallback((updateState = true) => {
     if (countdownTimerRef.current) {
       clearInterval(countdownTimerRef.current);
       countdownTimerRef.current = null;
     }
-    setCountdown(null);
-  };
 
-  // Cleanup on unmount
-  useEffect(() => () => clearCountdown(), []);
+    countdownValueRef.current = 0;
+    pendingItemRef.current = null;
 
-  const startCountdown = (item: MappedItem, seconds: number = 5) => {
-    pendingItemRef.current = item;
-    countdownValueRef.current = seconds;
-    setCountdown(seconds);
+    if (updateState) {
+      setCountdown(null);
+    }
+  }, []);
 
-    countdownTimerRef.current = setInterval(async () => {
-      countdownValueRef.current -= 1;
-      setCountdown(countdownValueRef.current);
-
-      if (countdownValueRef.current <= 0) {
-        clearCountdown();
-        // Auto-fire mark completed
-        const currentItem = pendingItemRef.current;
-        if (!currentItem) return;
-        try {
-          const apiResponse = await callScanItem(currentItem.cut_list.unique_code);
-          if (apiResponse.success) {
-            showToast("success", apiResponse.message || "Marked as completed");
-            await playSuccessFeedback();
-          } else {
-            showToast("error", apiResponse.message);
-            await playErrorFeedback();
-          }
-        } catch (err: any) {
-          showToast("error", err?.response?.data?.message || "Failed to mark completed");
-        } finally {
-          hideItemDetailSheet();
-        }
-      }
-    }, 1000);
-  };
+  useEffect(() => {
+    return () => clearCountdown(false);
+  }, [clearCountdown]);
 
   // ── Gallery viewer ────────────────────────────────────────────────────────
   const [galleryVisible, setGalleryVisible] = useState(false);
@@ -167,21 +184,23 @@ export default function TrackTraceBarcodeScanner() {
   const [showCompletionPopup, setShowCompletionPopup] = useState(false);
   const [completionPhotos, setCompletionPhotos] = useState<string[]>([]);
   const [completionLoading, setCompletionLoading] = useState(false);
+  const completionInFlightRef = useRef(false);
 
   // ── Defect item sheet (Mark Defect mode) ─────────────────────────────────
   const [defectMappedItem, setDefectMappedItem] = useState<MappedItem | null>(null);
   const [showDefectItemDetail, setShowDefectItemDetail] = useState(false);
-  const defectItemSlideAnim = useRef(new Animated.Value(height)).current;
 
   // ── Defect selection sheet (shared by both flows) ────────────────────────
   const [showDefectModal, setShowDefectModal] = useState(false);
   const [defectList, setDefectList] = useState<Defect[]>([]);
   const defectListRef = useRef<Defect[]>([]);
+  const defectListLoadedRef = useRef(false);
   const [defectListLoading, setDefectListLoading] = useState(false);
   const [selectedDefect, setSelectedDefect] = useState<Defect | null>(null);
   const [otherDefectText, setOtherDefectText] = useState("");
   const [defectSearchQuery, setDefectSearchQuery] = useState("");
   const [submitDefectLoading, setSubmitDefectLoading] = useState(false);
+  const defectSubmitInFlightRef = useRef(false);
   const [defectComment, setDefectComment] = useState("");
   const [defectPhotos, setDefectPhotos] = useState<string[]>([]);
   const [defectType, setDefectType] = useState<"rework" | "replace" | null>(null);
@@ -189,36 +208,105 @@ export default function TrackTraceBarcodeScanner() {
 
   const router = useRouter();
   const scanLineAnimation = useRef(new Animated.Value(0)).current;
-  const [scanLinePos, setScanLinePos] = useState(0);
-  const scanLineDir = useRef(1);
-  const scanLineInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-  const slideAnim = useRef(new Animated.Value(height)).current;
-  const manualSlideAnim = useRef(new Animated.Value(300)).current;
+  const [screenFocused, setScreenFocused] = useState(false);
+  const [appActive, setAppActive] = useState(AppState.currentState === "active");
   const { showToast } = useToast();
-  const { vendor_id } = useSelector((state: any) => state.auth.user);
   const user = useSelector((state: RootState) => state.auth.user);
+  const vendor_id = (user as any)?.vendor_id;
 
-  React.useEffect(() => {
-    (async () => {
-      await preloadFeedbackSounds();
-    })();
-
-    // scan line animation using interval
-    const step = 2;
-    scanLineInterval.current = setInterval(() => {
-      setScanLinePos(prev => {
-        const next = prev + scanLineDir.current * step;
-        if (next >= scanAreaSize - 4) scanLineDir.current = -1;
-        if (next <= 0) scanLineDir.current = 1;
-        return next;
-      });
-    }, 8);
-
+  useEffect(() => {
+    void preloadFeedbackSounds();
     return () => {
-      unloadFeedbackSounds();
-      if (scanLineInterval.current) clearInterval(scanLineInterval.current);
+      void unloadFeedbackSounds();
     };
   }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", nextState => {
+      const active = nextState === "active";
+      setAppActive(active);
+
+      if (!active) {
+        setFlashMode(false);
+        clearCountdown();
+        scanRequestControllerRef.current?.abort();
+        scanRequestControllerRef.current = null;
+        actionRequestControllerRef.current?.abort();
+        actionRequestControllerRef.current = null;
+        completionRequestControllerRef.current?.abort();
+        completionRequestControllerRef.current = null;
+        defectRequestControllerRef.current?.abort();
+        defectRequestControllerRef.current = null;
+        defectListRequestControllerRef.current?.abort();
+        defectListRequestControllerRef.current = null;
+        resetScanner();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [clearCountdown, resetScanner]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setScreenFocused(true);
+
+      const animation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(scanLineAnimation, {
+            toValue: scanAreaSize - 4,
+            duration: 1400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scanLineAnimation, {
+            toValue: 0,
+            duration: 1400,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+
+      animation.start();
+
+      return () => {
+        setScreenFocused(false);
+        animation.stop();
+        scanLineAnimation.stopAnimation();
+        scanLineAnimation.setValue(0);
+        scanRequestControllerRef.current?.abort();
+        scanRequestControllerRef.current = null;
+        actionRequestControllerRef.current?.abort();
+        actionRequestControllerRef.current = null;
+        scanLockRef.current = false;
+
+        if (scanResetTimerRef.current) {
+          clearTimeout(scanResetTimerRef.current);
+          scanResetTimerRef.current = null;
+        }
+
+        clearCountdown();
+        setFlashMode(false);
+        setShowManualEntry(false);
+        setManualCode("");
+        setMappedItem(null);
+        setActiveDefect(null);
+        setShowItemDetail(false);
+        setGalleryVisible(false);
+        setGalleryIndex(0);
+        setShowCompletionPopup(false);
+        setCompletionPhotos([]);
+        setDefectMappedItem(null);
+        setShowDefectItemDetail(false);
+        setShowDefectModal(false);
+        setSelectedDefect(null);
+        setOtherDefectText("");
+        setDefectSearchQuery("");
+        setDefectComment("");
+        setDefectPhotos([]);
+        setDefectType(null);
+        setReworkMachineId(null);
+      };
+    }, [clearCountdown, scanLineAnimation])
+  );
 
   // ─── Mode toggle ──────────────────────────────────────────────────────────
 
@@ -226,14 +314,8 @@ export default function TrackTraceBarcodeScanner() {
     if (isDefectHidden) return;
     if (mode === scanMode) return;
     setScanMode(mode);
-    setScanned(false);
+    resetScanner();
     setManualCode("");
-    Animated.spring(toggleAnim, {
-      toValue: mode === "scan" ? 0 : 1,
-      useNativeDriver: false,
-      tension: 80,
-      friction: 12,
-    }).start();
   };
 
   // ─── Manual entry helpers ─────────────────────────────────────────────────
@@ -248,11 +330,14 @@ export default function TrackTraceBarcodeScanner() {
   };
 
   const handleManualSubmit = async () => {
+    if (manualSubmitInFlightRef.current) return;
+
     const code = manualCode.trim();
     if (!code) {
       showToast("error", "Please enter a code");
       return;
     }
+    manualSubmitInFlightRef.current = true;
     setManualLoading(true);
     try {
       let success = false;
@@ -268,6 +353,7 @@ export default function TrackTraceBarcodeScanner() {
     } catch (err) {
       // error already shown inside handler
     } finally {
+      manualSubmitInFlightRef.current = false;
       setManualLoading(false);
     }
   };
@@ -284,42 +370,139 @@ export default function TrackTraceBarcodeScanner() {
   });
 
   const callScanItem = async (scannedCode: string) => {
-    const res = await axios.post("/track-trace/scan/item", buildPayload(scannedCode));
-    return res.data;
+    const controller = new AbortController();
+    actionRequestControllerRef.current?.abort();
+    actionRequestControllerRef.current = controller;
+
+    try {
+      const res = await axios.post(
+        "/track-trace/scan/item",
+        buildPayload(scannedCode),
+        { signal: controller.signal }
+      );
+      return res.data;
+    } finally {
+      if (actionRequestControllerRef.current === controller) {
+        actionRequestControllerRef.current = null;
+      }
+    }
   };
 
   // ─── Item detail sheet helpers ─────────────────────────────────────────────
 
+  const hideItemDetailSheet = () => {
+    clearCountdown();
+    setShowItemDetail(false);
+    setMappedItem(null);
+    setActiveDefect(null);
+    resetScanner();
+  };
+
+  const completeScannedItem = async (item: MappedItem): Promise<boolean> => {
+    if (actionInFlightRef.current) return false;
+
+    actionInFlightRef.current = true;
+    setActionLoading(true);
+    let completed = false;
+
+    try {
+      const apiResponse = await callScanItem(item.cut_list.unique_code);
+
+      if (apiResponse.success) {
+        completed = true;
+        showToast(
+          "success",
+          apiResponse.message || "Marked as completed",
+        );
+        void playSuccessFeedback();
+      } else {
+        showToast("error", apiResponse.message || "Failed to mark completed");
+        void playErrorFeedback();
+      }
+    } catch (err: any) {
+      if (!isCanceledRequest(err)) {
+        showToast(
+          "error",
+          err?.response?.data?.message || "Failed to mark completed",
+        );
+        void playErrorFeedback();
+      }
+    } finally {
+      actionInFlightRef.current = false;
+      setActionLoading(false);
+    }
+
+    if (completed) {
+      hideItemDetailSheet();
+    }
+
+    return completed;
+  };
+
+  const startCountdown = (item: MappedItem, seconds: number) => {
+    clearCountdown();
+
+    const safeSeconds = Number.isFinite(seconds)
+      ? Math.max(0, Math.floor(seconds))
+      : 5;
+
+    if (safeSeconds === 0) {
+      void completeScannedItem(item);
+      return;
+    }
+
+    pendingItemRef.current = item;
+    countdownValueRef.current = safeSeconds;
+    setCountdown(safeSeconds);
+
+    countdownTimerRef.current = setInterval(() => {
+      countdownValueRef.current -= 1;
+
+      if (countdownValueRef.current <= 0) {
+        const pendingItem = pendingItemRef.current;
+        clearCountdown();
+
+        if (pendingItem) {
+          void completeScannedItem(pendingItem);
+        }
+
+        return;
+      }
+
+      setCountdown(countdownValueRef.current);
+    }, 1000);
+  };
+
   const showItemDetailSheet = (data: any) => {
-    console.log(data);
-    const item: MappedItem = data?.mappedItem?.mappedItem ?? data?.mappedItem ?? data;
-    const defect: ActiveDefect | null = data?.mappedItem?.activeDefect ?? data?.activeDefect ?? null;
-    // countdown_timer comes from the server (check-item response) — fallback to 5
-    // alert(data?.mappedItem.countdown_timer);
-    const seconds: number = typeof data?.mappedItem.countdown_timer === "number" ? data?.mappedItem.countdown_timer : 5;
-    
+    const detailData = data?.mappedItem?.mappedItem ? data.mappedItem : data;
+    const item: MappedItem = detailData?.mappedItem ?? data?.mappedItem ?? data;
+    const defect: ActiveDefect | null =
+      detailData?.activeDefect ?? data?.activeDefect ?? null;
+    const rawCountdown =
+      detailData?.countdown_timer ??
+      data?.countdown_timer ??
+      data?.mappedItem?.countdown_timer ??
+      5;
+    const countdownSeconds = Number(rawCountdown);
+
+    scanLockRef.current = true;
+    setScanned(true);
     setMappedItem(item);
     setActiveDefect(defect);
     setShowItemDetail(true);
 
-    // Only auto-complete when there is no pending defect on this item
+    // Auto-save only when there is no pending defect. The Mark Completed
+    // button remains available and can finish the item before the timer.
     if (!defect || defect.defect_status === "Completed") {
-      startCountdown(item, seconds);
+      startCountdown(item, countdownSeconds);
     }
-  };
-
-  const hideItemDetailSheet = () => {
-    clearCountdown();
-    pendingItemRef.current = null;
-    setShowItemDetail(false);
-    setMappedItem(null);
-    setActiveDefect(null);
-    setScanned(false);
   };
 
   // ─── Defect item detail sheet helpers ─────────────────────────────────────
 
   const showDefectItemDetailSheet = (item: MappedItem) => {
+    scanLockRef.current = true;
+    setScanned(true);
     setDefectMappedItem(item);
     setShowDefectItemDetail(true);
   };
@@ -327,23 +510,41 @@ export default function TrackTraceBarcodeScanner() {
   const hideDefectItemDetailSheet = () => {
     setShowDefectItemDetail(false);
     setDefectMappedItem(null);
-    setScanned(false);
+    resetScanner();
   };
 
   // ─── Defect selection sheet helpers ──────────────────────────────────────
 
-  const fetchAndOpenDefectSheet = async (item: MappedItem) => {
+  const fetchAndOpenDefectSheet = async (_item: MappedItem) => {
+    if (defectListLoadedRef.current) {
+      setDefectList(defectListRef.current);
+      setShowDefectModal(true);
+      return;
+    }
+
+    const controller = new AbortController();
+    defectListRequestControllerRef.current?.abort();
+    defectListRequestControllerRef.current = controller;
+
     setDefectListLoading(true);
     try {
-      const res = await axios.get(`/track-trace/defect-master/${vendor_id}`);
+      const res = await axios.get(`/track-trace/defect-master/${vendor_id}`, {
+        signal: controller.signal,
+      });
       const apiResponse = res.data;
       const fetched = (apiResponse.success && apiResponse.data?.defects) ? apiResponse.data.defects : [];
       defectListRef.current = fetched;
+      defectListLoadedRef.current = true;
       setDefectList(fetched);
       setShowDefectModal(true);
     } catch (err: any) {
-      showToast("error", err?.response?.data?.message || "Failed to load defects");
+      if (!isCanceledRequest(err)) {
+        showToast("error", err?.response?.data?.message || "Failed to load defects");
+      }
     } finally {
+      if (defectListRequestControllerRef.current === controller) {
+        defectListRequestControllerRef.current = null;
+      }
       setDefectListLoading(false);
     }
   };
@@ -362,87 +563,115 @@ export default function TrackTraceBarcodeScanner() {
   // ─── Scan handlers ────────────────────────────────────────────────────────
 
   const handleBarCodeScanned = async ({ type, data }: { type: string; data: string }) => {
-    if (scanned || showManualEntry) return;
+    if (scanLockRef.current || scanned || showManualEntry) return;
+
+    scanLockRef.current = true;
     setScanned(true);
     try {
       
       if (scanMode === "scan") {
         // alert(1)
-        console.log("-------------------------");
-        console.log(data);
+        //console.log("-------------------------");
+        //console.log(data);
         await handleQRScanned(data);
       } else {
         await handleDefectQRScanned(data);
       }
     } catch (err) {
       showToast("error", "Scan Failed");
-      setScanned(false);
+      resetScanner(1000);
     }
   };
 
   const handleQRScanned = async (scannedCode: string): Promise<boolean> => {
+    const controller = new AbortController();
+    scanRequestControllerRef.current?.abort();
+    scanRequestControllerRef.current = controller;
+
     try {
       
-      const res = await axios.post("/track-trace/scan/check-item", buildPayload(scannedCode));
+      const res = await axios.post(
+        "/track-trace/scan/check-item",
+        buildPayload(scannedCode),
+        { signal: controller.signal }
+      );
       const apiResponse = res.data;
       if (apiResponse.success) {
         if (apiResponse.message !== "") showToast("success", apiResponse.message);
-        await playSuccessFeedback();
+        void playSuccessFeedback();
         if (apiResponse.data) {
           showItemDetailSheet(apiResponse.data);
         } else {
-          setTimeout(() => setScanned(false), 1000);
+          resetScanner(1000);
         }
         return true;
       } else {
         showToast("error", apiResponse.message);
-        await playErrorFeedback();
-        setTimeout(() => setScanned(false), 1000);
+        playErrorFeedback();
+        resetScanner(1000);
         return false;
       }
     } catch (err: any) {
-      await playErrorFeedback();
+      if (controller.signal.aborted) return false;
+      playErrorFeedback();
       showToast("error", err.response?.data?.message || err.message);
-      setTimeout(() => setScanned(false), 1000);
+      resetScanner(1000);
       return false;
+    } finally {
+      if (scanRequestControllerRef.current === controller) {
+        scanRequestControllerRef.current = null;
+      }
     }
   };
 
   const handleDefectQRScanned = async (scannedCode: string): Promise<boolean> => {
+    const controller = new AbortController();
+    scanRequestControllerRef.current?.abort();
+    scanRequestControllerRef.current = controller;
+
     try {
-      const res = await axios.post("/track-trace/scan/check-defect", buildPayload(scannedCode));
+      const res = await axios.post(
+        "/track-trace/scan/check-defect",
+        buildPayload(scannedCode),
+        { signal: controller.signal }
+      );
       const apiResponse = res.data;
       if (apiResponse.success) {
         if (apiResponse.message !== "") showToast("success", apiResponse.message);
-        await playSuccessFeedback();
+        playSuccessFeedback();
         if (apiResponse.data) {
           // check-defect returns { mappedItem: {...} }
           const item: MappedItem = apiResponse.data?.mappedItem ?? apiResponse.data;
           showDefectItemDetailSheet(item);
         } else {
-          setTimeout(() => setScanned(false), 1000);
+          resetScanner(1000);
         }
         return true;
       } else {
         showToast("error", apiResponse.message);
-        await playErrorFeedback();
-        setTimeout(() => setScanned(false), 1000);
+        playErrorFeedback();
+        resetScanner(1000);
         return false;
       }
     } catch (err: any) {
-      await playErrorFeedback();
+      if (controller.signal.aborted) return false;
+      playErrorFeedback();
       showToast("error", err.response?.data?.message || err.message);
-      setTimeout(() => setScanned(false), 1000);
+      resetScanner(1000);
       return false;
+    } finally {
+      if (scanRequestControllerRef.current === controller) {
+        scanRequestControllerRef.current = null;
+      }
     }
   };
 
   // ─── Action handlers ──────────────────────────────────────────────────────
 
   const handleMarkCompleted = async () => {
-    if (!mappedItem) return;
+    if (!mappedItem || actionInFlightRef.current) return;
 
-    // Cancel the auto-complete countdown — user is acting manually
+    // Manual completion wins over auto-save and cancels the timer first.
     clearCountdown();
 
     // pending rework defect → show photo popup
@@ -453,22 +682,7 @@ export default function TrackTraceBarcodeScanner() {
       return;
     }
 
-    setActionLoading(true);
-    try {
-      const apiResponse = await callScanItem(mappedItem.cut_list.unique_code);
-      if (apiResponse.success) {
-        showToast("success", apiResponse.message);
-        await playSuccessFeedback();
-      } else {
-        showToast("error", apiResponse.message);
-        await playErrorFeedback();
-      }
-      hideItemDetailSheet();
-    } catch (err: any) {
-      showToast("error", err?.response?.data?.message || "Failed to mark completed");
-    } finally {
-      setActionLoading(false);
-    }
+    await completeScannedItem(mappedItem);
   };
 
   // ─── Completion photo handlers ─────────────────────────────────────────────
@@ -525,11 +739,17 @@ export default function TrackTraceBarcodeScanner() {
 
   const handleSubmitCompletion = async () => {
     if (!mappedItem) return;
+    if (completionInFlightRef.current) return;
     if (completionPhotos.length === 0) {
       showToast("error", "Please attach at least 1 photo");
       return;
     }
+    completionInFlightRef.current = true;
     setCompletionLoading(true);
+    const controller = new AbortController();
+    completionRequestControllerRef.current?.abort();
+    completionRequestControllerRef.current = controller;
+
     try {
       const formData = new FormData();
       formData.append("project_id", String(project_id));
@@ -554,22 +774,29 @@ export default function TrackTraceBarcodeScanner() {
           "Accept": "application/json",
         },
         transformRequest: (data) => data,
+        signal: controller.signal,
       });
 
       const apiResponse = res.data;
       if (apiResponse.success) {
         showToast("success", apiResponse.message || "Marked completed successfully");
-        await playSuccessFeedback();
+        playSuccessFeedback();
         setShowCompletionPopup(false);
         setCompletionPhotos([]);
         hideItemDetailSheet();
       } else {
         showToast("error", apiResponse.message || "Failed to mark completed");
-        await playErrorFeedback();
+        playErrorFeedback();
       }
     } catch (err: any) {
-      showToast("error", err?.response?.data?.message || "Failed to mark completed");
+      if (!isCanceledRequest(err)) {
+        showToast("error", err?.response?.data?.message || "Failed to mark completed");
+      }
     } finally {
+      if (completionRequestControllerRef.current === controller) {
+        completionRequestControllerRef.current = null;
+      }
+      completionInFlightRef.current = false;
       setCompletionLoading(false);
     }
   };
@@ -640,7 +867,7 @@ export default function TrackTraceBarcodeScanner() {
     
     const activeItem = mappedItem ?? defectMappedItem;
     
-    if (!activeItem || !selectedDefect) return;
+    if (!activeItem || !selectedDefect || defectSubmitInFlightRef.current) return;
 
     const isOther = selectedDefect.id === 0;
     if (isOther && otherDefectText.trim() === "") {
@@ -663,7 +890,12 @@ export default function TrackTraceBarcodeScanner() {
       return;
     }
 
+    defectSubmitInFlightRef.current = true;
     setSubmitDefectLoading(true);
+    const controller = new AbortController();
+    defectRequestControllerRef.current?.abort();
+    defectRequestControllerRef.current = controller;
+
     try {
       const formData = new FormData();
       formData.append("vendor_id", String(vendor_id));
@@ -697,13 +929,14 @@ export default function TrackTraceBarcodeScanner() {
           "Accept": "application/json",
         },
         transformRequest: (data) => data,
+        signal: controller.signal,
       });
 
       const apiResponse = res.data;
 
       if (apiResponse.success) {
         showToast("success", apiResponse.message || "Defect marked successfully");
-        await playErrorFeedback();
+        playErrorFeedback();
         closeDefectModal();
         if (scanMode === "scan") {
           hideItemDetailSheet();
@@ -712,19 +945,39 @@ export default function TrackTraceBarcodeScanner() {
         }
       } else {
         closeDefectModal();
-        hideDefectItemDetailSheet();
+        if (scanMode === "scan") {
+          hideItemDetailSheet();
+        } else {
+          hideDefectItemDetailSheet();
+        }
         showToast("error", apiResponse.message || "Failed to mark defect");
 
-        await playErrorFeedback();
+        playErrorFeedback();
       }
     } catch (err: any) {
-      showToast("error", err?.response?.data?.message || "Failed to mark defect");
+      if (!isCanceledRequest(err)) {
+        showToast("error", err?.response?.data?.message || "Failed to mark defect");
+      }
     } finally {
+      if (defectRequestControllerRef.current === controller) {
+        defectRequestControllerRef.current = null;
+      }
+      defectSubmitInFlightRef.current = false;
       setSubmitDefectLoading(false);
     }
   };
 
   // ─── Guard ────────────────────────────────────────────────────────────────
+
+  const allDefects = useMemo(() => {
+    const query = defectSearchQuery.trim().toLowerCase();
+    const source = [...defectList, OTHER_DEFECT];
+
+    if (!query) return source;
+    return source.filter(defect =>
+      defect.defect_name.toLowerCase().includes(query)
+    );
+  }, [defectList, defectSearchQuery]);
 
   if (!permission) {
     return (
@@ -736,34 +989,48 @@ export default function TrackTraceBarcodeScanner() {
     );
   }
 
-  const allDefects = [...defectListRef.current, OTHER_DEFECT].filter(d =>
-    d.defect_name.toLowerCase().includes(defectSearchQuery.toLowerCase())
-  );
+  if (!permission.granted) {
+    return (
+      <View style={styles.permissionContainer}>
+        <Camera size={42} color="white" />
+        <Text style={styles.permissionTitle}>Camera permission required</Text>
+        <Text style={styles.permissionText}>
+          Allow camera access to scan barcodes and QR codes.
+        </Text>
+        <TouchableOpacity
+          style={styles.permissionButton}
+          onPress={() => void requestPermission()}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.permissionButtonText}>Allow Camera</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const isDefectMode = scanMode === "defect";
-
-  const pillLeft = toggleAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [2, (width * 0.7) / 2],
-  });
+  const scannerPaused =
+    scanned ||
+    showManualEntry ||
+    showItemDetail ||
+    showDefectItemDetail ||
+    showDefectModal ||
+    showCompletionPopup ||
+    galleryVisible;
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="black" />
 
-      <CameraView
-        style={styles.camera}
-        facing="back"
-        enableTorch={flashMode}
-        onBarcodeScanned={scanned || showManualEntry ? undefined : handleBarCodeScanned}
-        barcodeScannerSettings={{
-          barcodeTypes: [
-            "qr", "ean13", "ean8", "code39", "code128",
-            "upc_a", "upc_e", "codabar", "code93",
-            "itf14", "datamatrix", "pdf417",
-          ],
-        }}
-      />
+      {screenFocused && appActive && (
+        <CameraView
+          style={styles.camera}
+          facing="back"
+          enableTorch={flashMode}
+          onBarcodeScanned={scannerPaused ? undefined : handleBarCodeScanned}
+          barcodeScannerSettings={BARCODE_SCANNER_SETTINGS}
+        />
+      )}
 
       {/* Header */}
       <View style={styles.header}>
@@ -830,9 +1097,9 @@ export default function TrackTraceBarcodeScanner() {
             <View style={[styles.corner, styles.topRight, isDefectMode && styles.cornerDefect]} />
             <View style={[styles.corner, styles.bottomLeft, isDefectMode && styles.cornerDefect]} />
             <View style={[styles.corner, styles.bottomRight, isDefectMode && styles.cornerDefect]} />
-            <View style={[
+            <Animated.View style={[
               styles.scanLine,
-              { top: scanLinePos },
+              { transform: [{ translateY: scanLineAnimation }] },
               isDefectMode && styles.scanLineDefect,
             ]} />
           </View>
@@ -1003,16 +1270,18 @@ export default function TrackTraceBarcodeScanner() {
 
               <Text style={styles.markLabel}>MARK STATUS</Text>
 
-              {/* ── Auto-complete countdown banner ── */}
               {countdown !== null && (
                 <View style={styles.countdownBanner}>
                   <View style={styles.countdownLeft}>
                     <Text style={styles.countdownNumber}>{countdown}</Text>
                     <View>
                       <Text style={styles.countdownTitle}>Auto-completing</Text>
-                      <Text style={styles.countdownSub}>Tap cancel to stop</Text>
+                      <Text style={styles.countdownSub}>
+                        Or tap Mark Completed now
+                      </Text>
                     </View>
                   </View>
+
                   <TouchableOpacity
                     style={styles.countdownCancelBtn}
                     onPress={() => {
@@ -1366,19 +1635,21 @@ function CompletionPhotoPopup({
 
 // ─── Reusable ItemCard ────────────────────────────────────────────────────────
 
-function ItemCard({ item }: { item: MappedItem }) {
+const ItemCard = React.memo(function ItemCard({ item }: { item: MappedItem }) {
+  const detailRows = useMemo(() => [
+    { icon: "🏗️", label: "Project", value: item.project.project_name },
+    { icon: "🔧", label: "Machine", value: item.machine.machine_name },
+    { icon: "📋", label: "Description", value: item.cut_list.description },
+    { icon: "🆔", label: "Item ID", value: String(item.id) },
+    { icon: "📅", label: "Time", value: new Date().toLocaleTimeString() },
+  ], [item]);
+
   return (
     <View style={styles.itemCard}>
       <Text style={styles.itemName} numberOfLines={2}>{item.cut_list.item_name}</Text>
       <Text style={styles.itemCode}>{item.cut_list.unique_code}</Text>
       <View style={styles.divider} />
-      {[
-        { icon: "🏗️", label: "Project", value: item.project.project_name },
-        { icon: "🔧", label: "Machine", value: item.machine.machine_name },
-        { icon: "📋", label: "Description", value: item.cut_list.description },
-        { icon: "🆔", label: "Item ID", value: String(item.id) },
-        { icon: "📅", label: "Time", value: new Date().toLocaleTimeString() },
-      ].map((row, i, arr) => (
+      {detailRows.map((row, i, arr) => (
         <View key={row.label} style={[styles.detailRow, i < arr.length - 1 && styles.detailRowBorder]}>
           <View style={styles.detailRowLeft}>
             <Text style={styles.detailRowIcon}>{row.icon}</Text>
@@ -1389,7 +1660,7 @@ function ItemCard({ item }: { item: MappedItem }) {
       ))}
     </View>
   );
-}
+});
 
 // ─── Reusable DefectSheet ─────────────────────────────────────────────────────
 
@@ -1478,14 +1749,19 @@ function DefectSheet({
             )}
           </View>
 
-          <ScrollView
+          <FlatList
             style={styles.defectScroll}
             contentContainerStyle={styles.defectScrollContent}
+            data={allDefects}
+            keyExtractor={(defect) => String(defect.id)}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             nestedScrollEnabled
-          >
-            {allDefects.map((defect) => {
+            initialNumToRender={12}
+            maxToRenderPerBatch={12}
+            windowSize={7}
+            removeClippedSubviews={Platform.OS === "android"}
+            renderItem={({ item: defect }) => {
               const isSelected = selectedDefect?.id === defect.id;
               const isOther = defect.id === 0;
               return (
@@ -1508,15 +1784,14 @@ function DefectSheet({
                   )}
                 </TouchableOpacity>
               );
-            })}
-
-            {allDefects.length === 0 && (
+            }}
+            ListEmptyComponent={(
               <View style={styles.defectNoResults}>
                 <Text style={styles.defectNoResultsText}>No defects match "{defectSearchQuery}"</Text>
               </View>
             )}
-            <View style={{ height: 16 }} />
-          </ScrollView>
+            ListFooterComponent={<View style={{ height: 16 }} />}
+          />
         </View>
       </KeyboardAvoidingView>
 
@@ -1597,18 +1872,39 @@ function DefectDetailPopup({
 
   const [machines, setMachines] = useState<ReworkMachine[]>([]);
   const [machinesLoading, setMachinesLoading] = useState(false);
+  const loadedMachineKeyRef = useRef<string | null>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (defectType !== "rework") return;
+
+    const machineKey = `${vendorId}:${machineId}`;
+    if (loadedMachineKeyRef.current === machineKey) return;
+
+    const controller = new AbortController();
+    let active = true;
+
     setMachinesLoading(true);
-    axios.get(`/track-trace/rework-machines/${vendorId}/${machineId}`)
+    axios.get(`/track-trace/rework-machines/${vendorId}/${machineId}`, {
+      signal: controller.signal,
+    })
       .then(res => {
+        if (!active) return;
         const d = res.data;
-        if (d.success) setMachines(d.data?.serviceResponse ?? d.data ?? []);
+        if (d.success) {
+          loadedMachineKeyRef.current = machineKey;
+          setMachines(d.data?.serviceResponse ?? d.data ?? []);
+        }
       })
       .catch(() => { })
-      .finally(() => setMachinesLoading(false));
-  }, [defectType]);
+      .finally(() => {
+        if (active) setMachinesLoading(false);
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [defectType, machineId, vendorId]);
 
   return (
     <Modal transparent animationType="fade" visible onRequestClose={onBack}>
@@ -1845,6 +2141,39 @@ function DefectDetailPopup({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "black" },
   camera: { flex: 1 },
+  permissionContainer: {
+    flex: 1,
+    backgroundColor: "black",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  permissionTitle: {
+    color: "white",
+    fontSize: 20,
+    fontWeight: "700",
+    marginTop: 18,
+    textAlign: "center",
+  },
+  permissionText: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 8,
+    textAlign: "center",
+  },
+  permissionButton: {
+    backgroundColor: "#007AFF",
+    borderRadius: 14,
+    marginTop: 22,
+    paddingHorizontal: 24,
+    paddingVertical: 13,
+  },
+  permissionButtonText: {
+    color: "white",
+    fontSize: 15,
+    fontWeight: "700",
+  },
 
   // Header
   header: {
@@ -1913,7 +2242,7 @@ const styles = StyleSheet.create({
   bottomLeft: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0 },
   bottomRight: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0 },
   scanLine: {
-    position: "absolute", left: 0, right: 0, height: 4,
+    position: "absolute", top: 0, left: 0, right: 0, height: 4,
     backgroundColor: "#007AFF", shadowColor: "#007AFF",
     shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 4, elevation: 5,
   },
@@ -2381,7 +2710,7 @@ const styles = StyleSheet.create({
   },
   completionInfoText: { fontSize: 13, color: "#166534", lineHeight: 18 },
 
-  // ── Auto-complete countdown banner ───────────────────────────────────────
+  // Auto-complete countdown
   countdownBanner: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     backgroundColor: "#ECFDF5", borderRadius: 14,
@@ -2394,11 +2723,12 @@ const styles = StyleSheet.create({
     fontSize: 36, fontWeight: "900", color: "#059669", lineHeight: 40, minWidth: 36,
   },
   countdownTitle: { fontSize: 14, fontWeight: "700", color: "#065F46" },
-  countdownSub:   { fontSize: 12, color: "#6B7280", marginTop: 1 },
+  countdownSub: { fontSize: 12, color: "#6B7280", marginTop: 1 },
   countdownCancelBtn: {
     paddingVertical: 7, paddingHorizontal: 14,
     borderRadius: 99, borderWidth: 1.5, borderColor: "#10B981",
     backgroundColor: "white",
   },
   countdownCancelText: { fontSize: 13, fontWeight: "700", color: "#059669" },
+
 });

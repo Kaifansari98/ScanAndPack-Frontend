@@ -8,11 +8,11 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { AlertTriangle, ArrowLeft, CheckSquare, ChevronRight, Clock } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import {
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSelector } from "react-redux";
 
@@ -64,7 +64,7 @@ export default function QualityProjectsScreen() {
       const raw = res.data?.data?.projects;
       if (Array.isArray(raw)) setProjects(raw);
     } catch (err) {
-      console.warn("Failed to fetch quality projects:", err);
+      //console.warn("Failed to fetch quality projects:", err);
     } finally {
       setLoading(false);
     }

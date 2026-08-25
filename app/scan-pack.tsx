@@ -99,7 +99,7 @@ function ProjectCard({
         <View style={card.nameRow}>
           <Text style={card.name} numberOfLines={1}>{item.projectName}</Text>
           <View style={[card.badge, { backgroundColor: isDone ? "#D1FAE5" : "#EDE9FE" }]}>
-            <Text style={[card.badgeText, { color: isDone ? "#065F46" : "#4338CA" }]}>{item.status}</Text>
+            <Text style={[card.badgeText, { color: isDone ? "#065F46" : "#4338CA" }]}> {isDone ? "Completed" : item.status}</Text>
           </View>
           <ChevronRight size={15} color="#CBD5E1" />
         </View>

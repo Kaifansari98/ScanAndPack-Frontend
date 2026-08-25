@@ -1,7 +1,6 @@
 import { useCameraPermissions } from "expo-camera";
 import { useRouter } from 'expo-router';
 import { Bell, ChevronLeft, QrCode, Search } from 'lucide-react-native';
-import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type NavbarProps = {
@@ -36,7 +35,7 @@ export default function Navbar({
     if (newPermission?.granted) {
       router.push('/scanner');
     } else {
-      console.warn('Camera permission not granted');
+      //console.warn('Camera permission not granted');
     }
   } else {
     router.push('/scanner');
@@ -49,7 +48,7 @@ const handleTrackTraceScanPress = async () => {
     if (newPermission?.granted) {
       router.push('/scanner-track-trace');
     } else {
-      console.warn('Camera permission not granted');
+      //console.warn('Camera permission not granted');
     }
   } else {
     router.push('/scanner-track-trace');

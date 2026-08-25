@@ -36,7 +36,7 @@ export default function DashboardTabScreen() {
       const data = res.data?.data?.modules;
       if (data) setModules(data);
     } catch (err) {
-      console.warn("Failed to fetch modules:", err);
+      //console.warn("Failed to fetch modules:", err);
     } finally {
       setLoading(false);
     }

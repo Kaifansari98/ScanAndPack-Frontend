@@ -11,7 +11,7 @@ export async function fetchProjectDetailsAndShare(project: PDFData) {
   try {
     const sharingAvailable = await Sharing.isAvailableAsync();
     if (!sharingAvailable) {
-      console.error("Sharing is not available on this device");
+      //console.error("Sharing is not available on this device");
       return;
     }
 
@@ -23,16 +23,16 @@ export async function fetchProjectDetailsAndShare(project: PDFData) {
     const fileName: string    = res.data?.data?.file_name;
 
     if (!downloadUrl || !fileName) {
-      console.error("Project PDF generation failed:", res.data?.message);
+      //console.error("Project PDF generation failed:", res.data?.message);
       return;
     }
 
-    console.log("Downloading project PDF from:", downloadUrl);
+    //console.log("Downloading project PDF from:", downloadUrl);
 
     const localUri = `${ExpoFS.cacheDirectory}${fileName}`;
     const downloadRes = await ExpoFS.downloadAsync(downloadUrl, localUri);
 
-    console.log("Project PDF saved at:", downloadRes.uri);
+    //console.log("Project PDF saved at:", downloadRes.uri);
 
     await Sharing.shareAsync(downloadRes.uri, {
       mimeType: "application/pdf",
@@ -41,7 +41,7 @@ export async function fetchProjectDetailsAndShare(project: PDFData) {
     });
 
   } catch (err) {
-    console.error("Failed to generate or share project PDF:", err);
+    //console.error("Failed to generate or share project PDF:", err);
     throw err;
   }
 }
@@ -50,7 +50,7 @@ export async function fetchAllBoxesPdfAndShare(project: PDFData) {
   try {
     const sharingAvailable = await Sharing.isAvailableAsync();
     if (!sharingAvailable) {
-      console.error("Sharing is not available on this device");
+      //console.error("Sharing is not available on this device");
       return;
     }
 
@@ -62,16 +62,16 @@ export async function fetchAllBoxesPdfAndShare(project: PDFData) {
     const fileName: string    = res.data?.data?.file_name;
 
     if (!downloadUrl || !fileName) {
-      console.error("All boxes PDF generation failed:", res.data?.message);
+      //console.error("All boxes PDF generation failed:", res.data?.message);
       return;
     }
 
-    console.log("Downloading all boxes PDF from:", downloadUrl);
+    //console.log("Downloading all boxes PDF from:", downloadUrl);
 
     const localUri = `${ExpoFS.cacheDirectory}${fileName}`;
     const downloadRes = await ExpoFS.downloadAsync(downloadUrl, localUri);
 
-    console.log("All boxes PDF saved at:", downloadRes.uri);
+    //console.log("All boxes PDF saved at:", downloadRes.uri);
 
     await Sharing.shareAsync(downloadRes.uri, {
       mimeType: "application/pdf",
@@ -80,7 +80,7 @@ export async function fetchAllBoxesPdfAndShare(project: PDFData) {
     });
 
   } catch (err) {
-    console.error("Failed to generate or share all boxes PDF:", err);
+    //console.error("Failed to generate or share all boxes PDF:", err);
     throw err;
   }
 }
@@ -89,7 +89,7 @@ export async function fetchProjectFullReportAndShare(project: PDFData) {
   try {
     const sharingAvailable = await Sharing.isAvailableAsync();
     if (!sharingAvailable) {
-      console.error("Sharing is not available on this device");
+      //console.error("Sharing is not available on this device");
       return;
     }
  
@@ -101,16 +101,16 @@ export async function fetchProjectFullReportAndShare(project: PDFData) {
     const fileName: string    = res.data?.data?.file_name;
  
     if (!downloadUrl || !fileName) {
-      console.error("Project full report failed:", res.data?.message);
+      //console.error("Project full report failed:", res.data?.message);
       return;
     }
  
-    console.log("Downloading full report from:", downloadUrl);
+    //console.log("Downloading full report from:", downloadUrl);
  
     const localUri = `${ExpoFS.cacheDirectory}${fileName}`;
     const downloadRes = await ExpoFS.downloadAsync(downloadUrl, localUri);
  
-    console.log("Full report saved at:", downloadRes.uri);
+    //console.log("Full report saved at:", downloadRes.uri);
  
     await Sharing.shareAsync(downloadRes.uri, {
       mimeType: "application/pdf",
@@ -119,7 +119,7 @@ export async function fetchProjectFullReportAndShare(project: PDFData) {
     });
  
   } catch (err) {
-    console.error("Failed to generate or share project full report:", err);
+    //console.error("Failed to generate or share project full report:", err);
     throw err;
   }
 }

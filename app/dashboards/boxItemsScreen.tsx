@@ -354,7 +354,7 @@ export default function BoxItemsScreen() {
       const parsed = JSON.parse(payloadString) as Box;
       setBox(parsed);
     } catch (error) {
-      console.error("Failed to parse payload:", error);
+      //console.error("Failed to parse payload:", error);
       showToast("error", "Invalid box data");
     }
   }, [payloadString]);
@@ -377,7 +377,7 @@ export default function BoxItemsScreen() {
 
       setScanItems(items);
     } catch (error) {
-      console.log("Failed to fetch scan items:", error);
+      //console.log("Failed to fetch scan items:", error);
     } finally {
       setLoading(false);
     }
@@ -404,7 +404,7 @@ export default function BoxItemsScreen() {
         setManualItems(data?.data?.items ?? []);
         setManualSummary(data?.data?.summary ?? null);
       } catch (error: any) {
-        console.error("Failed to fetch manual packing items:", error);
+        //console.error("Failed to fetch manual packing items:", error);
 
         setManualItems([]);
         setManualSummary(null);
@@ -482,7 +482,7 @@ export default function BoxItemsScreen() {
           setBoxName(res.data.box.box_name);
         })
         .catch((error) => {
-          console.error("Failed to fetch box details:", error);
+          //console.error("Failed to fetch box details:", error);
           showToast("error", "Failed to load box details");
         });
 
@@ -694,7 +694,7 @@ export default function BoxItemsScreen() {
       */
       setShowProductModal(true);
     } catch (error: any) {
-      console.error("Failed to add manual packing item:", error);
+      //console.error("Failed to add manual packing item:", error);
 
       showToast(
         "error",
@@ -784,7 +784,7 @@ export default function BoxItemsScreen() {
 
       await fetchScanItems(box);
     } catch (error: any) {
-      console.error("Failed to remove item from box:", error);
+      //console.error("Failed to remove item from box:", error);
 
       showToast(
         "error",
@@ -809,7 +809,7 @@ export default function BoxItemsScreen() {
         await fetchBoxtDetailsAndShare(box);
       }
     } catch (err: any) {
-      console.log("Download Error:", err.message);
+      //console.log("Download Error:", err.message);
     } finally {
       setLoading(false);
     }

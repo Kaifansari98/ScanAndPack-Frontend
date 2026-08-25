@@ -18,10 +18,7 @@ export const getBoxWeight = async (
     );
     return response.data;
   } catch (error: any) {
-    console.error(
-      "Failed to fetch box weight:",
-      error?.response?.data || error.message
-    );
+    //console.error("Failed to fetch box weight:",error?.response?.data || error.message);
     throw error;
   }
 };

@@ -15,10 +15,7 @@ export const getProjectWeight = async (
     );
     return response.data;
   } catch (error: any) {
-    console.error(
-      "Failed to fetch project weight:",
-      error?.response?.data || error.message
-    );
+    //console.error("Failed to fetch project weight:",error?.response?.data || error.message);
     throw error;
   }
 };
