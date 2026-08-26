@@ -8,7 +8,11 @@ import { commonStyles } from "@/components/theme/commonStyles";
 import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
 import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
-import { fetchAllBoxesPdfAndShare, fetchProjectDetailsAndShare } from "@/utils/projectPdfUtils";
+import {
+  fetchAllBoxesPdfAndShare,
+  fetchProjectDetailsAndShare,
+  fetchProjectFullReportAndShare,
+} from "@/utils/projectPdfUtils";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import LottieView from "lottie-react-native";
@@ -63,8 +67,6 @@ type BoxInfoValue = {
   is_required?: boolean;
   sort_order?: number;
 };
-
-
 
 interface ProjectDetailsResponse {
   id: number;
@@ -180,26 +182,53 @@ interface ConfirmModalProps {
 }
 
 function ConfirmModal({
-  visible, title, message, confirmLabel, cancelLabel = "Cancel",
-  type = "download", onConfirm, onCancel,
+  visible,
+  title,
+  message,
+  confirmLabel,
+  cancelLabel = "Cancel",
+  type = "download",
+  onConfirm,
+  onCancel,
 }: ConfirmModalProps) {
   const confirmBg = type === "delete" ? "#E63946" : "#2A9D8F";
   return (
-    <Modal transparent animationType="slide" visible={visible} onRequestClose={onCancel}>
+    <Modal
+      transparent
+      animationType="slide"
+      visible={visible}
+      onRequestClose={onCancel}
+    >
       <View style={cmStyles.overlay}>
-        <TouchableOpacity style={cmStyles.backdrop} activeOpacity={1} onPress={onCancel} />
+        <TouchableOpacity
+          style={cmStyles.backdrop}
+          activeOpacity={1}
+          onPress={onCancel}
+        />
         <View style={cmStyles.sheet}>
           <View style={cmStyles.handle} />
-          <TouchableOpacity style={cmStyles.closeBtn} onPress={onCancel} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <TouchableOpacity
+            style={cmStyles.closeBtn}
+            onPress={onCancel}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <X size={18} color="#6B7280" />
           </TouchableOpacity>
           <Text style={cmStyles.title}>{title}</Text>
           <Text style={cmStyles.message}>{message}</Text>
           <View style={cmStyles.btnRow}>
-            <TouchableOpacity style={[cmStyles.btn, cmStyles.btnCancel]} onPress={onCancel} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={[cmStyles.btn, cmStyles.btnCancel]}
+              onPress={onCancel}
+              activeOpacity={0.8}
+            >
               <Text style={cmStyles.btnCancelText}>{cancelLabel}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[cmStyles.btn, { backgroundColor: confirmBg }]} onPress={onConfirm} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={[cmStyles.btn, { backgroundColor: confirmBg }]}
+              onPress={onConfirm}
+              activeOpacity={0.8}
+            >
               <Text style={cmStyles.btnConfirmText}>{confirmLabel}</Text>
             </TouchableOpacity>
           </View>
@@ -211,288 +240,335 @@ function ConfirmModal({
 
 const cmStyles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end" },
-  backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" },
+  backdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
   sheet: {
-    backgroundColor: "white", borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    paddingHorizontal: 24, paddingBottom: Platform.OS === "ios" ? 48 : 32,
-    paddingTop: 12, alignItems: "center",
-    shadowColor: "#000", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 16, elevation: 20,
+    backgroundColor: "white",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 24,
+    paddingBottom: Platform.OS === "ios" ? 48 : 32,
+    paddingTop: 12,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 20,
   },
-  handle: { width: 40, height: 4, backgroundColor: "#D1D5DB", borderRadius: 2, marginBottom: 16 },
+  handle: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#D1D5DB",
+    borderRadius: 2,
+    marginBottom: 16,
+  },
   closeBtn: {
-    position: "absolute", top: 20, right: 20,
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: "#F3F4F6", justifyContent: "center", alignItems: "center",
+    position: "absolute",
+    top: 20,
+    right: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  title: { fontSize: 18, fontWeight: "800", color: "#111827", marginBottom: 8, textAlign: "center" },
-  message: { fontSize: 14, color: "#6B7280", textAlign: "center", marginBottom: 28, lineHeight: 20 },
+  title: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  message: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    marginBottom: 28,
+    lineHeight: 20,
+  },
   btnRow: { flexDirection: "row", gap: 12, width: "100%" },
-  btn: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  btnCancel: { backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#E5E7EB" },
+  btn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnCancel: {
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
   btnCancelText: { fontSize: 15, fontWeight: "600", color: "#374151" },
   btnConfirmText: { fontSize: 15, fontWeight: "700", color: "white" },
 });
 
 // ─── Box Card ─────────────────────────────────────────────────────────────────
 
-const BoxCard = memo(function BoxCard({
-  box, index, handleDownload, handleEditPress, machine_id, machine_name,
-}: {
-  box: BoxItem;
-  index: number;
-  handleDownload: () => void;
-  handleEditPress: () => void;
-  machine_id: number | null;
-  machine_name: string;
-}) {
+const BoxCard = memo(
+  function BoxCard({
+    box,
+    index,
+    handleDownload,
+    handleEditPress,
+    machine_id,
+    machine_name,
+  }: {
+    box: BoxItem;
+    index: number;
+    handleDownload: () => void;
+    handleEditPress: () => void;
+    machine_id: number | null;
+    machine_name: string;
+  }) {
+    const router = useRouter();
+    const { showToast } = useToast();
+    const cardOpacity = useSharedValue(0);
+    const cardTranslateY = useSharedValue(24);
+    const scale = useSharedValue(1);
 
-  const router = useRouter();
-  const { showToast } = useToast();
-  const cardOpacity = useSharedValue(0);
-  const cardTranslateY = useSharedValue(24);
-  const scale = useSharedValue(1);
+    const visibleBoxInfoValues =
+      box.box_info_values?.filter(
+        (item) => item.field_value && String(item.field_value).trim(),
+      ) || [];
 
-  const visibleBoxInfoValues =
-    box.box_info_values?.filter(
-      (item) =>
-        item.field_value &&
-        String(item.field_value).trim()
-    ) || [];
+    useEffect(() => {
+      const delay = Math.min(index, 6) * 45;
+      cardOpacity.value = withDelay(
+        delay,
+        withTiming(1, { duration: 350, easing: Easing.out(Easing.cubic) }),
+      );
+      cardTranslateY.value = withDelay(
+        delay,
+        withSpring(0, { damping: 18, stiffness: 130 }),
+      );
+    }, [index]);
 
-  useEffect(() => {
-    const delay = Math.min(index, 6) * 45;
-    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 350, easing: Easing.out(Easing.cubic) }));
-    cardTranslateY.value = withDelay(delay, withSpring(0, { damping: 18, stiffness: 130 }));
-  }, [index]);
+    const animatedCardStyle = useAnimatedStyle(() => ({
+      opacity: cardOpacity.value,
+      transform: [{ translateY: cardTranslateY.value }, { scale: scale.value }],
+    }));
 
-  const animatedCardStyle = useAnimatedStyle(() => ({
-    opacity: cardOpacity.value,
-    transform: [{ translateY: cardTranslateY.value }, { scale: scale.value }],
-  }));
+    const isPacked = normalizePackingStatus(box.box_status) === "packed";
+    const isEmpty = box.items_count === 0;
 
-  const isPacked = normalizePackingStatus(box.box_status) === "packed";
-  const isEmpty = box.items_count === 0;
+    const handleNavigate = () => {
+      router.push({
+        pathname: "./boxItemsScreen",
+        params: {
+          payload: JSON.stringify({
+            project_id: box.project_id,
+            vendor_id: box.vendor_id,
+            id: box.id,
+            machine_id,
+            machine_name,
+          }),
+        },
+      });
+    };
 
-  const handleNavigate = () => {
-    router.push({
-      pathname: "./boxItemsScreen",
-      params: {
-        payload: JSON.stringify({
-          project_id: box.project_id,
-          vendor_id: box.vendor_id,
-          id: box.id,
-          machine_id,
-          machine_name,
-        }),
-      },
-    });
-  };
-
-  return (
-  <TouchableOpacity
-    activeOpacity={0.85}
-    onPressIn={() => {
-      scale.value = withSpring(0.97);
-    }}
-    onPressOut={() => {
-      scale.value = withSpring(1);
-    }}
-    onPress={handleNavigate}
-  >
-    <Animated.View
-      style={[
-        animatedCardStyle,
-        boxStyles.card,
-      ]}
-    >
-      <View
-        style={[
-          boxStyles.accentStrip,
-          {
-            backgroundColor:
-              isPacked
-                ? "#2A9D8F"
-                : "#F4A261",
-          },
-        ]}
-      />
-
-      <View style={boxStyles.cardBody}>
-        <View style={boxStyles.headerRow}>
+    return (
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPressIn={() => {
+          scale.value = withSpring(0.97);
+        }}
+        onPressOut={() => {
+          scale.value = withSpring(1);
+        }}
+        onPress={handleNavigate}
+      >
+        <Animated.View style={[animatedCardStyle, boxStyles.card]}>
           <View
             style={[
-              boxStyles.iconWrap,
+              boxStyles.accentStrip,
               {
-                backgroundColor:
-                  isPacked
-                    ? "#E6F7F5"
-                    : "#FFF8EE",
+                backgroundColor: isPacked ? "#2A9D8F" : "#F4A261",
               },
             ]}
-          >
-            <Package
-              size={18}
-              color={
-                isPacked
-                  ? "#2A9D8F"
-                  : "#F4A261"
-              }
-            />
-          </View>
+          />
 
-          <Text
-            style={boxStyles.boxName}
-            numberOfLines={1}
-          >
-            {box.name}
-          </Text>
-
-          <View
-            style={[
-              boxStyles.statusPill,
-              {
-                backgroundColor:
-                  isPacked
-                    ? "#E6F7F5"
-                    : "#FFF8EE",
-              },
-            ]}
-          >
-            <Text
-              style={[
-                boxStyles.statusPillText,
-                {
-                  color:
-                    isPacked
-                      ? "#1A7A70"
-                      : "#C15C0A",
-                },
-              ]}
-            >
-              {isPacked ? "Packed" : "Unpacked"}
-            </Text>
-          </View>
-        </View>
-
-        {visibleBoxInfoValues.length > 0 && (
-          <View style={boxStyles.dynamicInfoWrap}>
-            {visibleBoxInfoValues.map((item) => (
+          <View style={boxStyles.cardBody}>
+            <View style={boxStyles.headerRow}>
               <View
-                key={`${box.id}-${item.field_id}`}
-                style={boxStyles.dynamicInfoChip}
+                style={[
+                  boxStyles.iconWrap,
+                  {
+                    backgroundColor: isPacked ? "#E6F7F5" : "#FFF8EE",
+                  },
+                ]}
               >
-                <Text style={boxStyles.dynamicInfoLabel}>
-                  {item.field_label}
-                </Text>
+                <Package size={18} color={isPacked ? "#2A9D8F" : "#F4A261"} />
+              </View>
 
+              <Text style={boxStyles.boxName} numberOfLines={1}>
+                {box.name}
+              </Text>
+
+              <View
+                style={[
+                  boxStyles.statusPill,
+                  {
+                    backgroundColor: isPacked ? "#E6F7F5" : "#FFF8EE",
+                  },
+                ]}
+              >
                 <Text
-                  style={boxStyles.dynamicInfoValue}
-                  numberOfLines={1}
+                  style={[
+                    boxStyles.statusPillText,
+                    {
+                      color: isPacked ? "#1A7A70" : "#C15C0A",
+                    },
+                  ]}
                 >
-                  {item.field_value}
+                  {isPacked ? "Packed" : "Unpacked"}
                 </Text>
               </View>
-            ))}
+            </View>
+
+            {visibleBoxInfoValues.length > 0 && (
+              <View style={boxStyles.dynamicInfoWrap}>
+                {visibleBoxInfoValues.map((item) => (
+                  <View
+                    key={`${box.id}-${item.field_id}`}
+                    style={boxStyles.dynamicInfoChip}
+                  >
+                    <Text style={boxStyles.dynamicInfoLabel}>
+                      {item.field_label}
+                    </Text>
+
+                    <Text style={boxStyles.dynamicInfoValue} numberOfLines={1}>
+                      {item.field_value}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <View style={boxStyles.footerRow}>
+              <View style={boxStyles.countChip}>
+                <Box size={13} color="#6B7280" />
+
+                <Text style={boxStyles.countChipText}>
+                  {box.items_count} {box.items_count === 1 ? "item" : "items"}
+                </Text>
+              </View>
+
+              <View style={boxStyles.actions}>
+                <TouchableOpacity
+                  style={boxStyles.actionBtn}
+                  onPress={() =>
+                    isEmpty
+                      ? showToast("warning", "Download Failed, Box is empty")
+                      : handleDownload()
+                  }
+                  hitSlop={{
+                    top: 8,
+                    bottom: 8,
+                    left: 8,
+                    right: 8,
+                  }}
+                >
+                  <Download size={17} color="#6B7280" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={boxStyles.actionBtn}
+                  onPress={handleEditPress}
+                  hitSlop={{
+                    top: 8,
+                    bottom: 8,
+                    left: 8,
+                    right: 8,
+                  }}
+                >
+                  <SquarePen size={17} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
-        )}
-
-        <View style={boxStyles.footerRow}>
-          <View style={boxStyles.countChip}>
-            <Box
-              size={13}
-              color="#6B7280"
-            />
-
-            <Text style={boxStyles.countChipText}>
-              {box.items_count}{" "}
-              {box.items_count === 1
-                ? "item"
-                : "items"}
-            </Text>
-          </View>
-
-          <View style={boxStyles.actions}>
-            <TouchableOpacity
-              style={boxStyles.actionBtn}
-              onPress={() =>
-                isEmpty
-                  ? showToast(
-                      "warning",
-                      "Download Failed, Box is empty"
-                    )
-                  : handleDownload()
-              }
-              hitSlop={{
-                top: 8,
-                bottom: 8,
-                left: 8,
-                right: 8,
-              }}
-            >
-              <Download
-                size={17}
-                color="#6B7280"
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={boxStyles.actionBtn}
-              onPress={handleEditPress}
-              hitSlop={{
-                top: 8,
-                bottom: 8,
-                left: 8,
-                right: 8,
-              }}
-            >
-              <SquarePen
-                size={17}
-                color="#6B7280"
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Animated.View>
-  </TouchableOpacity>
-);
-}, (previous, next) =>
-  previous.box === next.box &&
-  previous.index === next.index &&
-  previous.machine_id === next.machine_id &&
-  previous.machine_name === next.machine_name,
+        </Animated.View>
+      </TouchableOpacity>
+    );
+  },
+  (previous, next) =>
+    previous.box === next.box &&
+    previous.index === next.index &&
+    previous.machine_id === next.machine_id &&
+    previous.machine_name === next.machine_name,
 );
 
 const boxStyles = StyleSheet.create({
   card: {
-    flexDirection: "row", backgroundColor: "#FFFFFF", borderRadius: 16,
-    overflow: "hidden", marginBottom: 10,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    overflow: "hidden",
+    marginBottom: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
   accentStrip: { width: 4 },
   cardBody: { flex: 1, padding: 14, gap: 10 },
   headerRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  iconWrap: { width: 34, height: 34, borderRadius: 10, justifyContent: "center", alignItems: "center" },
+  iconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   boxName: { flex: 1, fontSize: 14, fontWeight: "700", color: "#111827" },
   statusPill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
   statusPillText: { fontSize: 11, fontWeight: "700" },
   metaRow: { flexDirection: "row" },
   metaChip: {
-    flexDirection: "row", alignItems: "center", backgroundColor: "#F9FAFB",
-    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    flex: 1,
   },
   metaChipLabel: { fontSize: 11, color: "#9CA3AF" },
   metaChipValue: { fontSize: 11, fontWeight: "600", color: "#374151", flex: 1 },
-  footerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  footerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   countChip: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: "#F3F4F6", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   countChipText: { fontSize: 12, fontWeight: "600", color: "#6B7280" },
   actions: { flexDirection: "row", gap: 4 },
-  actionBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: "#F3F4F6", justifyContent: "center", alignItems: "center" },
-   dynamicInfoWrap: {
+  actionBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  dynamicInfoWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
@@ -540,7 +616,8 @@ export default function BoxesScreen() {
     vendor_id: Number(vendor_id),
   };
 
-  const [projectDetails, setProjectDetails] = useState<ProjectDetailsResponse | null>(null);
+  const [projectDetails, setProjectDetails] =
+    useState<ProjectDetailsResponse | null>(null);
   const [showGlobalLoader, setShowGlobalLoader] = useState(false);
   const [boxes, setBoxes] = useState<BoxItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -557,12 +634,16 @@ export default function BoxesScreen() {
   const [showFilters, setShowFilters] = useState(false);
 
   const [selectedBox, setSelectedBox] = useState<BoxItem | null>(null);
-  const [selectedBoxForEdit, setSelectedBoxForEdit] = useState<BoxItem | null>(null);
+  const [selectedBoxForEdit, setSelectedBoxForEdit] = useState<BoxItem | null>(
+    null,
+  );
 
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showProjectDownloadModal, setShowProjectDownloadModal] = useState(false);
-  const [showAllBoxesDownloadModal, setShowAllBoxesDownloadModal] = useState(false); // ← new
+  const [showProjectDownloadModal, setShowProjectDownloadModal] =
+    useState(false);
+  const [showAllBoxesDownloadModal, setShowAllBoxesDownloadModal] =
+    useState(false); // ← new
 
   const sheetRef = useRef<any>(null);
   const updateSheetRef = useRef<any>(null);
@@ -581,132 +662,135 @@ export default function BoxesScreen() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const fetchBoxes = useCallback(async ({
-    pageNumber = 1,
-    append = false,
-    silent = false,
-  }: {
-    pageNumber?: number;
-    append?: boolean;
-    silent?: boolean;
-  } = {}) => {
-    if (append) {
-      if (
-        initialLoadingRef.current ||
-        loadingMoreRef.current ||
-        !hasNextPageRef.current
-      ) {
-        return;
-      }
+  const fetchBoxes = useCallback(
+    async ({
+      pageNumber = 1,
+      append = false,
+      silent = false,
+    }: {
+      pageNumber?: number;
+      append?: boolean;
+      silent?: boolean;
+    } = {}) => {
+      if (append) {
+        if (
+          initialLoadingRef.current ||
+          loadingMoreRef.current ||
+          !hasNextPageRef.current
+        ) {
+          return;
+        }
 
-      loadingMoreRef.current = true;
-      setLoadingMore(true);
-    } else {
-      boxesRequestControllerRef.current?.abort();
-      loadingMoreRef.current = false;
-      setLoadingMore(false);
-      initialLoadingRef.current = true;
-      setLoadError(false);
-      setBoxes([]);
+        loadingMoreRef.current = true;
+        setLoadingMore(true);
+      } else {
+        boxesRequestControllerRef.current?.abort();
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+        initialLoadingRef.current = true;
+        setLoadError(false);
+        setBoxes([]);
 
-      if (!silent) {
-        setLoading(true);
-      }
-    }
-
-    const controller = new AbortController();
-    boxesRequestControllerRef.current = controller;
-
-    try {
-      const res = await axios.get<PaginatedBoxesResponse>(
-        `/boxes/vendor/v1/${project.vendor_id}/project/${project.id}`,
-        {
-          params: {
-            page: pageNumber,
-            limit: BOX_PAGE_SIZE,
-            search: debouncedSearch || undefined,
-            packingStatus: packingStatusFilter,
-          },
-          signal: controller.signal,
-        },
-      );
-
-      const responseData: any = res.data;
-      const rows = Array.isArray(responseData)
-        ? responseData
-        : responseData?.data ?? [];
-      const mappedBoxes = rows.map(mapApiBox);
-
-      setBoxes((previous) => {
-        if (!append) return mappedBoxes;
-
-        const existingIds = new Set(previous.map((box) => box.id));
-        const newBoxes = mappedBoxes.filter(
-          (box: BoxItem) => !existingIds.has(box.id),
-        );
-        return [...previous, ...newBoxes];
-      });
-
-      const nextPagination: BoxPaginationMeta = responseData?.pagination ?? {
-        page: pageNumber,
-        limit: BOX_PAGE_SIZE,
-        total: mappedBoxes.length,
-        totalPages: mappedBoxes.length === 0 ? 0 : pageNumber,
-        hasNextPage: mappedBoxes.length === BOX_PAGE_SIZE,
-        hasPreviousPage: pageNumber > 1,
-      };
-
-      const nextCounts: BoxCounts = responseData?.counts ?? {
-        all: mappedBoxes.length,
-        packed: mappedBoxes.filter(
-          (box: BoxItem) =>
-            normalizePackingStatus(box.box_status) === "packed",
-        ).length,
-        unpacked: mappedBoxes.filter(
-          (box: BoxItem) =>
-            normalizePackingStatus(box.box_status) === "unpacked",
-        ).length,
-        projectTotal: mappedBoxes.length,
-      };
-
-      if (nextCounts.projectTotal === undefined) {
-        nextCounts.projectTotal = nextCounts.all;
-      }
-
-      currentPageRef.current = nextPagination.page;
-      hasNextPageRef.current = nextPagination.hasNextPage;
-      setPagination(nextPagination);
-      setBoxCounts(nextCounts);
-      setLoadError(false);
-    } catch (error: any) {
-      if (!isCanceledRequest(error)) {
-        console.error("Failed to fetch boxes:", error);
-        setLoadError(true);
-        showToast(
-          "error",
-          error?.response?.data?.error || "Failed to load boxes",
-        );
-      }
-    } finally {
-      if (boxesRequestControllerRef.current === controller) {
-        boxesRequestControllerRef.current = null;
-
-        if (append) {
-          loadingMoreRef.current = false;
-          setLoadingMore(false);
-        } else {
-          initialLoadingRef.current = false;
-          setLoading(false);
+        if (!silent) {
+          setLoading(true);
         }
       }
-    }
-  }, [
-    debouncedSearch,
-    packingStatusFilter,
-    project.id,
-    project.vendor_id,
-    showToast,
-  ]);
+
+      const controller = new AbortController();
+      boxesRequestControllerRef.current = controller;
+
+      try {
+        const res = await axios.get<PaginatedBoxesResponse>(
+          `/boxes/vendor/v1/${project.vendor_id}/project/${project.id}`,
+          {
+            params: {
+              page: pageNumber,
+              limit: BOX_PAGE_SIZE,
+              search: debouncedSearch || undefined,
+              packingStatus: packingStatusFilter,
+            },
+            signal: controller.signal,
+          },
+        );
+
+        const responseData: any = res.data;
+        const rows = Array.isArray(responseData)
+          ? responseData
+          : (responseData?.data ?? []);
+        const mappedBoxes = rows.map(mapApiBox);
+
+        setBoxes((previous) => {
+          if (!append) return mappedBoxes;
+
+          const existingIds = new Set(previous.map((box) => box.id));
+          const newBoxes = mappedBoxes.filter(
+            (box: BoxItem) => !existingIds.has(box.id),
+          );
+          return [...previous, ...newBoxes];
+        });
+
+        const nextPagination: BoxPaginationMeta = responseData?.pagination ?? {
+          page: pageNumber,
+          limit: BOX_PAGE_SIZE,
+          total: mappedBoxes.length,
+          totalPages: mappedBoxes.length === 0 ? 0 : pageNumber,
+          hasNextPage: mappedBoxes.length === BOX_PAGE_SIZE,
+          hasPreviousPage: pageNumber > 1,
+        };
+
+        const nextCounts: BoxCounts = responseData?.counts ?? {
+          all: mappedBoxes.length,
+          packed: mappedBoxes.filter(
+            (box: BoxItem) =>
+              normalizePackingStatus(box.box_status) === "packed",
+          ).length,
+          unpacked: mappedBoxes.filter(
+            (box: BoxItem) =>
+              normalizePackingStatus(box.box_status) === "unpacked",
+          ).length,
+          projectTotal: mappedBoxes.length,
+        };
+
+        if (nextCounts.projectTotal === undefined) {
+          nextCounts.projectTotal = nextCounts.all;
+        }
+
+        currentPageRef.current = nextPagination.page;
+        hasNextPageRef.current = nextPagination.hasNextPage;
+        setPagination(nextPagination);
+        setBoxCounts(nextCounts);
+        setLoadError(false);
+      } catch (error: any) {
+        if (!isCanceledRequest(error)) {
+          console.error("Failed to fetch boxes:", error);
+          setLoadError(true);
+          showToast(
+            "error",
+            error?.response?.data?.error || "Failed to load boxes",
+          );
+        }
+      } finally {
+        if (boxesRequestControllerRef.current === controller) {
+          boxesRequestControllerRef.current = null;
+
+          if (append) {
+            loadingMoreRef.current = false;
+            setLoadingMore(false);
+          } else {
+            initialLoadingRef.current = false;
+            setLoading(false);
+          }
+        }
+      }
+    },
+    [
+      debouncedSearch,
+      packingStatusFilter,
+      project.id,
+      project.vendor_id,
+      showToast,
+    ],
+  );
 
   const onAdd = useCallback(() => {
     void fetchBoxes({ pageNumber: 1 });
@@ -724,9 +808,14 @@ export default function BoxesScreen() {
       });
       const data = res.data;
       const rawDate = data.details?.[0]?.estimated_completion_date || null;
-      const formatDate = (d: string | null) => d
-        ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-        : "N/A";
+      const formatDate = (d: string | null) =>
+        d
+          ? new Date(d).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "N/A";
 
       setProjectDetails({
         id: data.id,
@@ -800,7 +889,9 @@ export default function BoxesScreen() {
 
   const handleConfirmEdit = () => {
     setShowEditModal(false);
-    setTimeout(() => { updateSheetRef.current?.present(); }, 300);
+    setTimeout(() => {
+      updateSheetRef.current?.present();
+    }, 300);
     void fetchProjectDetails();
   };
 
@@ -833,24 +924,20 @@ export default function BoxesScreen() {
     setShowAllBoxesDownloadModal(false);
     setShowGlobalLoader(true);
     try {
-      await fetchAllBoxesPdfAndShare({
+      await fetchProjectFullReportAndShare({
         id: project.id,
         vendor_id: project.vendor_id,
       });
+      showToast("success", "Full report PDF ready to share!");
     } catch (err: any) {
-      //console.log("All Boxes Download Error:", err.message);
-      showToast("error", "Failed to download boxes PDF");
+      showToast("error", err?.message || "Failed to download boxes PDF");
     } finally {
       setShowGlobalLoader(false);
     }
   };
 
   const handleLoadMore = useCallback(() => {
-    if (
-      loading ||
-      loadingMoreRef.current ||
-      !hasNextPageRef.current
-    ) {
+    if (loading || loadingMoreRef.current || !hasNextPageRef.current) {
       return;
     }
 
@@ -880,14 +967,19 @@ export default function BoxesScreen() {
 
   return (
     <View style={styles.root}>
-
       {/* ── Navbar ── */}
       <View style={commonStyles.navbar}>
-        <TouchableOpacity style={commonStyles.navbarBackBtn} onPress={() => router.back()} activeOpacity={0.8}>
+        <TouchableOpacity
+          style={commonStyles.navbarBackBtn}
+          onPress={() => router.back()}
+          activeOpacity={0.8}
+        >
           <ArrowLeft size={20} color={colors.white} />
         </TouchableOpacity>
         <View style={commonStyles.navbarTitleBlock}>
-          <Text style={commonStyles.navbarTitle} numberOfLines={1}>{projectDetails.project_name}</Text>
+          <Text style={commonStyles.navbarTitle} numberOfLines={1}>
+            {projectDetails.project_name}
+          </Text>
           <Text style={commonStyles.navbarSubtitle}>Project Details</Text>
         </View>
         {/* <TouchableOpacity
@@ -1046,7 +1138,7 @@ export default function BoxesScreen() {
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                       <Download size={15} color="#2A9D8F" />
-                      <Text style={styles.downloadAllText}>All Boxes</Text>
+                      <Text style={styles.downloadAllText}>Download All</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -1233,11 +1325,18 @@ export default function BoxesScreen() {
         <TouchableOpacity
           activeOpacity={0.9}
           onPress={() => sheetRef.current?.present()}
-          onPressIn={() => { addButtonScale.value = withSpring(0.95); }}
-          onPressOut={() => { addButtonScale.value = withSpring(1); }}
+          onPressIn={() => {
+            addButtonScale.value = withSpring(0.95);
+          }}
+          onPressOut={() => {
+            addButtonScale.value = withSpring(1);
+          }}
         >
           <Animated.View style={animatedAddButtonStyle}>
-            <LinearGradient colors={["#111827", "#374151"]} style={styles.fabButton}>
+            <LinearGradient
+              colors={["#111827", "#374151"]}
+              style={styles.fabButton}
+            >
               <Plus size={22} color="#fff" />
               <Text style={styles.fabText}>Add Box</Text>
             </LinearGradient>
@@ -1246,7 +1345,9 @@ export default function BoxesScreen() {
       </View>
 
       {creatingBox && (
-        <View style={styles.loaderOverlay}><Loader /></View>
+        <View style={styles.loaderOverlay}>
+          <Loader />
+        </View>
       )}
 
       {/* ── Modals ── */}
@@ -1259,8 +1360,8 @@ export default function BoxesScreen() {
             vendor_id: projectDetails.vendor_id,
             project_details_id: projectDetails.project_details_id,
             lead_id: projectDetails.lead_id,
-            machine_id: projectDetails.machine_id,    // ← add this
-            machine_name: projectDetails.machine_name,  // ← add this
+            machine_id: projectDetails.machine_id, // ← add this
+            machine_name: projectDetails.machine_name, // ← add this
           }}
           setCreatingBox={setCreatingBox}
         />
@@ -1276,15 +1377,13 @@ export default function BoxesScreen() {
               prev.map((b) =>
                 b.id === selectedBoxForEdit.id
                   ? {
-                    ...b,
-                    name: updatedName,
-                    box_info_values:
-                      updatedBox?.box_info_values ||
-                      b.box_info_values ||
-                      [],
-                  }
-                  : b
-              )
+                      ...b,
+                      name: updatedName,
+                      box_info_values:
+                        updatedBox?.box_info_values || b.box_info_values || [],
+                    }
+                  : b,
+              ),
             );
 
             void fetchBoxes({ pageNumber: 1 });
@@ -1338,7 +1437,12 @@ export default function BoxesScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.cardBg },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 40 },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
   scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 120 },
   scrollContentEmpty: { flexGrow: 1 },
   projectItemsButton: {
@@ -1382,7 +1486,7 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",          // vertically center title + button
+    alignItems: "center", // vertically center title + button
     marginBottom: 14,
   },
   sectionTitleBlock: { flex: 1, paddingRight: 8 },
@@ -1528,8 +1632,18 @@ const styles = StyleSheet.create({
   downloadAllText: { fontSize: 12, fontWeight: "700", color: "#2A9D8F" },
   emptyState: { alignItems: "center", paddingTop: 20 },
   lottie: { width: 200, height: 200 },
-  emptyTitle: { fontSize: 16, fontWeight: "700", color: "#111827", marginTop: 4 },
-  emptySubtitle: { fontSize: 13, color: "#9CA3AF", marginTop: 4, textAlign: "center" },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    marginTop: 4,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: "#9CA3AF",
+    marginTop: 4,
+    textAlign: "center",
+  },
   noResultsIcon: {
     width: 64,
     height: 64,
@@ -1581,19 +1695,31 @@ const styles = StyleSheet.create({
   fabContainer: {
     position: "absolute",
     bottom: Platform.OS === "ios" ? 32 : 20,
-    right: 18, left: 18,
+    right: 18,
+    left: 18,
   },
   fabButton: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    paddingVertical: 16, borderRadius: 50,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25, shadowRadius: 10, elevation: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    borderRadius: 50,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
   },
   fabText: { color: "white", fontSize: 16, fontWeight: "700", marginLeft: 10 },
   loaderOverlay: {
-    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center", alignItems: "center", zIndex: 9999,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9999,
   },
- 
 });

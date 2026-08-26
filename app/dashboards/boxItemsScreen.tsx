@@ -150,11 +150,7 @@ function ConfirmModal({
   onCancel,
 }: ConfirmModalProps) {
   const confirmBg =
-    type === "delete"
-      ? "#E63946"
-      : type === "status"
-        ? "#F4A261"
-        : "#2A9D8F";
+    type === "delete" ? "#E63946" : type === "status" ? "#F4A261" : "#2A9D8F";
 
   return (
     <Modal
@@ -414,14 +410,14 @@ export default function BoxItemsScreen() {
             "error",
             error?.response?.data?.message ||
               error?.message ||
-              "Failed to load products"
+              "Failed to load products",
           );
         }
       } finally {
         setManualLoading(false);
       }
     },
-    [showToast]
+    [showToast],
   );
 
   // ── Search products ────────────────────────────────────────────────────────
@@ -448,7 +444,7 @@ export default function BoxItemsScreen() {
       return searchableValues.some((value) =>
         String(value ?? "")
           .toLowerCase()
-          .includes(query)
+          .includes(query),
       );
     });
   }, [manualItems, manualSearch]);
@@ -475,7 +471,7 @@ export default function BoxItemsScreen() {
 
       axios
         .get(
-          `/boxes/details/vendor/${b.vendor_id}/project/${b.project_id}/box/${b.id}`
+          `/boxes/details/vendor/${b.vendor_id}/project/${b.project_id}/box/${b.id}`,
         )
         .then((res) => {
           setStatus(res.data.box.box_status);
@@ -487,7 +483,7 @@ export default function BoxItemsScreen() {
         });
 
       fetchScanItems(b);
-    }, [fetchScanItems, showToast])
+    }, [fetchScanItems, showToast]),
   );
 
   // ── Open scanner ───────────────────────────────────────────────────────────
@@ -560,10 +556,7 @@ export default function BoxItemsScreen() {
 
     const pendingQty = Number(selectedManualItem.pending_qty ?? 0);
 
-    const safeQty = Math.max(
-      1,
-      Math.min(Math.floor(nextQty || 1), pendingQty)
-    );
+    const safeQty = Math.max(1, Math.min(Math.floor(nextQty || 1), pendingQty));
 
     setManualQty(String(safeQty));
   };
@@ -644,7 +637,7 @@ export default function BoxItemsScreen() {
     if (qty > pendingQty) {
       showToast(
         "warning",
-        `Quantity cannot exceed pending quantity (${pendingQty})`
+        `Quantity cannot exceed pending quantity (${pendingQty})`,
       );
       return;
     }
@@ -667,7 +660,7 @@ export default function BoxItemsScreen() {
 
       showToast(
         "success",
-        `${qty} ${qty === 1 ? "item" : "items"} added to ${boxName || "box"}`
+        `${qty} ${qty === 1 ? "item" : "items"} added to ${boxName || "box"}`,
       );
 
       setShowQtyModal(false);
@@ -701,7 +694,7 @@ export default function BoxItemsScreen() {
         error?.response?.data?.message ||
           error?.response?.data?.error ||
           error?.message ||
-          "Failed to add product to box"
+          "Failed to add product to box",
       );
     } finally {
       setAddingManualItem(false);
@@ -744,7 +737,7 @@ export default function BoxItemsScreen() {
     } catch (error: any) {
       showToast(
         "error",
-        error?.response?.data?.error || "Failed to update status"
+        error?.response?.data?.error || "Failed to update status",
       );
     } finally {
       setLoading(false);
@@ -769,16 +762,14 @@ export default function BoxItemsScreen() {
     setLoading(true);
 
     try {
-      await axios.delete(
-        `/scan-items/scan-and-pack/delete/${selectedItemId}`,
-        {
-          data: {
-            vendor_id: box.vendor_id,
-            project_id: box.project_id,
-            box_id: box.id,
-          },
-        }
-      );
+      await axios.delete(`/scan-items/scan-and-pack/delete/${selectedItemId}`, {
+        data: {
+          vendor_id: box.vendor_id,
+          project_id: box.project_id,
+          box_id: box.id,
+          deleted_by: user?.id,
+        },
+      });
 
       showToast("success", "Item removed from box successfully");
 
@@ -790,7 +781,7 @@ export default function BoxItemsScreen() {
         "error",
         error?.response?.data?.message ||
           error?.response?.data?.error ||
-          "Failed to remove item from box"
+          "Failed to remove item from box",
       );
     } finally {
       setSelectedItemId(null);
@@ -849,8 +840,7 @@ export default function BoxItemsScreen() {
           style={[
             styles.packBtn,
             {
-              backgroundColor:
-                status === "packed" ? "#FFF8EE" : "#E6F7F5",
+              backgroundColor: status === "packed" ? "#FFF8EE" : "#E6F7F5",
             },
           ]}
           onPress={handleUpdateStatus}
@@ -898,10 +888,7 @@ export default function BoxItemsScreen() {
                 setShowDeleteModal(true);
               }}
               onWarnDelete={() =>
-                showToast(
-                  "warning",
-                  "The box is packed. Unpack it to delete."
-                )
+                showToast("warning", "The box is packed. Unpack it to delete.")
               }
             />
           )}
@@ -1118,10 +1105,7 @@ export default function BoxItemsScreen() {
                             {item.item_name || item.description}
                           </Text>
 
-                          <Text
-                            style={styles.productCode}
-                            numberOfLines={1}
-                          >
+                          <Text style={styles.productCode} numberOfLines={1}>
                             {item.material_details || item.unique_code || "-"}
                           </Text>
                         </View>
@@ -1305,9 +1289,7 @@ export default function BoxItemsScreen() {
                         styles.qtyControlButtonDisabled,
                     ]}
                     disabled={Number(manualQty || 0) <= 1}
-                    onPress={() =>
-                      updateManualQty(Number(manualQty || 1) - 1)
-                    }
+                    onPress={() => updateManualQty(Number(manualQty || 1) - 1)}
                   >
                     <Minus
                       size={20}
@@ -1342,9 +1324,7 @@ export default function BoxItemsScreen() {
                       Number(manualQty || 0) >=
                       Number(selectedManualItem.pending_qty)
                     }
-                    onPress={() =>
-                      updateManualQty(Number(manualQty || 0) + 1)
-                    }
+                    onPress={() => updateManualQty(Number(manualQty || 0) + 1)}
                   >
                     <Plus
                       size={20}
@@ -1409,9 +1389,7 @@ export default function BoxItemsScreen() {
 
       <ConfirmModal
         visible={showStatusModal}
-        title={
-          status === "packed" ? "Mark As Unpacked" : "Mark As Packed"
-        }
+        title={status === "packed" ? "Mark As Unpacked" : "Mark As Packed"}
         message={
           status === "packed"
             ? "Are you sure you want to mark this box as unpacked?"

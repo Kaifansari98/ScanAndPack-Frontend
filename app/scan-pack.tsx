@@ -17,16 +17,19 @@ import {
   LogOut,
   MapPin,
   ScanLine,
+  Search,
   X,
 } from "lucide-react-native";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   FlatList,
   Modal,
   Platform,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -40,6 +43,7 @@ interface FormattedProject {
   unpackedItems: number;
   packedItems: number;
   status: string;
+  track_trace_status?: string;
   date: string;
   completionPercentage: number;
   factory_out_at: string | null;
@@ -55,6 +59,35 @@ function getScanMode(p: FormattedProject): "OUT" | "IN" | "BOTH" | null {
   return null;
 }
 
+function getProjectStatusBadge(p: FormattedProject) {
+  const statusStr = (p.track_trace_status || p.status || "").trim();
+
+  if (p.completionPercentage === 100 || statusStr.toLowerCase() === "completed") {
+    return {
+      label: "Completed",
+      bg: "#D1FAE5", // Light green / emerald
+      color: "#065F46", // Dark green
+      barColor: "#10B981", // Emerald accent
+    };
+  }
+
+  if (p.completionPercentage > 0 || statusStr.toLowerCase() === "started") {
+    return {
+      label: "Started",
+      bg: "#E0E7FF", // Light indigo / blue
+      color: "#3730A3", // Dark indigo
+      barColor: "#6366F1", // Indigo accent
+    };
+  }
+
+  return {
+    label: "Not Started",
+    bg: "#F1F5F9", // Light slate / gray
+    color: "#64748B", // Slate text
+    barColor: "#94A3B8", // Slate accent
+  };
+}
+
 // ─── Project Card ─────────────────────────────────────────────────────────────
 
 function ProjectCard({
@@ -66,9 +99,10 @@ function ProjectCard({
   onScanPress: () => void;
   onDownloadPress: () => void;
 }) {
-  const isDone   = item.completionPercentage === 100;
-  const pct      = item.completionPercentage;
-  const scanMode = getScanMode(item);
+  const statusInfo = getProjectStatusBadge(item);
+  const isDone     = statusInfo.label === "Completed";
+  const pct        = item.completionPercentage;
+  const scanMode   = getScanMode(item);
 
   // What is the PRIMARY action right now?
   const primaryAction = scanMode
@@ -90,16 +124,16 @@ function ProjectCard({
         })
       }
     >
-      {/* Top accent bar — full width, shows completion color */}
-      <View style={[card.topBar, { backgroundColor: isDone ? "#10B981" : "#6366F1" }]} />
+      {/* Top accent bar — full width, shows status color */}
+      <View style={[card.topBar, { backgroundColor: statusInfo.barColor }]} />
 
       <View style={card.body}>
 
         {/* ── Project name + status badge ── */}
         <View style={card.nameRow}>
           <Text style={card.name} numberOfLines={1}>{item.projectName}</Text>
-          <View style={[card.badge, { backgroundColor: isDone ? "#D1FAE5" : "#EDE9FE" }]}>
-            <Text style={[card.badgeText, { color: isDone ? "#065F46" : "#4338CA" }]}> {isDone ? "Completed" : item.status}</Text>
+          <View style={[card.badge, { backgroundColor: statusInfo.bg }]}>
+            <Text style={[card.badgeText, { color: statusInfo.color }]}>{statusInfo.label}</Text>
           </View>
           <ChevronRight size={15} color="#CBD5E1" />
         </View>
@@ -107,9 +141,9 @@ function ProjectCard({
         {/* ── Progress ── */}
         <View style={card.progressRow}>
           <View style={card.track}>
-            <View style={[card.fill, { width: `${pct}%` as any, backgroundColor: isDone ? "#10B981" : "#6366F1" }]} />
+            <View style={[card.fill, { width: `${pct}%` as any, backgroundColor: statusInfo.barColor }]} />
           </View>
-          <Text style={[card.pctText, { color: isDone ? "#10B981" : "#6366F1" }]}>{pct}%</Text>
+          <Text style={[card.pctText, { color: statusInfo.barColor }]}>{pct}%</Text>
         </View>
 
         {/* ── 3 stat boxes ── */}
@@ -120,23 +154,6 @@ function ProjectCard({
           <StatBox label="Pending" value={item.unpackedItems} color={item.unpackedItems > 0 ? "#D97706" : "#94A3B8"}
             icon={item.unpackedItems > 0 ? <Clock size={12} color="#D97706" /> : undefined} />
         </View>
-
-        {/* ── Dispatch timeline (only shown when dispatch has started) ── */}
-        {/* {item.any_factory_out && (
-          <View style={card.timeline}>
-            <TimelineStep
-              label="Factory Out"
-              done={item.factory_out_at !== null}
-              date={item.factory_out_at}
-            />
-            <View style={[card.timelineLine, { backgroundColor: item.factory_out_at ? "#10B981" : "#E2E8F0" }]} />
-            <TimelineStep
-              label="Site In"
-              done={item.site_in_at !== null}
-              date={item.site_in_at}
-            />
-          </View>
-        )} */}
 
         {/* ── Action buttons ── */}
         <View style={card.actions}>
@@ -214,29 +231,6 @@ const stat = StyleSheet.create({
   label:    { fontSize: 10, color: "#94A3B8", fontWeight: "600", marginTop: 2 },
 });
 
-// ─── Timeline Step ────────────────────────────────────────────────────────────
-
-function TimelineStep({ label, done, date }: { label: string; done: boolean; date: string | null }) {
-  return (
-    <View style={tl.step}>
-      <View style={[tl.dot, { backgroundColor: done ? "#10B981" : "#E2E8F0", borderColor: done ? "#10B981" : "#CBD5E1" }]}>
-        {done && <CheckCircle2 size={10} color="white" />}
-      </View>
-      <Text style={[tl.label, { color: done ? "#065F46" : "#94A3B8" }]}>{label}</Text>
-      {done && date && (
-        <Text style={tl.date}>{new Date(date).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</Text>
-      )}
-    </View>
-  );
-}
-
-const tl = StyleSheet.create({
-  step:  { alignItems: "center", gap: 3 },
-  dot:   { width: 20, height: 20, borderRadius: 10, borderWidth: 2, justifyContent: "center", alignItems: "center" },
-  label: { fontSize: 10, fontWeight: "700" },
-  date:  { fontSize: 9, color: "#059669", fontWeight: "600" },
-});
-
 // ─── Card StyleSheet ──────────────────────────────────────────────────────────
 
 const card = StyleSheet.create({
@@ -256,10 +250,6 @@ const card = StyleSheet.create({
   fill:        { height: "100%", borderRadius: 99 },
   pctText:     { fontSize: 12, fontWeight: "800", minWidth: 34, textAlign: "right" },
   statsRow:    { flexDirection: "row", gap: 6 },
-  // Timeline
-  timeline:    { flexDirection: "row", alignItems: "flex-start", gap: 0 },
-  timelineLine:{ flex: 1, height: 2, marginTop: 9, marginHorizontal: 4 },
-  // Actions
   actions:     { gap: 8 },
   primaryBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
@@ -290,47 +280,118 @@ export default function ProjectsTabScreen() {
   const [showScanModal, setShowScanModal]       = useState(false);
   const [scanProject, setScanProject]           = useState<FormattedProject | null>(null);
 
-  const fetchProjects = async () => {
-    try {
-      const vendorId = user?.vendor_id;
-      if (!vendorId) return;
-      const { data } = await axios.get(`/projects/vendor/${vendorId}`);
-      setProjects(data.map((p: any) => ({
-        id:                  p.id,
-        vendor_id:           p.vendor_id,
-        projectName:         p.project_name,
-        totalNoItems:        p.aggregatedTotals?.total_items    ?? 0,
-        unpackedItems:       p.aggregatedTotals?.total_unpacked ?? 0,
-        packedItems:         p.aggregatedTotals?.total_packed   ?? 0,
-        status:              p.project_status,
-        date:                p.details[0]?.estimated_completion_date
-          ? new Date(p.details[0].estimated_completion_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-          : "N/A",
-        completionPercentage: p.aggregatedTotals?.total_items > 0
-          ? Math.round((p.aggregatedTotals.total_packed / p.aggregatedTotals.total_items) * 100)
-          : 0,
-        factory_out_at:  p.factory_out_at  ?? null,
-        site_in_at:      p.site_in_at      ?? null,
-        all_factory_out: p.all_factory_out ?? false,
-        any_factory_out: p.any_factory_out ?? false,
-      })));
-    } catch {
-      showToast("error", "Failed to fetch projects");
-    } finally {
-      setLoading(false);
-    }
+  // Filter & Pagination States
+  const [searchQuery, setSearchQuery]         = useState("");
+  const [statusFilter, setStatusFilter]       = useState("all");
+  const [page, setPage]                       = useState(1);
+  const [totalPages, setTotalPages]           = useState(1);
+  const [totalProjects, setTotalProjects]     = useState(0);
+  const [loadingMore, setLoadingMore]         = useState(false);
+
+  const fetchProjects = useCallback(
+    async (targetPage = 1, isRefresh = false) => {
+      try {
+        const vendorId = user?.vendor_id;
+        if (!vendorId) return;
+
+        if (targetPage > 1) {
+          setLoadingMore(true);
+        }
+
+        const params: any = {
+          page: targetPage,
+          limit: 10,
+        };
+
+        if (searchQuery.trim()) {
+          params.search = searchQuery.trim();
+        }
+
+        if (statusFilter && statusFilter !== "all") {
+          params.status = statusFilter;
+        }
+
+        const { data } = await axios.get(`/projects/vendor/${vendorId}`, { params });
+
+        let listData: any[] = [];
+        let totalCount = 0;
+        let pagesCount = 1;
+
+        if (Array.isArray(data)) {
+          listData = data;
+          totalCount = data.length;
+          pagesCount = 1;
+        } else if (data && Array.isArray(data.data)) {
+          listData = data.data;
+          totalCount = data.pagination?.total ?? listData.length;
+          pagesCount = data.pagination?.totalPages ?? 1;
+        }
+
+        const formatted = listData.map((p: any) => ({
+          id:                  p.id,
+          vendor_id:           p.vendor_id,
+          projectName:         p.project_name,
+          totalNoItems:        p.aggregatedTotals?.total_items    ?? 0,
+          unpackedItems:       p.aggregatedTotals?.total_unpacked ?? 0,
+          packedItems:         p.aggregatedTotals?.total_packed   ?? 0,
+          status:              p.project_status,
+          track_trace_status:  p.track_trace_status ?? p.project_status,
+          date:                p.details[0]?.estimated_completion_date
+            ? new Date(p.details[0].estimated_completion_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+            : "N/A",
+          completionPercentage: p.aggregatedTotals?.total_items > 0
+            ? Math.round((p.aggregatedTotals.total_packed / p.aggregatedTotals.total_items) * 100)
+            : 0,
+          factory_out_at:  p.factory_out_at  ?? null,
+          site_in_at:      p.site_in_at      ?? null,
+          all_factory_out: p.all_factory_out ?? false,
+          any_factory_out: p.any_factory_out ?? false,
+        }));
+
+        if (targetPage === 1 || isRefresh) {
+          setProjects(formatted);
+        } else {
+          setProjects((prev) => [...prev, ...formatted]);
+        }
+
+        setPage(targetPage);
+        setTotalPages(pagesCount);
+        setTotalProjects(totalCount);
+      } catch {
+        showToast("error", "Failed to fetch projects");
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [user?.vendor_id, searchQuery, statusFilter, showToast]
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchProjects(1);
+    }, [fetchProjects])
+  );
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchProjects(1, true);
+    setRefreshing(false);
   };
-
-  useFocusEffect(useCallback(() => { fetchProjects(); }, [user?.vendor_id]));
-
-  const onRefresh = async () => { setRefreshing(true); await fetchProjects(); setRefreshing(false); };
 
   const handleDownload = async () => {
     setShowConfirmModal(false);
     setDownloadLoading(true);
-    try { if (selectedProject) await fetchProjectFullReportAndShare(selectedProject); }
-    catch {}
-    finally { setDownloadLoading(false); }
+    try {
+      if (selectedProject) {
+        await fetchProjectFullReportAndShare(selectedProject);
+        showToast("success", "Full report PDF ready to share!");
+      }
+    } catch (err: any) {
+      showToast("error", err?.message || "Failed to download full report");
+    } finally {
+      setDownloadLoading(false);
+    }
   };
 
   const handleScanOption = (scanType: "IN" | "OUT") => {
@@ -342,7 +403,41 @@ export default function ProjectsTabScreen() {
     });
   };
 
-  if (loading) return <View style={screen.center}><Loader /></View>;
+  const renderFooter = () => {
+    if (loadingMore) {
+      return (
+        <View style={screen.footerLoading}>
+          <Loader />
+        </View>
+      );
+    }
+
+    if (page < totalPages) {
+      return (
+        <TouchableOpacity
+          style={screen.loadMoreBtn}
+          onPress={() => fetchProjects(page + 1)}
+          activeOpacity={0.8}
+        >
+          <Text style={screen.loadMoreBtnText}>
+            Load More ({projects.length} of {totalProjects})
+          </Text>
+        </TouchableOpacity>
+      );
+    }
+
+    if (totalProjects > 0) {
+      return (
+        <View style={screen.footerEnd}>
+          <Text style={screen.footerEndText}>
+            Showing all {totalProjects} project{totalProjects === 1 ? "" : "s"}
+          </Text>
+        </View>
+      );
+    }
+
+    return null;
+  };
 
   const scanMode = scanProject ? getScanMode(scanProject) : null;
 
@@ -359,7 +454,53 @@ export default function ProjectsTabScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      {downloadLoading ? (
+      {/* ── Search & Status Filters ── */}
+      <View style={screen.searchFilterContainer}>
+        {/* Search Bar */}
+        <View style={screen.searchBar}>
+          <Search size={18} color="#64748B" />
+          <TextInput
+            style={screen.searchInput}
+            placeholder="Search by project name..."
+            placeholderTextColor="#94A3B8"
+            value={searchQuery}
+            onChangeText={(text) => setSearchQuery(text)}
+          />
+          {searchQuery !== "" && (
+            <TouchableOpacity onPress={() => setSearchQuery("")} activeOpacity={0.7}>
+              <X size={16} color="#64748B" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Status Filter Chips */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={screen.filterScroll}>
+          {[
+            { key: "all", label: "All" },
+            { key: "Not Started", label: "Not Started" },
+            { key: "Started", label: "Started" },
+            { key: "Completed", label: "Completed" },
+          ].map((chip) => {
+            const active = statusFilter === chip.key;
+            return (
+              <TouchableOpacity
+                key={chip.key}
+                style={[screen.chip, active && screen.activeChip]}
+                onPress={() => setStatusFilter(chip.key)}
+                activeOpacity={0.8}
+              >
+                <Text style={[screen.chipText, active && screen.activeChipText]}>
+                  {chip.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {loading && !refreshing && projects.length === 0 ? (
+        <View style={screen.center}><Loader /></View>
+      ) : downloadLoading ? (
         <View style={screen.center}><Loader /></View>
       ) : (
         <FlatList
@@ -368,6 +509,7 @@ export default function ProjectsTabScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={screen.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          ListFooterComponent={renderFooter}
           ListEmptyComponent={
             <View style={screen.empty}>
               <LottieView source={require("@/assets/animations/projectEmpty.json")} style={screen.lottie} autoPlay loop={false} />
@@ -459,6 +601,86 @@ const screen = StyleSheet.create({
   lottie:     { width: 200, height: 200 },
   emptyTitle: { fontSize: 16, fontWeight: "700", color: "#0F172A" },
   emptySub:   { fontSize: 13, color: "#94A3B8", textAlign: "center" },
+
+  // Search & Filter
+  searchFilterContainer: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    gap: 10,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 42,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#0F172A",
+    paddingVertical: 0,
+  },
+  filterScroll: {
+    gap: 8,
+    paddingRight: 10,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  activeChip: {
+    backgroundColor: "#0F172A",
+    borderColor: "#0F172A",
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  activeChipText: {
+    color: "#FFFFFF",
+  },
+  footerLoading: {
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  loadMoreBtn: {
+    paddingVertical: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    alignItems: "center",
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  loadMoreBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#475569",
+  },
+  footerEnd: {
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  footerEndText: {
+    fontSize: 12,
+    color: "#94A3B8",
+    fontWeight: "600",
+  },
 });
 
 const modal = StyleSheet.create({
