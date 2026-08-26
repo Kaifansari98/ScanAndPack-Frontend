@@ -17,6 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import LottieView from "lottie-react-native";
 import {
+  AlertTriangle,
   ArrowLeft,
   Box,
   ChevronRight,
@@ -73,6 +74,8 @@ interface ProjectDetailsResponse {
   vendor_id: number;
   lead_id: number;
   project_status: string;
+  isDeleted?: boolean;
+  is_deleted?: boolean;
   project_name: string;
   estimated_completion_date: string;
   total_items: number;
@@ -83,6 +86,25 @@ interface ProjectDetailsResponse {
   machine_id: number;
   machine_name: string;
 }
+
+export const isProjectDeactivated = (projectObj: any) => {
+  if (!projectObj) return false;
+  if (
+    projectObj.isDeleted ||
+    projectObj.is_deleted ||
+    projectObj.isDeactivated ||
+    projectObj.is_deactivated
+  ) {
+    return true;
+  }
+  const status = String(projectObj.project_status || "").toLowerCase();
+  return (
+    status === "deactivated" ||
+    status === "deleted" ||
+    status === "deactive" ||
+    status === "inactive"
+  );
+};
 
 interface BoxItem {
   id: number;
@@ -820,6 +842,7 @@ export default function BoxesScreen() {
       setProjectDetails({
         id: data.id,
         project_status: data.project_status,
+        isDeleted: Boolean(data.isDeleted || data.is_deleted),
         project_name: data.project_name,
         total_items: data.totals.total_items,
         total_packed: data.totals.total_packed,
@@ -874,6 +897,10 @@ export default function BoxesScreen() {
   }));
 
   const handleEdit = (box: BoxItem) => {
+    if (isProjectDeactivated(projectDetails)) {
+      showToast("error", "Project is deleted or deactivated");
+      return;
+    }
     setSelectedBoxForEdit(box);
     setShowEditModal(true);
   };
@@ -1036,6 +1063,15 @@ export default function BoxesScreen() {
         removeClippedSubviews={Platform.OS === "android"}
         ListHeaderComponent={
           <>
+            {isProjectDeactivated(projectDetails) && (
+              <View style={styles.deactivatedBanner}>
+                <AlertTriangle size={16} color="#DC2626" />
+                <Text style={styles.deactivatedBannerText}>
+                  Project is deactivated or deleted. Actions are disabled.
+                </Text>
+              </View>
+            )}
+
             <ProjectCard
               project={{
                 id: project.id,
@@ -1324,7 +1360,13 @@ export default function BoxesScreen() {
       <View style={styles.fabContainer}>
         <TouchableOpacity
           activeOpacity={0.9}
-          onPress={() => sheetRef.current?.present()}
+          onPress={() => {
+            if (isProjectDeactivated(projectDetails)) {
+              showToast("error", "Project is deleted or deactivated");
+              return;
+            }
+            sheetRef.current?.present();
+          }}
           onPressIn={() => {
             addButtonScale.value = withSpring(0.95);
           }}
@@ -1437,6 +1479,24 @@ export default function BoxesScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.cardBg },
+  deactivatedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FEE2E2",
+    borderColor: "#FCA5A5",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 14,
+  },
+  deactivatedBannerText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#991B1B",
+    flex: 1,
+  },
   center: {
     flex: 1,
     justifyContent: "center",

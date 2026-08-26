@@ -10,7 +10,9 @@ import { useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import LottieView from "lottie-react-native";
+import { isProjectDeactivated } from "./boxes";
 import {
+  AlertTriangle,
   ArrowLeft,
   Download,
   ListPlus,
@@ -65,6 +67,7 @@ interface Box {
   client_id: number;
   machine_id: number | null;
   machine_name: string;
+  project?: any;
 }
 
 interface ScanItem {
@@ -337,6 +340,12 @@ export default function BoxItemsScreen() {
 
   const scanButtonScale = useSharedValue(1);
 
+  const [projectData, setProjectData] = useState<any>(null);
+
+  const deactivated = useMemo(() => {
+    return isProjectDeactivated(projectData || box?.project);
+  }, [projectData, box]);
+
   const animatedScanButtonStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scanButtonScale.value }],
   }));
@@ -476,6 +485,9 @@ export default function BoxItemsScreen() {
         .then((res) => {
           setStatus(res.data.box.box_status);
           setBoxName(res.data.box.box_name);
+          if (res.data.box?.project) {
+            setProjectData(res.data.box.project);
+          }
         })
         .catch((error) => {
           //console.error("Failed to fetch box details:", error);
@@ -489,6 +501,10 @@ export default function BoxItemsScreen() {
   // ── Open scanner ───────────────────────────────────────────────────────────
 
   const openScanner = async () => {
+    if (deactivated) {
+      showToast("error", "Project is deleted or deactivated");
+      return;
+    }
     if (!box) return;
 
     const navigate = () =>
@@ -519,6 +535,10 @@ export default function BoxItemsScreen() {
   // ── Open manual product selector ───────────────────────────────────────────
 
   const openProductSelector = async () => {
+    if (deactivated) {
+      showToast("error", "Project is deleted or deactivated");
+      return;
+    }
     if (!box) return;
 
     if (String(status).toLowerCase() === "packed") {
@@ -713,6 +733,10 @@ export default function BoxItemsScreen() {
   };
 
   const handleConfirmUpdateStatus = async () => {
+    if (deactivated) {
+      showToast("error", "Project is deleted or deactivated");
+      return;
+    }
     if (!box?.id) {
       return;
     }
@@ -747,6 +771,10 @@ export default function BoxItemsScreen() {
   // ── Delete item ────────────────────────────────────────────────────────────
 
   const handleConfirmDeleteItem = async () => {
+    if (deactivated) {
+      showToast("error", "Project is deleted or deactivated");
+      return;
+    }
     setShowDeleteModal(false);
 
     if (!selectedItemId || !box) {
@@ -858,6 +886,15 @@ export default function BoxItemsScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {deactivated && (
+        <View style={styles.deactivatedBanner}>
+          <AlertTriangle size={16} color="#DC2626" />
+          <Text style={styles.deactivatedBannerText}>
+            Project is deactivated or deleted. Actions are disabled.
+          </Text>
+        </View>
+      )}
 
       {/* ── Box item list ── */}
       {loading ? (
@@ -1418,6 +1455,26 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.cardBg,
+  },
+
+  deactivatedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FEE2E2",
+    borderColor: "#FCA5A5",
+    borderWidth: 1,
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  deactivatedBannerText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#991B1B",
+    flex: 1,
   },
 
   center: {

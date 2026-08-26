@@ -1,0 +1,7 @@
+.git
+node_modules
+package-lock.json
+.expo
+android/build
+android/.gradle
+android/app/build

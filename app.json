@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Furnix",
-    "slug": "frontend",
+    "slug": "furnix",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/furnix.jpeg",
@@ -63,9 +63,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "467da093-7278-4c9c-a7f1-fe3b40b529bd"
+        "projectId": "2ac0aa5a-52a6-4ba4-9ae7-e4a39d418d5e"
       }
     },
-    "owner": "daniyal.shaikh"
+    "owner": "vloq"
   }
 }
