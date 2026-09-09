@@ -21,6 +21,7 @@
     "@whatwg-node/fetch": "^0.10.9",
     "axios": "^1.10.0",
     "babel-preset-expo": "~54.0.10",
+    "color": "^5.0.3",
     "expo": "~54.0.36",
     "expo-av": "~16.0.8",
     "expo-blur": "~15.0.8",

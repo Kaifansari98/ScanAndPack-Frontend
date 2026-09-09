@@ -13,24 +13,27 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [delayPassed, setDelayPassed] = useState(false);
 
   // 🔁 Restore session directly inside AuthGate
- useEffect(() => {
-  const restoreSession = async () => {
-    //console.log('🔁 restoring session...');
-    try {
-      const session = await getSession();
-      //console.log('✅ session:', session);
-      if (session?.token && session?.user) {
-        dispatch(setCredentials({ user: session.user, token: session.token }));
+  useEffect(() => {
+    const restoreSession = async () => {
+      try {
+        const session = await getSession();
+        if (session?.token && session?.user) {
+          const user = { ...session.user };
+
+          if (user.vendor && user.vendor.vendor_name && !user.vendor_name) {
+            user.vendor_name = user.vendor.vendor_name;
+          }
+
+          dispatch(setCredentials({ user, token: session.token }));
+        }
+      } catch (err) {
+        console.error("Session restore error:", err);
+      } finally {
+        dispatch(finishLoading());
       }
-    } catch (err) {
-      console.error("Session restore error:", err);
-    } finally {
-      //console.log('✅ finishLoading dispatched');
-      dispatch(finishLoading());
-    }
-  };
-  restoreSession();
-}, []);
+    };
+    restoreSession();
+  }, []);
 
 
   // ⏱️ Optional artificial delay for UX polish

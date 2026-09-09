@@ -9,7 +9,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useCallback } from "react";
 import { Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Provider } from "react-redux";
 import "./globals.css";
 
@@ -21,14 +21,11 @@ function LayoutWrapper() {
       <Provider store={store}>
         <BottomSheetModalProvider>
           <ToastProvider>
-            <SafeAreaView
-              style={{ flex: 1 }}
-              edges={Platform.OS === "ios" ? ["top"] : undefined}
-            >
+            <SafeAreaProvider>
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="index" />
               </Stack>
-            </SafeAreaView>
+            </SafeAreaProvider>
           </ToastProvider>
         </BottomSheetModalProvider>
       </Provider>

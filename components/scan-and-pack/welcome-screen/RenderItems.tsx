@@ -1,84 +1,33 @@
 import { OnboardingData } from "@/data/welcomeData";
 import LottieView from "lottie-react-native";
+import React from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import Animated, {
-  Extrapolation,
-  interpolate,
-  SharedValue,
-  useAnimatedStyle,
-} from "react-native-reanimated";
 
 type Props = {
   item: OnboardingData;
-  index: number;
-  x: SharedValue<number>;
+  index?: number;
 };
 
-export default function RenderItems({ item, index, x }: Props) {
+export default function RenderItems({ item }: Props) {
   const { width: SCREEN_WIDTH } = useWindowDimensions();
 
-    const lottieAnimationStyle = useAnimatedStyle(() => {
-    const translateYAnimation = interpolate(
-      x.value,
-      [
-        (index - 1) * SCREEN_WIDTH,
-        index * SCREEN_WIDTH,
-        (index + 1) * SCREEN_WIDTH,
-      ],
-      [200, 0, -200],
-      Extrapolation.CLAMP,
-    );
-
-    return {
-      transform: [{translateY: translateYAnimation}],
-    };
-  });
-
-  const circleAnimation = useAnimatedStyle(() => {
-    const scale = interpolate(
-      x.value,
-      [
-        (index - 1) * SCREEN_WIDTH,
-        index * SCREEN_WIDTH,
-        (index + 1) * SCREEN_WIDTH,
-      ],
-      [1, 4, 4],
-      Extrapolation.CLAMP
-    );
-
-    return {
-      transform: [{ scale: scale }],
-    };
-  });
   return (
     <View style={[styles.itemContainer, { width: SCREEN_WIDTH }]}>
-      <View style={styles.circleContainer}>
-        <Animated.View
-          style={[
-            {
-              width: SCREEN_WIDTH,
-              height: SCREEN_WIDTH,
-              borderRadius: SCREEN_WIDTH / 2,
-              backgroundColor: item.backgroundColor,
-            },
-            circleAnimation,
-          ]}
-        />
-      </View>
-      <Animated.View style={lottieAnimationStyle}>
-        { <LottieView
+      <View style={styles.animationContainer}>
+        <LottieView
           source={item.animation}
-          style={{ width: SCREEN_WIDTH * 0.9, height: SCREEN_WIDTH * 0.9 }}
+          style={{ width: SCREEN_WIDTH * 0.85, height: SCREEN_WIDTH * 0.85 }}
           autoPlay
           loop
-        /> }       
-      </Animated.View>
-      <Text
-        className={`text-left text-4xl mb-[10px] mx-[20px] font-montserrat-bold pr-3`}
-        style={{ color: item.textColor }}
-      >
-        {item.text}
-      </Text>
+        />
+      </View>
+      <View style={styles.textContainer}>
+        <Text
+          style={[styles.title, { color: item.textColor || "#000000" }]}
+        >
+          {item.text}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -86,20 +35,26 @@ export default function RenderItems({ item, index, x }: Props) {
 const styles = StyleSheet.create({
   itemContainer: {
     flex: 1,
-    justifyContent: "space-around",
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 120,
+    paddingHorizontal: 24,
+    paddingBottom: 60,
+    backgroundColor: "#ffffff",
   },
-  itemText: {
-    textAlign: "center",
-    fontSize: 44,
-    marginBottom: 10,
-    marginHorizontal: 10,
-    fontWeight: "bold",
-  },
-  circleContainer: {
-    ...StyleSheet.absoluteFillObject,
+  animationContainer: {
+    width: "100%",
     alignItems: "center",
-    justifyContent: "flex-end",
+    justifyContent: "center",
+    marginBottom: 40,
+  },
+  textContainer: {
+    width: "100%",
+    paddingHorizontal: 8,
+  },
+  title: {
+    fontSize: 30,
+    lineHeight: 38,
+    fontWeight: "700",
+    textAlign: "left",
   },
 });

@@ -1,9 +1,8 @@
-import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import React from "react";
+import { StyleSheet, useWindowDimensions } from "react-native";
 import Animated, {
   Extrapolation,
   interpolate,
-  interpolateColor,
   SharedValue,
   useAnimatedStyle,
 } from "react-native-reanimated";
@@ -15,6 +14,7 @@ type Props = {
 
 const Dot = ({ index, x }: Props) => {
   const { width: SCREEN_WIDTH } = useWindowDimensions();
+
   const animatedDotStyle = useAnimatedStyle(() => {
     const widthAnimation = interpolate(
       x.value,
@@ -23,7 +23,7 @@ const Dot = ({ index, x }: Props) => {
         index * SCREEN_WIDTH,
         (index + 1) * SCREEN_WIDTH,
       ],
-      [10, 20, 10],
+      [8, 24, 8],
       Extrapolation.CLAMP
     );
 
@@ -34,38 +34,26 @@ const Dot = ({ index, x }: Props) => {
         index * SCREEN_WIDTH,
         (index + 1) * SCREEN_WIDTH,
       ],
-      [0.5, 1, 0.5],
+      [0.25, 1, 0.25],
       Extrapolation.CLAMP
     );
+
     return {
       width: widthAnimation,
       opacity: opacityAnimation,
     };
   });
 
-  const animatedColor = useAnimatedStyle(() => {
-    const backgroundColor = interpolateColor(
-      x.value,
-      [0, SCREEN_WIDTH, 2 * SCREEN_WIDTH],
-      ["#000000", "#000000", "#000000"]
-    );
-
-    return {
-      backgroundColor: backgroundColor,
-    };
-  });
-  
-  return <Animated.View style={[styles.dot, animatedDotStyle, animatedColor]} />;
+  return <Animated.View style={[styles.dot, animatedDotStyle]} />;
 };
 
 export default Dot;
 
 const styles = StyleSheet.create({
   dot: {
-    width: 10,
-    height: 10,
-    backgroundColor: "black",
-    borderRadius: 5,
-    marginHorizontal: 10,
+    height: 8,
+    backgroundColor: "#000000",
+    borderRadius: 4,
+    marginHorizontal: 4,
   },
 });

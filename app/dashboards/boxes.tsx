@@ -1,4 +1,5 @@
 import Loader from "@/components/generic/Loader";
+import Navbar from "@/components/generic/Navbar";
 import { ProjectCard } from "@/components/ItemCards/ProjectCard";
 import { AddBoxModal } from "@/components/modals/AddBoxModal";
 import { UpdateBoxModal } from "@/components/modals/UpdateBoxModal";
@@ -42,6 +43,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -627,6 +629,12 @@ const boxStyles = StyleSheet.create({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function BoxesScreen() {
+  const insets = useSafeAreaInsets();
+  const fabBottomInset =
+    Platform.OS === "android"
+      ? Math.max(insets.bottom, 24) + 16
+      : Math.max(insets.bottom, 16) + 16;
+
   const user = useSelector((state: RootState) => state.auth.user);
   const { showToast } = useToast();
   const { id, lead_id, vendor_id } = useLocalSearchParams();
@@ -995,46 +1003,11 @@ export default function BoxesScreen() {
   return (
     <View style={styles.root}>
       {/* ── Navbar ── */}
-      <View style={commonStyles.navbar}>
-        <TouchableOpacity
-          style={commonStyles.navbarBackBtn}
-          onPress={() => router.back()}
-          activeOpacity={0.8}
-        >
-          <ArrowLeft size={20} color={colors.white} />
-        </TouchableOpacity>
-        <View style={commonStyles.navbarTitleBlock}>
-          <Text style={commonStyles.navbarTitle} numberOfLines={1}>
-            {projectDetails.project_name}
-          </Text>
-          <Text style={commonStyles.navbarSubtitle}>Project Details</Text>
-        </View>
-        {/* <TouchableOpacity
-          style={commonStyles.navbarBackBtn}
-          onPress={() => router.push("/scanner")}
-          activeOpacity={0.8}
-        >
-          <ScanLine size={20} color={colors.white} />
-        </TouchableOpacity> */}
-        {/* <TouchableOpacity
-          style={commonStyles.navbarBackBtn}
-          onPress={() => {
-            if (!projectDetails) return;
-            router.push({
-              pathname: "/scanner-track-trace",
-              params: {
-                project_id: String(project.id),
-                vendor_id: String(project.vendor_id),
-                machine_id: String(projectDetails.machine_id ?? ""),
-                machine_name: String(projectDetails.machine_name ?? ""),
-              },
-            });
-          }}
-          activeOpacity={0.8}
-        >
-          <ScanLine size={20} color={colors.white} />
-        </TouchableOpacity> */}
-      </View>
+      <Navbar
+        title={projectDetails.project_name}
+        subtitle="Project Details"
+        showBack={true}
+      />
 
       <FlatList
         data={loading ? [] : boxes}
@@ -1051,6 +1024,7 @@ export default function BoxesScreen() {
         )}
         contentContainerStyle={[
           styles.scrollContent,
+          { paddingBottom: 80 + fabBottomInset },
           boxes.length === 0 && !loading && styles.scrollContentEmpty,
         ]}
         showsVerticalScrollIndicator={false}
@@ -1088,36 +1062,6 @@ export default function BoxesScreen() {
               disableNavigation
               onDownloadPress={() => setShowProjectDownloadModal(true)}
             />
-
-            <TouchableOpacity
-              style={styles.projectItemsButton}
-              activeOpacity={0.82}
-              accessibilityRole="button"
-              accessibilityLabel="View project item tracking"
-              onPress={() =>
-                router.push({
-                  pathname: "/dashboards/project-item-tracking",
-                  params: {
-                    project_id: String(project.id),
-                    vendor_id: String(project.vendor_id),
-                    project_name: projectDetails.project_name,
-                  },
-                })
-              }
-            >
-              <View style={styles.projectItemsIcon}>
-                <ListChecks size={21} color="#177E73" />
-              </View>
-
-              <View style={styles.projectItemsTextBlock}>
-                <Text style={styles.projectItemsTitle}>View Item Tracking</Text>
-                <Text style={styles.projectItemsSubtitle} numberOfLines={1}>
-                  Items, assigned machines and scan progress
-                </Text>
-              </View>
-
-              <ChevronRight size={20} color="#177E73" />
-            </TouchableOpacity>
 
             <View style={styles.boxesSection}>
               <View style={styles.sectionHeader}>
@@ -1357,7 +1301,7 @@ export default function BoxesScreen() {
       )}
 
       {/* ── Add Box FAB ── */}
-      <View style={styles.fabContainer}>
+      <View style={[styles.fabContainer, { bottom: fabBottomInset }]}>
         <TouchableOpacity
           activeOpacity={0.9}
           onPress={() => {
@@ -1478,7 +1422,7 @@ export default function BoxesScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.cardBg },
+  root: { flex: 1, backgroundColor: "#F8FAFC" },
   deactivatedBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -1503,7 +1447,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 40,
   },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 120 },
+  scrollContent: { paddingHorizontal: 12, paddingTop: 16, paddingBottom: 120 },
   scrollContentEmpty: { flexGrow: 1 },
   projectItemsButton: {
     minHeight: 68,
@@ -1764,11 +1708,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 16,
     borderRadius: 50,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 8,
   },
   fabText: { color: "white", fontSize: 16, fontWeight: "700", marginLeft: 10 },
   loaderOverlay: {

@@ -1,23 +1,25 @@
 /**
  * MachineTabScreen — Select a machine before scanning.
- * Matches FactoryOS design: dark navbar, warning banner, machine list, CTA button.
  */
 import Loader from "@/components/generic/Loader";
+import Navbar from "@/components/generic/Navbar";
 import { MachineCard } from "@/components/ItemCards/MachineCard";
 import { colors } from "@/components/theme/colors";
 import { commonStyles } from "@/components/theme/commonStyles";
 import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
 import { useFocusEffect, useRouter } from "expo-router";
-import { AlertTriangle, ArrowLeft } from "lucide-react-native";
+import { AlertTriangle, Cpu, ScanLine } from "lucide-react-native";
 import { useCallback, useRef, useState } from "react";
 import {
   FlatList,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 
 interface Machine {
@@ -31,6 +33,7 @@ interface Machine {
 
 export default function MachineTabScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const user = useSelector((state: RootState) => state.auth.user);
 
   const [machines, setMachines] = useState<Machine[]>([]);
@@ -38,6 +41,8 @@ export default function MachineTabScreen() {
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
 
   const flatListRef = useRef<FlatList<Machine>>(null);
+
+  const bottomInset = insets.bottom > 0 ? insets.bottom + 6 : Platform.OS === "ios" ? 14 : 10;
 
   // ─── Fetch ──────────────────────────────────────────────
   const fetchMachines = async () => {
@@ -74,25 +79,10 @@ export default function MachineTabScreen() {
     }, [user?.vendor_id])
   );
 
-  // ─── Scroll to selected machine ──────────────────────────
-  const scrollToSelected = () => {
-    if (!selectedMachine || machines.length === 0) return;
-    const index = machines.findIndex((m) => m.id === selectedMachine.id);
-    if (index === -1) return;
-    // Small delay to let the layout settle
-    setTimeout(() => {
-      flatListRef.current?.scrollToIndex({
-        index,
-        animated: true,
-        viewPosition: 0.3, // Position selected item ~30% from top
-      });
-    }, 150);
-  };
-
   // ─── Loading ─────────────────────────────────────────────
   if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.cardBg }}>
+      <View style={styles.loaderCenter}>
         <Loader />
       </View>
     );
@@ -100,22 +90,13 @@ export default function MachineTabScreen() {
 
   // ─── UI ──────────────────────────────────────────────────
   return (
-    <View style={{ flex: 1, backgroundColor: colors.cardBg }}>
-
-      {/* ── Dark Navbar ── */}
-      <View style={commonStyles.navbar}>
-        <TouchableOpacity
-          style={commonStyles.navbarBackBtn}
-          onPress={() => router.back()}
-          activeOpacity={0.8}
-        >
-          <ArrowLeft size={20} color={colors.white} />
-        </TouchableOpacity>
-        <View style={commonStyles.navbarTitleBlock}>
-          <Text style={commonStyles.navbarTitle}>Select Machine</Text>
-          <Text style={commonStyles.navbarSubtitle}>Choose before scanning</Text>
-        </View>
-      </View>
+    <View style={styles.root}>
+      {/* ── Navbar ── */}
+      <Navbar
+        title="Select Machine"
+        subtitle="Choose before scanning"
+        showBack={true}
+      />
 
       {/* ── Body ── */}
       <FlatList
@@ -124,7 +105,6 @@ export default function MachineTabScreen() {
         keyExtractor={(item, index) => `${item.machine_name}-${index}`}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
-        // Fallback if scrollToIndex fails (item not yet measured)
         onScrollToIndexFailed={({ index }) => {
           setTimeout(() => {
             flatListRef.current?.scrollToIndex({
@@ -134,27 +114,25 @@ export default function MachineTabScreen() {
             });
           }, 300);
         }}
-
         // Warning banner above the list
-        
         ListHeaderComponent={
-          <View style={commonStyles.warningBanner}>
-            <AlertTriangle size={20} color={colors.accent} />
-            <Text style={commonStyles.warningText}>
+          <View style={styles.warningBanner}>
+            <AlertTriangle size={18} color="#B45309" />
+            <Text style={styles.warningText}>
               You must select a machine before scanning
             </Text>
           </View>
         }
-
-        // Empty state
+        // Clean empty state
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyEmoji}>🏭</Text>
-            <Text style={styles.emptyText}>No machines assigned</Text>
-            <Text style={styles.emptySubtext}>Contact your supervisor</Text>
+            <View style={styles.emptyIconWrap}>
+              <Cpu size={28} color="#4B3A34" />
+            </View>
+            <Text style={styles.emptyTitle}>No Machines Assigned</Text>
+            <Text style={styles.emptySubtext}>Contact your supervisor for machine access</Text>
           </View>
         }
-
         renderItem={({ item, index }) => (
           <View style={{ position: "relative" }}>
             <MachineCard
@@ -188,58 +166,109 @@ export default function MachineTabScreen() {
         )}
       />
 
-      {/* ── Sticky CTA ── */}
-      <View style={styles.ctaContainer}>
+      {/* ── Sticky Proceed to Scanner CTA Button ── */}
+      <View style={[styles.ctaContainer, { paddingBottom: bottomInset }]}>
         <TouchableOpacity
-          style={[commonStyles.button, !selectedMachine && styles.buttonDisabled]}
-          onPress={() => selectedMachine && router.push({
-            pathname: "/scanner-track-trace",
-            params: { machine_id: String(selectedMachine.id), machine_name: selectedMachine.machine_name },
-          })}
+          style={[styles.scanBtn, !selectedMachine && styles.buttonDisabled]}
+          onPress={() =>
+            selectedMachine &&
+            router.push({
+              pathname: "/scanner-track-trace",
+              params: {
+                machine_id: String(selectedMachine.id),
+                machine_name: selectedMachine.machine_name,
+              },
+            })
+          }
           activeOpacity={selectedMachine ? 0.85 : 1}
           disabled={!selectedMachine}
         >
-          <Text style={commonStyles.buttonText}>
-            📷  Proceed to Scanner
-          </Text>
+          <ScanLine size={18} color="#FFFFFF" />
+          <Text style={styles.scanBtnText}>Proceed to Scanner</Text>
         </TouchableOpacity>
       </View>
-
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+  },
+  loaderCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F8FAFC",
+  },
   listContent: {
-    padding: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
-    gap: 12,
+    paddingHorizontal: 12,
+    paddingTop: 16,
+    paddingBottom: 24,
+    gap: 10,
+  },
+  warningBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#FEF3C7",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 6,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#B45309",
   },
   emptyState: {
     marginTop: 60,
     alignItems: "center",
     gap: 8,
   },
-  emptyEmoji: {
-    fontSize: 48,
+  emptyIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    backgroundColor: "#F7F5F4",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 4,
   },
-  emptyText: {
-    color: colors.heading,
-    fontSize: 16,
-    fontWeight: "700",
+  emptyTitle: {
+    color: "#0F172A",
+    fontSize: 18,
+    fontWeight: "800",
   },
   emptySubtext: {
-    color: colors.label,
+    color: "#64748B",
     fontSize: 13,
   },
   ctaContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 24,
-    backgroundColor: colors.cardBg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    backgroundColor: "#F8FAFC",
+  },
+  scanBtn: {
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "#4B3A34",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  scanBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800",
   },
   buttonDisabled: {
     opacity: 0.45,
@@ -248,32 +277,26 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 12,
     right: 12,
-    backgroundColor: "#E63946",
+    backgroundColor: "#DC2626",
     borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
     alignItems: "center",
-    minWidth: 48,
-    shadowColor: "#E63946",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 4,
-    elevation: 4,
+    minWidth: 46,
   },
   pendingBadgeDone: {
-    backgroundColor: "#2A9D8F",
-    shadowColor: "#2A9D8F",
+    backgroundColor: "#059669",
   },
   pendingBadgeText: {
     color: "white",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800",
-    lineHeight: 16,
+    lineHeight: 15,
   },
   pendingBadgeLabel: {
-    color: "rgba(255,255,255,0.85)",
+    color: "rgba(255,255,255,0.9)",
     fontSize: 9,
-    fontWeight: "600",
+    fontWeight: "700",
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },

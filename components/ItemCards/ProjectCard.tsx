@@ -98,7 +98,7 @@ export const ProjectCard = ({
                 {project.status}
               </Text>
             </View>
-            <Text style={styles.projectName} numberOfLines={1}>
+            <Text style={styles.projectName}>
               {project.projectName}
             </Text>
           </View>
@@ -167,16 +167,11 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: "#FFFFFF",
     width: "100%",
-    borderRadius: 20,
-    padding: 18,
+    borderRadius: 14,
+    padding: 12,
     borderWidth: 1,
-    borderColor: "#F3F4F6",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 4,
-    gap: 14,
+    borderColor: "#E2E8F0",
+    gap: 10,
   },
 
   // Header
@@ -202,7 +197,7 @@ const styles = StyleSheet.create({
   statusDotDone: { backgroundColor: "#2A9D8F" },
   statusText: { fontSize: 11, fontWeight: "700", color: "#1D4ED8", textTransform: "capitalize" },
   statusTextDone: { color: "#1A7A70" },
-  projectName: { fontSize: 17, fontWeight: "800", color: "#111827", lineHeight: 22 },
+  projectName: { fontSize: 14, fontWeight: "700", color: "#111827", lineHeight: 19 },
   downloadBtn: {
     width: 34, height: 34, borderRadius: 10,
     backgroundColor: "#F3F4F6",

@@ -1,17 +1,18 @@
 import Loader from "@/components/generic/Loader";
-import { colors } from "@/components/theme/colors";
-import { commonStyles } from "@/components/theme/commonStyles";
+import Navbar from "@/components/generic/Navbar";
 import { useAuth } from "@/hooks/useAuth";
+import { cacheAuthToken } from "@/lib/axios";
 import { RootState } from "@/redux/store";
 import { useRouter } from "expo-router";
-import { cacheAuthToken } from "@/lib/axios";
-
 import {
-  ArrowLeft,
+  Building2,
   LogOut,
-  X
+  Mail,
+  Phone,
+  UserCheck,
+  X,
 } from "lucide-react-native";
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   Image,
   Modal,
@@ -24,8 +25,30 @@ import {
 } from "react-native";
 import { useSelector } from "react-redux";
 
+const getSafeString = (val: any, fallback: string = ""): string => {
+  if (!val) return fallback;
+  if (typeof val === "string" || typeof val === "number") return String(val);
+  if (typeof val === "object") {
+    if (typeof val.user_type === "string") return val.user_type;
+    if (typeof val.name === "string") return val.name;
+    if (typeof val.vendor_name === "string") return val.vendor_name;
+    if (typeof val.title === "string") return val.title;
+  }
+  return fallback;
+};
+
+const getInitials = (name: string) => {
+  if (!name) return "US";
+  const parts = name.trim().split(" ");
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+};
+
 export default function ProfileTabScreen() {
   const User = useSelector((state: RootState) => state.auth.user);
+  const Vendor = useSelector((state: RootState) => state.auth.vendor);
   const router = useRouter();
   const { logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -47,122 +70,92 @@ export default function ProfileTabScreen() {
     );
   }
 
+  const vendorName =
+    Vendor?.vendor_name ||
+    User?.vendor_name ||
+    User?.vendor?.vendor_name ||
+    "Furnix Factory OS";
+
+  const userRole = getSafeString(User.user_type, "Operator");
+
   return (
     <View style={styles.root}>
-      {/* ── Navbar ── */}
-      <View style={commonStyles.navbar}>
+      <Navbar title="Profile" subtitle="Account details" />
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── 1. Compact Profile Main Card ── */}
+        <View style={styles.profileCard}>
+          <View style={styles.avatarWrap}>
+            <Text style={styles.avatarText}>
+              {getInitials(User.user_name || "User")}
+            </Text>
+          </View>
+
+          <Text style={styles.userName}>{getSafeString(User.user_name, "User")}</Text>
+
+          <View style={styles.contactRow}>
+            {User.user_contact ? (
+              <View style={styles.contactPill}>
+                <Phone size={12} color="#64748B" />
+                <Text style={styles.contactPillText}>{User.user_contact}</Text>
+              </View>
+            ) : null}
+            {User.user_email || (User as any).email ? (
+              <View style={styles.contactPill}>
+                <Mail size={12} color="#64748B" />
+                <Text style={styles.contactPillText}>
+                  {User.user_email || (User as any).email}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
+
+        {/* ── 2. Essential Vendor & Account Info Card ── */}
+        <View style={styles.infoCard}>
+          <View style={styles.infoRow}>
+            <View style={styles.infoIconWrap}>
+              <Building2 size={16} color="#4B3A34" />
+            </View>
+            <View style={styles.infoTextBlock}>
+              <Text style={styles.infoLabel}>Company / Vendor</Text>
+              <Text style={styles.infoValue}>{vendorName}</Text>
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.infoRow}>
+            <View style={styles.infoIconWrap}>
+              <UserCheck size={16} color="#047857" />
+            </View>
+            <View style={styles.infoTextBlock}>
+              <Text style={styles.infoLabel}>User Role</Text>
+              <Text style={styles.infoValue}>{userRole}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ── 3. Logout Button ── */}
         <TouchableOpacity
-          style={commonStyles.navbarBackBtn}
-          onPress={() => router.back()}
-          activeOpacity={0.8}
+          style={styles.logoutRow}
+          onPress={() => setShowLogoutModal(true)}
+          activeOpacity={0.82}
         >
-          <ArrowLeft size={20} color={colors.white} />
+          <View style={styles.logoutIconWrap}>
+            <LogOut size={18} color="#DC2626" />
+          </View>
+          <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
-        <View style={commonStyles.navbarTitleBlock}>
-          <Text style={commonStyles.navbarTitle}>Profile</Text>
-          <Text style={commonStyles.navbarSubtitle}>Manage your account</Text>
-        </View>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-
-        {/* ── Profile Info ── */}
-        <View style={styles.infoContainer}>
-          <Image
-            style={styles.profileLogo}
-            source={require("../../assets/images/Profile/profile.png")}
-          />
-          <Text style={styles.userName}>{User.user_name}</Text>
-          <Text style={styles.userContact}>{User.user_contact}</Text>
-        </View>
-
-        {/* ── Personal ── */}
-        {/* <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Personal</Text>
-
-          <TouchableOpacity style={styles.menuRow}>
-            <View style={styles.menuRowLeft}>
-              <View style={styles.menuIcon}>
-                <UserRoundCog size={24} color="#374151" />
-              </View>
-              <Text style={styles.menuText}>Edit profile</Text>
-            </View>
-            <ChevronRight size={24} color="#9CA3AF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuRow}>
-            <View style={styles.menuRowLeft}>
-              <View style={styles.menuIcon}>
-                <Download size={24} color="#374151" />
-              </View>
-              <Text style={styles.menuText}>Downloads</Text>
-            </View>
-            <ChevronRight size={24} color="#9CA3AF" />
-          </TouchableOpacity>
-        </View> */}
-
-        {/* ── Preferences ── */}
-        {/* <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Preferences</Text>
-
-          <TouchableOpacity style={styles.menuRow}>
-            <View style={styles.menuRowLeft}>
-              <View style={styles.menuIcon}>
-                <Languages size={24} color="#374151" />
-              </View>
-              <Text style={styles.menuText}>Language</Text>
-            </View>
-            <View style={styles.menuRowRight}>
-              <Text style={styles.menuValue}>English</Text>
-              <ChevronRight size={24} color="#9CA3AF" />
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuRow}>
-            <View style={styles.menuRowLeft}>
-              <View style={styles.menuIcon}>
-                <Bell size={24} color="#374151" />
-              </View>
-              <Text style={styles.menuText}>Notification</Text>
-            </View>
-            <View style={styles.menuRowRight}>
-              <Text style={styles.menuValue}>Enable</Text>
-              <ChevronRight size={24} color="#9CA3AF" />
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuRow}>
-            <View style={styles.menuRowLeft}>
-              <View style={styles.menuIcon}>
-                <Palette size={24} color="#374151" />
-              </View>
-              <Text style={styles.menuText}>Theme</Text>
-            </View>
-            <View style={styles.menuRowRight}>
-              <Text style={styles.menuValue}>Light</Text>
-              <ChevronRight size={24} color="#9CA3AF" />
-            </View>
-          </TouchableOpacity>
-        </View> */}
-
-        {/* ── Logout ── */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.logoutRow}
-            onPress={() => setShowLogoutModal(true)}
-            activeOpacity={0.8}
-          >
-            <LogOut size={24} color="#E63946" />
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
-
       </ScrollView>
 
       {/* ── Logout Confirmation Modal ── */}
       <Modal
         transparent
-        animationType="slide"
+        animationType="fade"
         visible={showLogoutModal}
         onRequestClose={() => setShowLogoutModal(false)}
       >
@@ -180,16 +173,16 @@ export default function ProfileTabScreen() {
               onPress={() => setShowLogoutModal(false)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <X size={20} color="#6B7280" />
+              <X size={18} color="#64748B" />
             </TouchableOpacity>
 
             <View style={styles.modalIconWrap}>
-              <LogOut size={32} color="#E63946" />
+              <LogOut size={28} color="#DC2626" />
             </View>
 
-            <Text style={styles.modalTitle}>Logout</Text>
+            <Text style={styles.modalTitle}>Confirm Logout</Text>
             <Text style={styles.modalMessage}>
-              Are you sure you want to logout?
+              Are you sure you want to log out of your account?
             </Text>
 
             <View style={styles.modalBtnRow}>
@@ -203,7 +196,7 @@ export default function ProfileTabScreen() {
               <TouchableOpacity
                 style={[styles.modalBtn, styles.modalBtnConfirm]}
                 onPress={handleConfirmLogout}
-                activeOpacity={0.8}
+                activeOpacity={0.85}
               >
                 <Text style={styles.modalBtnConfirmText}>Yes, Logout</Text>
               </TouchableOpacity>
@@ -218,219 +211,236 @@ export default function ProfileTabScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F8FAFC",
   },
   loaderContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F8FAFC",
   },
   scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
     paddingBottom: 40,
+    gap: 14,
   },
-
-  // Profile info
-  infoContainer: {
-    width: "100%",
+  profileCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 20,
     alignItems: "center",
-    marginTop: 40,
-    marginBottom: 32,
     gap: 6,
   },
-  profileLogo: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 8,
+  avatarWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#4B3A34",
+    borderWidth: 3,
+    borderColor: "#F4A261",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+    shadowColor: "#4B3A34",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  avatarText: {
+    fontSize: 28,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    letterSpacing: 1,
   },
   userName: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "800",
-    color: "#111827",
+    color: "#0F172A",
     textAlign: "center",
   },
-  userContact: {
-    fontSize: 15,
-    color: "#6B7280",
-    textAlign: "center",
+  contactRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 2,
   },
-
-  // Sections
-  section: {
-    marginHorizontal: 20,
-    marginBottom: 28,
-    gap: 4,
-  },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#9CA3AF",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-
-  // Menu rows
-  menuRow: {
+  contactPill: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "white",
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    gap: 5,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
   },
-  menuRowLeft: {
+  contactPillText: {
+    fontSize: 12,
+    color: "#475569",
+    fontWeight: "500",
+  },
+  infoCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 16,
+    gap: 12,
+  },
+  infoRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
-  menuRowRight: {
-    flexDirection: "row",
+  infoIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     alignItems: "center",
-    gap: 6,
-  },
-  menuIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "#F3F4F6",
     justifyContent: "center",
-    alignItems: "center",
   },
-  menuText: {
-    fontSize: 16,
+  infoTextBlock: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 11,
     fontWeight: "600",
-    color: "#111827",
+    color: "#64748B",
   },
-  menuValue: {
+  infoValue: {
     fontSize: 14,
-    color: "#6B7280",
-    fontWeight: "500",
+    fontWeight: "700",
+    color: "#0F172A",
+    marginTop: 1,
   },
-
-  // Logout row
+  divider: {
+    height: 1,
+    backgroundColor: "#F1F5F9",
+  },
   logoutRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "#FFF1F2",
+    backgroundColor: "#FEF2F2",
     borderRadius: 14,
-    padding: 16,
+    padding: 14,
     borderWidth: 1,
-    borderColor: "#FECACA",
+    borderColor: "#FCA5A5",
+  },
+  logoutIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#FEE2E2",
+    justifyContent: "center",
+    alignItems: "center",
   },
   logoutText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
-    color: "#E63946",
+    color: "#DC2626",
   },
-
-  // Modal
   modalOverlay: {
     flex: 1,
     justifyContent: "flex-end",
   },
   modalBackdrop: {
     position: "absolute",
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
   },
   modalSheet: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 24,
-    paddingBottom: Platform.OS === "ios" ? 48 : 32,
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
     paddingTop: 12,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 20,
   },
   modalHandle: {
-    width: 40,
+    width: 36,
     height: 4,
-    backgroundColor: "#D1D5DB",
+    backgroundColor: "#CBD5E1",
     borderRadius: 2,
     marginBottom: 16,
   },
   modalCloseBtn: {
     position: "absolute",
-    top: 20,
-    right: 20,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#F3F4F6",
+    top: 16,
+    right: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#F1F5F9",
     justifyContent: "center",
     alignItems: "center",
   },
   modalIconWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#FFF1F2",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
-    marginTop: 8,
+    marginBottom: 12,
+    marginTop: 4,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "800",
-    color: "#111827",
-    marginBottom: 8,
+    color: "#0F172A",
+    marginBottom: 6,
   },
   modalMessage: {
-    fontSize: 15,
-    color: "#6B7280",
+    fontSize: 14,
+    color: "#64748B",
     textAlign: "center",
-    marginBottom: 28,
-    lineHeight: 22,
+    marginBottom: 20,
+    lineHeight: 20,
   },
   modalBtnRow: {
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
     width: "100%",
   },
   modalBtn: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 14,
+    height: 46,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   modalBtnCancel: {
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F1F5F9",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E2E8F0",
   },
   modalBtnCancelText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#374151",
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#475569",
   },
   modalBtnConfirm: {
-    backgroundColor: "#E63946",
-    shadowColor: "#E63946",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    backgroundColor: "#DC2626",
   },
   modalBtnConfirmText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
-    color: "white",
+    color: "#FFFFFF",
   },
 });

@@ -1,16 +1,21 @@
 import Loader from "@/components/generic/Loader";
+import Navbar from "@/components/generic/Navbar";
+import {
+  QualityProject,
+  QualityProjectCard,
+} from "@/components/ItemCards/QualityProjectCard";
+import { FilterModal, FilterOption } from "@/components/modals/FilterModal";
 import { colors } from "@/components/theme/colors";
 import { commonStyles } from "@/components/theme/commonStyles";
 import axios from "@/lib/axios";
 import type { RootState } from "@/redux/store";
 import { useCameraPermissions } from "expo-camera";
 import { useFocusEffect, useRouter } from "expo-router";
-import { AlertTriangle, ArrowLeft, CheckSquare, ChevronRight, Clock, Search, X } from "lucide-react-native";
+import { AlertTriangle, CheckCircle2, Search, X } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import {
   FlatList,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -19,45 +24,32 @@ import {
 } from "react-native";
 import { useSelector } from "react-redux";
 
-interface QualityProject {
-  id: number;
-  project_name: string;
-  project_status: string;
-  track_trace_status: string;
-  created_at: string;
-  pending_count: number;
-  qualityMachineId: number;
-  qualityMachineName: string;
-}
-
-function getProjectStatusBadge(item: QualityProject) {
-  const statusStr = (item.track_trace_status || item.project_status || "").trim();
-
-  if (statusStr.toLowerCase() === "completed") {
-    return {
-      label: "Completed",
-      bg: "#D1FAE5",
-      color: "#065F46",
-      accent: "#10B981",
-    };
-  }
-
-  if (statusStr.toLowerCase() === "started") {
-    return {
-      label: "Started",
-      bg: "#E0E7FF",
-      color: "#3730A3",
-      accent: "#6366F1",
-    };
-  }
-
-  return {
-    label: statusStr || "Not Started",
-    bg: "#F1F5F9",
+const QUALITY_FILTER_OPTIONS: FilterOption[] = [
+  {
+    key: "all",
+    label: "All Projects",
+    desc: "Show all quality check projects",
+    color: "#4B3A34",
+  },
+  {
+    key: "Not Started",
+    label: "Not Started",
+    desc: "Projects pending inspection start",
     color: "#64748B",
-    accent: "#94A3B8",
-  };
-}
+  },
+  {
+    key: "Started",
+    label: "Started",
+    desc: "Inspection currently in progress",
+    color: "#6366F1",
+  },
+  {
+    key: "Completed",
+    label: "Completed",
+    desc: "Quality inspection finished",
+    color: "#10B981",
+  },
+];
 
 export default function QualityProjectsScreen() {
   const router = useRouter();
@@ -70,12 +62,24 @@ export default function QualityProjectsScreen() {
   // Search, Filter & Pagination states
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [tempStatusFilter, setTempStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalProjects, setTotalProjects] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
 
   const [permission, requestPermission] = useCameraPermissions();
+
+  const openFilterModal = () => {
+    setTempStatusFilter(statusFilter);
+    setFilterModalVisible(true);
+  };
+
+  const applyFilter = (selectedKey: string) => {
+    setStatusFilter(selectedKey);
+    setFilterModalVisible(false);
+  };
 
   const handleProjectPress = async (item: QualityProject) => {
     const navigate = () =>
@@ -119,7 +123,10 @@ export default function QualityProjectsScreen() {
           params.status = statusFilter;
         }
 
-        const res = await axios.get(`/track-trace/quality-check-projects/${vendorId}`, { params });
+        const res = await axios.get(
+          `/track-trace/quality-check-projects/${vendorId}`,
+          { params },
+        );
         const raw = res.data?.data?.projects;
         const pagination = res.data?.data?.pagination;
 
@@ -149,13 +156,13 @@ export default function QualityProjectsScreen() {
         setLoadingMore(false);
       }
     },
-    [user?.vendor_id, searchQuery, statusFilter]
+    [user?.vendor_id, searchQuery, statusFilter],
   );
 
   useFocusEffect(
     useCallback(() => {
       fetchProjects(1);
-    }, [fetchProjects])
+    }, [fetchProjects]),
   );
 
   const onRefresh = async () => {
@@ -201,70 +208,61 @@ export default function QualityProjectsScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.cardBg }}>
-      {/* ── Navbar ── */}
-      <View style={commonStyles.navbar}>
-        <TouchableOpacity
-          style={commonStyles.navbarBackBtn}
-          onPress={() => router.back()}
-          activeOpacity={0.8}
-        >
-          <ArrowLeft size={20} color={colors.white} />
-        </TouchableOpacity>
-        <View style={commonStyles.navbarTitleBlock}>
-          <Text style={commonStyles.navbarTitle}>Quality Check</Text>
-          <Text style={commonStyles.navbarSubtitle}>Projects ready for inspection</Text>
-        </View>
-        <View style={{ width: 40 }} />
-      </View>
+    <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+      {/* ── Navbar with Filter Button ── */}
+      <Navbar
+        title="Quality Check"
+        subtitle="Select project to start inspection"
+        showBack={true}
+        showFilter={true}
+        isFilterActive={statusFilter !== "all"}
+        onFilterPress={openFilterModal}
+      />
 
-      {/* ── Search & Status Filters ── */}
+      {/* ── Search Bar & Active Filter Tag (Sticky Header) ── */}
       <View style={styles.searchFilterContainer}>
-        {/* Search Bar */}
         <View style={styles.searchBar}>
-          <Search size={18} color="#64748B" />
+          <Search size={18} color={colors.midBg} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by project name..."
+            placeholder="Search projects by name..."
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={(text) => setSearchQuery(text)}
           />
           {searchQuery !== "" && (
-            <TouchableOpacity onPress={() => setSearchQuery("")} activeOpacity={0.7}>
-              <X size={16} color="#64748B" />
+            <TouchableOpacity
+              onPress={() => setSearchQuery("")}
+              activeOpacity={0.7}
+              style={styles.clearBtn}
+            >
+              <X size={14} color="#64748B" />
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Status Filter Chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-          {[
-            { key: "all", label: "All" },
-            { key: "Not Started", label: "Not Started" },
-            { key: "Started", label: "Started" },
-            { key: "Completed", label: "Completed" },
-          ].map((chip) => {
-            const active = statusFilter === chip.key;
-            return (
+        {/* Active Filter Badge if statusFilter != 'all' */}
+        {statusFilter !== "all" && (
+          <View style={styles.activeFilterRow}>
+            <Text style={styles.activeFilterLabel}>Active Filter:</Text>
+            <View style={styles.activeFilterPill}>
+              <Text style={styles.activeFilterPillText}>{statusFilter}</Text>
               <TouchableOpacity
-                key={chip.key}
-                style={[styles.chip, active && styles.activeChip]}
-                onPress={() => setStatusFilter(chip.key)}
-                activeOpacity={0.8}
+                onPress={() => setStatusFilter("all")}
+                activeOpacity={0.7}
               >
-                <Text style={[styles.chipText, active && styles.activeChipText]}>
-                  {chip.label}
-                </Text>
+                <X size={13} color="#FFFFFF" />
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+            </View>
+          </View>
+        )}
       </View>
 
       {/* ── List ── */}
       {loading && !refreshing && projects.length === 0 ? (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <View
+          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+        >
           <Loader />
         </View>
       ) : (
@@ -273,128 +271,316 @@ export default function QualityProjectsScreen() {
           keyExtractor={(item) => String(item.id)}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          ListHeaderComponent={
-            <View style={commonStyles.warningBanner}>
-              <AlertTriangle size={20} color={colors.accent} />
-              <Text style={commonStyles.warningText}>
-                Only projects with all previous stages completed are shown
-              </Text>
-            </View>
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
+          // ListHeaderComponent={
+          //   <View style={commonStyles.warningBanner}>
+          //     <AlertTriangle size={20} color={colors.accent} />
+          //     <Text style={commonStyles.warningText}>
+          //       Only projects with all previous stages completed are shown
+          //     </Text>
+          //   </View>
+          // }
           ListFooterComponent={renderFooter}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Text style={styles.emptyEmoji}>✅</Text>
-              <Text style={styles.emptyText}>No projects pending quality check</Text>
-              <Text style={styles.emptySubtext}>All caught up!</Text>
+              <View style={styles.emptyIconWrap}>
+                <CheckCircle2 size={28} color={colors.midBg} />
+              </View>
+              <Text style={styles.emptyText}>No Projects Found</Text>
+              <Text style={styles.emptySubtext}>
+                There are no projects pending quality inspection matching your criteria.
+              </Text>
             </View>
           }
-          renderItem={({ item }) => {
-            const statusInfo = getProjectStatusBadge(item);
-            return (
-              <TouchableOpacity
-                style={styles.card}
-                activeOpacity={0.85}
-                onPress={() => handleProjectPress(item)}
-              >
-                {/* Left accent bar matching status color */}
-                <View style={[styles.cardAccent, { backgroundColor: statusInfo.accent }]} />
-
-                <View style={styles.cardBody}>
-                  {/* Top row */}
-                  <View style={styles.cardTopRow}>
-                    <View style={styles.cardIconWrap}>
-                      <CheckSquare size={18} color={statusInfo.accent} />
-                    </View>
-                    <Text style={styles.cardTitle} numberOfLines={1}>
-                      {item.project_name}
-                    </Text>
-                    {/* Status Badge */}
-                    <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
-                      <Text style={[styles.statusBadgeText, { color: statusInfo.color }]}>
-                        {statusInfo.label}
-                      </Text>
-                    </View>
-                    <ChevronRight size={18} color={colors.label} />
-                  </View>
-
-                  {/* Stats row */}
-                  <View style={styles.cardStatsRow}>
-                    <View style={styles.statChip}>
-                      <Clock size={12} color="#F4A261" />
-                      <Text style={styles.statChipText}>
-                        {item.pending_count} pending
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
-          }}
+          renderItem={({ item }) => (
+            <QualityProjectCard item={item} onPress={handleProjectPress} />
+          )}
         />
       )}
+
+      {/* ── Filter Modal Component ── */}
+      <FilterModal
+        visible={filterModalVisible}
+        onClose={() => setFilterModalVisible(false)}
+        options={QUALITY_FILTER_OPTIONS}
+        selectedKey={statusFilter}
+        onApply={(key) => {
+          setStatusFilter(key);
+          setFilterModalVisible(false);
+        }}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   listContent: {
-    padding: 20,
-    paddingTop: 20,
+    padding: 12,
+    paddingTop: 12,
     paddingBottom: 32,
     gap: 12,
   },
-  // Search & Filter
+
   searchFilterContainer: {
-    backgroundColor: "#fff",
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingTop: 10,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
     gap: 10,
+    zIndex: 10,
   },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 42,
-    gap: 8,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: colors.midBg,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 46,
+    gap: 10,
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
     color: "#0F172A",
     paddingVertical: 0,
+    fontWeight: "500",
   },
-  filterScroll: {
+  clearBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activeFilterRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
-    paddingRight: 10,
+    marginTop: 2,
   },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  activeFilterLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  activeFilterPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.midBg,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  activeFilterPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
+    justifyContent: "flex-end",
+  },
+  modalCard: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 28,
+    gap: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  modalDragHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#CBD5E1",
+    alignSelf: "center",
+    marginBottom: 4,
+  },
+  modalHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  modalHeaderLeftGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+  },
+  modalIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#FFF8EE",
+    borderWidth: 1,
+    borderColor: "rgba(244,162,97,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalTitleBlock: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: colors.heading,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  modalCloseBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 4,
+    paddingBottom: 2,
+  },
+  modalSectionHeading: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#94A3B8",
+    letterSpacing: 1,
+  },
+  modalResetPillBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 20,
     backgroundColor: "#F1F5F9",
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
-  activeChip: {
-    backgroundColor: "#0F172A",
-    borderColor: "#0F172A",
+  modalResetPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  modalOptionsList: {
+    gap: 10,
+    marginVertical: 2,
+  },
+  optionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    gap: 12,
+  },
+  selectedOptionCard: {
+    backgroundColor: "#FFF8EE",
+    borderColor: colors.accent,
+  },
+  optionDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  optionTextBlock: {
+    flex: 1,
+  },
+  optionLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1E293B",
+  },
+  selectedOptionLabel: {
+    color: colors.midBg,
+  },
+  optionDesc: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  selectedCheckWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.midBg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unselectedRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#CBD5E1",
+  },
+  applyBtnFull: {
+    width: "100%",
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: colors.midBg,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 6,
+    shadowColor: colors.midBg,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  applyBtnText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  filterScroll: {
+    gap: 8,
+    paddingRight: 10,
+    paddingVertical: 2,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1.5,
+  },
+  chipDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
   chipText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#64748B",
   },
   activeChipText: {
     color: "#FFFFFF",
+    fontWeight: "700",
   },
   footerLoading: {
     paddingVertical: 16,
@@ -427,100 +613,31 @@ const styles = StyleSheet.create({
   emptyState: {
     marginTop: 60,
     alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
     gap: 8,
   },
-  emptyEmoji: { fontSize: 48 },
+  emptyIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
   emptyText: {
     color: colors.heading,
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "800",
+    marginTop: 2,
   },
   emptySubtext: {
     color: colors.label,
     fontSize: 13,
-  },
-  card: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    flexDirection: "row",
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  cardAccent: {
-    width: 5,
-    backgroundColor: "#F4A261",
-  },
-  cardBody: {
-    flex: 1,
-    padding: 16,
-    gap: 8,
-  },
-  cardTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  cardIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "#FEF0DC",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 99,
-  },
-  statusBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "capitalize",
-  },
-  cardTitle: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.heading,
-  },
-  cardStatsRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 2,
-  },
-  statChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#FFF8EE",
-    borderWidth: 1,
-    borderColor: "#F4A261",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  statChipText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#C15C0A",
-  },
-  statChipSecondary: {
-    backgroundColor: "#F3F4F6",
-    borderColor: "#E5E7EB",
-  },
-  statChipTextSecondary: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.label,
-  },
-  cardDate: {
-    fontSize: 11,
-    color: colors.label,
-    marginTop: 2,
+    textAlign: "center",
+    lineHeight: 18,
   },
 });

@@ -1,46 +1,49 @@
-import { colors } from '@/components/theme/colors';
-import { RootState } from '@/redux/store';
-import DashboardTabScreen from '@/screens/Tabs/dashboard';
-import ProfileTabScreen from '@/screens/Tabs/profile';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Redirect } from 'expo-router';
-import { Home, Settings } from 'lucide-react-native';
-import { ActivityIndicator, Platform, View } from 'react-native';
-import { useSelector } from 'react-redux';
+import { colors } from "@/components/theme/colors";
+import { RootState } from "@/redux/store";
+import DashboardTabScreen from "@/screens/Tabs/dashboard";
+import ProfileTabScreen from "@/screens/Tabs/profile";
+import ProjectsTabScreen from "@/screens/Tabs/projects";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { Redirect } from "expo-router";
+import { FolderKanban, Home, Settings } from "lucide-react-native";
+import React from "react";
+import { ActivityIndicator, Platform, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSelector } from "react-redux";
 
 const Tab = createBottomTabNavigator();
 
-// ─── Shared tab bar style ────────────────────────────────────────────────────
-const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 88 : 72;
-
-const tabBarStyle = {
-  backgroundColor: colors.white,
-  borderTopColor: colors.border,
-  borderTopWidth: 1,
-  height: TAB_BAR_HEIGHT,
-  paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-  paddingTop: 8,
-  // Drop shadow above the bar
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: -4 },
-  shadowOpacity: 0.08,
-  shadowRadius: 12,
-  elevation: 12,
-};
-
 // ─── Tab icon builder ────────────────────────────────────────────────────────
-function tabIcon(Icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>) {
+function tabIcon(
+  Icon: React.ComponentType<{
+    size: number;
+    color: string;
+    strokeWidth?: number;
+  }>,
+) {
   return ({ color, focused }: { color: string; focused: boolean }) => (
-    <Icon size={focused ? 26 : 23} color={color} strokeWidth={focused ? 2.5 : 1.8} />
+    <Icon
+      size={focused ? 24 : 22}
+      color={color}
+      strokeWidth={focused ? 2.4 : 1.8}
+    />
   );
 }
 
 export default function DashboardScreen() {
+  const insets = useSafeAreaInsets();
   const { token, isLoading } = useSelector((state: RootState) => state.auth);
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white }}>
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: colors.white,
+        }}
+      >
         <ActivityIndicator size="large" color={colors.midBg} />
       </View>
     );
@@ -48,23 +51,31 @@ export default function DashboardScreen() {
 
   if (!token) return <Redirect href="/auth/login" />;
 
+  // Dynamic bottom inset to prevent Android 3-button navbar overlap
+  const bottomInset =
+    insets.bottom > 0 ? insets.bottom : Platform.OS === "ios" ? 24 : 10;
+  const tabHeight = 58 + bottomInset;
+
+  const dynamicTabBarStyle = {
+    backgroundColor: "#FFFFFF",
+    borderTopColor: "#E2E8F0",
+    borderTopWidth: 1,
+    height: tabHeight,
+    paddingBottom: bottomInset,
+    paddingTop: 6,
+    elevation: 8,
+  };
+
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarStyle,
-        tabBarActiveTintColor: colors.midBg,        // navy when active
-        tabBarInactiveTintColor: colors.label,       // gray when inactive
+        tabBarStyle: dynamicTabBarStyle,
+        tabBarActiveTintColor: colors.midBg,
+        tabBarInactiveTintColor: "#64748B",
         tabBarLabelStyle: {
-          fontFamily: 'Montserrat-SemiBold',
           fontSize: 11,
+          fontWeight: "700",
           marginTop: 2,
-        },
-        // Active tab indicator — 3px navy bar at the bottom of each active tab
-        tabBarIndicatorStyle: {
-          backgroundColor: colors.midBg,
-          height: 3,
-          borderRadius: 3,
-          bottom: 0,
         },
       }}
     >
@@ -76,22 +87,14 @@ export default function DashboardScreen() {
           tabBarIcon: tabIcon(Home),
         }}
       />
-      {/* <Tab.Screen
-        name="Track"
-        component={MachineTabScreen}
-        options={{
-          headerShown: false,
-          tabBarIcon: tabIcon(FolderOpenDot),
-        }}
-      /> */}
-      {/* <Tab.Screen
-        name="Pack"
+      <Tab.Screen
+        name="Projects"
         component={ProjectsTabScreen}
         options={{
           headerShown: false,
-          tabBarIcon: tabIcon(Package),
+          tabBarIcon: tabIcon(FolderKanban),
         }}
-      /> */}
+      />
       <Tab.Screen
         name="Settings"
         component={ProfileTabScreen}

@@ -1,4 +1,5 @@
 import Loader from "@/components/generic/Loader";
+import Navbar from "@/components/generic/Navbar";
 import { ItemCard } from "@/components/ItemCards/ItemCard";
 import { useToast } from "@/components/Notification/ToastProvider";
 import { colors } from "@/components/theme/colors";
@@ -10,6 +11,7 @@ import { useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import LottieView from "lottie-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { isProjectDeactivated } from "./boxes";
 import {
   AlertTriangle,
@@ -297,6 +299,9 @@ const cmStyles = StyleSheet.create({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function BoxItemsScreen() {
+  const insets = useSafeAreaInsets();
+  const bottomInset = insets.bottom > 0 ? insets.bottom + 6 : Platform.OS === "ios" ? 14 : 10;
+
   const { payload: payloadString } = useLocalSearchParams<{
     payload: string;
   }>();
@@ -845,47 +850,14 @@ export default function BoxItemsScreen() {
   return (
     <View style={styles.root}>
       {/* ── Navbar ── */}
-      <View style={commonStyles.navbar}>
-        <TouchableOpacity
-          style={commonStyles.navbarBackBtn}
-          onPress={() => router.back()}
-          activeOpacity={0.8}
-        >
-          <ArrowLeft size={20} color={colors.white} />
-        </TouchableOpacity>
-
-        <View style={commonStyles.navbarTitleBlock}>
-          <Text style={commonStyles.navbarTitle} numberOfLines={1}>
-            {boxName || "Box Items"}
-          </Text>
-
-          <Text style={commonStyles.navbarSubtitle}>
-            {status === "packed" ? "Packed" : "Unpacked"}
-          </Text>
-        </View>
-
-        <TouchableOpacity
-          style={[
-            styles.packBtn,
-            {
-              backgroundColor: status === "packed" ? "#FFF8EE" : "#E6F7F5",
-            },
-          ]}
-          onPress={handleUpdateStatus}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.packBtnText,
-              {
-                color: status === "packed" ? "#C15C0A" : "#1A7A70",
-              },
-            ]}
-          >
-            {status === "packed" ? "Unpack" : "Pack"}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <Navbar
+        title={boxName || "Box Items"}
+        subtitle={status === "packed" ? "Packed Box" : "Unpacked Box"}
+        showBack={true}
+        showPack={true}
+        boxStatus={status === "packed" ? "Unpack" : "Pack"}
+        onPackPress={handleUpdateStatus}
+      />
 
       {deactivated && (
         <View style={styles.deactivatedBanner}>
@@ -936,7 +908,7 @@ export default function BoxItemsScreen() {
       )}
 
       {/* ── Bottom actions ── */}
-      <View style={styles.fabContainer}>
+      <View style={[styles.fabContainer, { bottom: bottomInset }]}>
         {status === "packed" ? (
           <TouchableOpacity
             activeOpacity={0.9}
@@ -1454,7 +1426,7 @@ export default function BoxItemsScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.cardBg,
+    backgroundColor: "#F8FAFC",
   },
 
   deactivatedBanner: {
@@ -1481,11 +1453,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: colors.cardBg,
   },
 
   listContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingTop: 12,
     paddingBottom: 112,
   },
@@ -1528,11 +1499,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 50,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
 
   fabText: {
@@ -1563,11 +1529,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     paddingHorizontal: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 8,
-    elevation: 8,
   },
 
   actionPrimaryText: {
@@ -1586,12 +1547,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 7,
-    elevation: 5,
+    borderColor: "#E2E8F0",
   },
 
   actionSecondaryText: {

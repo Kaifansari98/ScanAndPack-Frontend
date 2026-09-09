@@ -1,114 +1,48 @@
-import { useRouter } from "expo-router";
-import { RefObject } from "react";
-
+import React, { RefObject } from "react";
 import {
   FlatList,
+  Image,
   StyleSheet,
-  TouchableWithoutFeedback,
-  useWindowDimensions,
+  Text,
+  TouchableOpacity,
 } from "react-native";
-
-import Animated, {
-  SharedValue,
-  interpolateColor,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-} from "react-native-reanimated";
+import { SharedValue } from "react-native-reanimated";
 import { OnboardingData } from "../../../data/welcomeData";
 
 type Props = {
   dataLength: number;
   flatListIndex: SharedValue<number>;
-  flatListRef: RefObject<FlatList<OnboardingData>| null>;
-  x: SharedValue<number>;
+  flatListRef: RefObject<FlatList<OnboardingData> | null>;
+  currentIndex: number;
+  onNext: () => void;
 };
 
-const CustomButton = ({ flatListRef, flatListIndex, dataLength, x }: Props) => {
-  const { width: SCREEN_WIDTH } = useWindowDimensions();
-  const router = useRouter();
-
-  const buttonAnimationStyle = useAnimatedStyle(() => {
-    return {
-      width:
-        flatListIndex.value === dataLength - 1
-          ? withSpring(140)
-          : withSpring(60),
-      height: 60,
-    };
-  });
-
-  const arrowAnimationStyle = useAnimatedStyle(() => {
-    return {
-      width: 30,
-      height: 30,
-      opacity:
-        flatListIndex.value === dataLength - 1 ? withTiming(0) : withTiming(1),
-      transform: [
-        {
-          translateX:
-            flatListIndex.value === dataLength - 1
-              ? withTiming(100)
-              : withTiming(0),
-        },
-      ],
-    };
-  });
-
-  const textAnimationStyle = useAnimatedStyle(() => {
-    return {
-      opacity:
-        flatListIndex.value === dataLength - 1 ? withTiming(1) : withTiming(0),
-      transform: [
-        {
-          translateX:
-            flatListIndex.value === dataLength - 1
-              ? withTiming(0)
-              : withTiming(-100),
-        },
-      ],
-    };
-  });
-
-  const animatedColor = useAnimatedStyle(() => {
-    const backgroundColor = interpolateColor(
-      x.value,
-      [0, SCREEN_WIDTH, 2 * SCREEN_WIDTH],
-      ["#000000", "#000000", "#000000"]
-    );
-    return {
-      backgroundColor: backgroundColor,
-    };
-  });
+const CustomButton = ({
+  dataLength,
+  currentIndex,
+  onNext,
+}: Props) => {
+  const isLast = currentIndex >= dataLength - 1;
 
   return (
-    <TouchableWithoutFeedback
-      onPress={() => {
-        if (flatListIndex.value < dataLength - 1) {
-          flatListRef.current?.scrollToIndex({
-            index: flatListIndex.value + 1,
-          });
-        } else {
-          // router.push('/auth/login');
-          router.replace('/auth/login');  
-        }
-      }}
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onNext}
+      style={[
+        styles.container,
+        isLast ? styles.buttonExpanded : styles.buttonCircle,
+      ]}
     >
-      <Animated.View
-        style={[styles.container, buttonAnimationStyle, animatedColor]}
-      >
-        <Animated.Text
-          style={[styles.textButton, textAnimationStyle]}
-          className={"text-lg font-montserrat-semibold"}
-        >
-          Get Started
-        </Animated.Text>
-        <Animated.Image
+      {isLast ? (
+        <Text style={styles.textButton}>Get Started</Text>
+      ) : (
+        <Image
           source={require("../../../assets/images/ArrowIcon.png")}
-          style={[styles.arrow, arrowAnimationStyle]}
+          style={styles.arrow}
+          resizeMode="contain"
         />
-      </Animated.View>
-    </TouchableWithoutFeedback>
+      )}
+    </TouchableOpacity>
   );
 };
 
@@ -116,18 +50,31 @@ export default CustomButton;
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#1e2169",
-    padding: 10,
-    borderRadius: 100,
+    backgroundColor: "#000000",
+    height: 54,
+    borderRadius: 27,
     justifyContent: "center",
     alignItems: "center",
-    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  buttonCircle: {
+    width: 54,
+  },
+  buttonExpanded: {
+    paddingHorizontal: 28,
   },
   arrow: {
-    position: "absolute",
+    width: 20,
+    height: 20,
+    tintColor: "#ffffff",
   },
   textButton: {
-    color: "white",
-    position: "absolute",
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });
