@@ -2,8 +2,14 @@ import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
 import { ProjectCard } from "@/components/ItemCards/ProjectCard";
 import { AddBoxModal } from "@/components/modals/AddBoxModal";
+import { PackagingLocationModal } from "@/components/modals/PackagingLocationModal";
+import {
+  ScannerSelectionModal,
+  ScannerType,
+} from "@/components/modals/ScannerSelectionModal";
 import { UpdateBoxModal } from "@/components/modals/UpdateBoxModal";
 import { useToast } from "@/components/Notification/ToastProvider";
+import { useScannerPreference } from "@/hooks/useScannerPreference";
 import { colors } from "@/components/theme/colors";
 import { commonStyles } from "@/components/theme/commonStyles";
 import axios from "@/lib/axios";
@@ -21,11 +27,13 @@ import {
   AlertTriangle,
   ArrowLeft,
   Box,
-  ChevronRight,
   Download,
+  Layers,
   ListChecks,
+  MapPin,
   Package,
   Plus,
+  ScanLine,
   Search,
   SlidersHorizontal,
   SquarePen,
@@ -65,7 +73,7 @@ type BoxInfoValue = {
   field_id: number;
   field_label: string;
   field_key: string;
-  field_type: string;
+  field_type: "TEXT" | "NUMBER" | "DATE" | "TEXTAREA";
   field_value: string;
   is_required?: boolean;
   sort_order?: number;
@@ -87,6 +95,7 @@ interface ProjectDetailsResponse {
   project_details_id: number | null;
   machine_id: number;
   machine_name: string;
+  packing_type: "DEFAULT" | "GROUPWISE" | "CUSTOM_GROUP";
 }
 
 export const isProjectDeactivated = (projectObj: any) => {
@@ -121,6 +130,12 @@ interface BoxItem {
   machine_name: string;
   box_info_values: BoxInfoValue[];
   weight?: number;
+  sequence_no: number | null;
+  box_position: number | null;
+  boxes_per_product: number | null;
+  product_group_name: string | null;
+  group_name: string | null;
+  location_name: string | null;
 }
 
 type PackingStatusFilter = "all" | "packed" | "unpacked";
@@ -190,7 +205,41 @@ const mapApiBox = (box: any): BoxItem => ({
   machine_name: box.machine_name ?? "",
   box_info_values: box.box_info_values ?? [],
   weight: Number(box.weight ?? 0),
+  sequence_no:
+    box.sequence_no === null || box.sequence_no === undefined
+      ? null
+      : Number(box.sequence_no),
+  box_position:
+    box.box_position === null || box.box_position === undefined
+      ? null
+      : Number(box.box_position),
+  boxes_per_product:
+    box.boxes_per_product === null || box.boxes_per_product === undefined
+      ? null
+      : Number(box.boxes_per_product),
+  product_group_name:
+    String(box.product_group_name ?? "").trim() || null,
+  group_name:
+    String(box.group_name ?? box.product_group_name ?? "").trim() || null,
+  location_name: String(box.location_name ?? "").trim() || null,
 });
+
+const getBoxPositionLabel = (box: BoxItem) => {
+  const position = Number(box.box_position);
+  const total = Number(box.boxes_per_product);
+
+  if (
+    !Number.isInteger(position) ||
+    !Number.isInteger(total) ||
+    position <= 0 ||
+    total <= 0 ||
+    position > total
+  ) {
+    return null;
+  }
+
+  return `${position} of ${total}`;
+};
 
 // ─── Confirm Modal ────────────────────────────────────────────────────────────
 
@@ -345,6 +394,8 @@ const BoxCard = memo(
     handleEditPress,
     machine_id,
     machine_name,
+    canEdit,
+    packingType,
   }: {
     box: BoxItem;
     index: number;
@@ -352,6 +403,8 @@ const BoxCard = memo(
     handleEditPress: () => void;
     machine_id: number | null;
     machine_name: string;
+    canEdit: boolean;
+    packingType: ProjectDetailsResponse["packing_type"];
   }) {
     const router = useRouter();
     const { showToast } = useToast();
@@ -383,6 +436,14 @@ const BoxCard = memo(
 
     const isPacked = normalizePackingStatus(box.box_status) === "packed";
     const isEmpty = box.items_count === 0;
+    const boxPositionLabel = getBoxPositionLabel(box);
+    const shouldShowGroup =
+      packingType === "GROUPWISE" || packingType === "CUSTOM_GROUP";
+    const groupName = box.group_name || box.product_group_name;
+    const locationName = box.location_name;
+    const hasBoxContext = Boolean(
+      (shouldShowGroup && groupName) || locationName,
+    );
 
     const handleNavigate = () => {
       router.push({
@@ -433,9 +494,19 @@ const BoxCard = memo(
                 <Package size={18} color={isPacked ? "#2A9D8F" : "#F4A261"} />
               </View>
 
-              <Text style={boxStyles.boxName} numberOfLines={1}>
-                {box.name}
-              </Text>
+              <View style={boxStyles.boxTitleBlock}>
+                <Text style={boxStyles.boxName} numberOfLines={1}>
+                  {box.name}
+                </Text>
+
+                {boxPositionLabel && (
+                  <View style={boxStyles.sequencePill}>
+                    <Text style={boxStyles.sequencePillText}>
+                      {boxPositionLabel}
+                    </Text>
+                  </View>
+                )}
+              </View>
 
               <View
                 style={[
@@ -457,6 +528,30 @@ const BoxCard = memo(
                 </Text>
               </View>
             </View>
+
+            {hasBoxContext && (
+              <View style={boxStyles.contextWrap}>
+                {shouldShowGroup && groupName && (
+                  <View style={boxStyles.contextChip}>
+                    <Layers size={13} color="#667085" />
+                    <Text style={boxStyles.contextLabel}>Group</Text>
+                    <Text style={boxStyles.contextValue} numberOfLines={1}>
+                      {groupName}
+                    </Text>
+                  </View>
+                )}
+
+                {locationName && (
+                  <View style={boxStyles.contextChip}>
+                    <MapPin size={13} color="#667085" />
+                    <Text style={boxStyles.contextLabel}>Location</Text>
+                    <Text style={boxStyles.contextValue} numberOfLines={1}>
+                      {locationName}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
 
             {visibleBoxInfoValues.length > 0 && (
               <View style={boxStyles.dynamicInfoWrap}>
@@ -504,18 +599,20 @@ const BoxCard = memo(
                   <Download size={17} color="#6B7280" />
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={boxStyles.actionBtn}
-                  onPress={handleEditPress}
-                  hitSlop={{
-                    top: 8,
-                    bottom: 8,
-                    left: 8,
-                    right: 8,
-                  }}
-                >
-                  <SquarePen size={17} color="#6B7280" />
-                </TouchableOpacity>
+                {canEdit && (
+                  <TouchableOpacity
+                    style={boxStyles.actionBtn}
+                    onPress={handleEditPress}
+                    hitSlop={{
+                      top: 8,
+                      bottom: 8,
+                      left: 8,
+                      right: 8,
+                    }}
+                  >
+                    <SquarePen size={17} color="#6B7280" />
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           </View>
@@ -527,7 +624,9 @@ const BoxCard = memo(
     previous.box === next.box &&
     previous.index === next.index &&
     previous.machine_id === next.machine_id &&
-    previous.machine_name === next.machine_name,
+    previous.machine_name === next.machine_name &&
+    previous.canEdit === next.canEdit &&
+    previous.packingType === next.packingType,
 );
 
 const boxStyles = StyleSheet.create({
@@ -553,9 +652,58 @@ const boxStyles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  boxName: { flex: 1, fontSize: 14, fontWeight: "700", color: "#111827" },
+  boxTitleBlock: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  boxName: { flexShrink: 1, fontSize: 14, fontWeight: "700", color: "#111827" },
+  sequencePill: {
+    flexShrink: 0,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  sequencePillText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#475467",
+  },
   statusPill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
   statusPillText: { fontSize: 11, fontWeight: "700" },
+  contextWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  contextChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    maxWidth: "100%",
+    gap: 5,
+    borderRadius: 10,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  contextLabel: {
+    fontSize: 10,
+    color: "#98A2B3",
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  contextValue: {
+    flexShrink: 1,
+    maxWidth: 190,
+    fontSize: 11,
+    color: "#344054",
+    fontWeight: "700",
+  },
   metaRow: { flexDirection: "row" },
   metaChip: {
     flexDirection: "row",
@@ -637,6 +785,8 @@ export default function BoxesScreen() {
 
   const user = useSelector((state: RootState) => state.auth.user);
   const { showToast } = useToast();
+  const { defaultScanner, isHydrated, savePreference } =
+    useScannerPreference();
   const { id, lead_id, vendor_id } = useLocalSearchParams();
   const router = useRouter();
 
@@ -674,6 +824,12 @@ export default function BoxesScreen() {
     useState(false);
   const [showAllBoxesDownloadModal, setShowAllBoxesDownloadModal] =
     useState(false); // ← new
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showScannerSelection, setShowScannerSelection] = useState(false);
+  const [selectedScannerType, setSelectedScannerType] =
+    useState<ScannerType>("mobile");
+  const [projectLocations, setProjectLocations] = useState<string[]>([]);
+  const [loadingLocations, setLoadingLocations] = useState(false);
 
   const sheetRef = useRef<any>(null);
   const updateSheetRef = useRef<any>(null);
@@ -860,8 +1016,9 @@ export default function BoxesScreen() {
         lead_id: data.lead_id,
         estimated_completion_date: formatDate(rawDate),
         project_details_id: data.details[0]?.id,
-        machine_id: data.machine_id,
-        machine_name: data.machine_name,
+        machine_id: Number(data.machine_id) || 0,
+        machine_name: data.machine_name ?? "Packaging",
+        packing_type: data.packing_type ?? "DEFAULT",
       });
     } catch (error: any) {
       if (!isCanceledRequest(error)) {
@@ -1000,6 +1157,109 @@ export default function BoxesScreen() {
 
   if (!projectDetails) return <Loader />;
 
+  const isCustomGroupPacking = projectDetails.packing_type === "CUSTOM_GROUP";
+
+  const openCustomGroupScanner = (
+    scannerType: ScannerType,
+    locationName?: string,
+  ) => {
+    setShowLocationModal(false);
+    router.push({
+      pathname:
+        scannerType === "mobile"
+          ? "/scanner-track-trace"
+          : "/hardware-scanner",
+      params: {
+        project_id: String(projectDetails.id),
+        vendor_id: String(projectDetails.vendor_id),
+        machine_id: String(projectDetails.machine_id),
+        machine_name: projectDetails.machine_name || "Packaging",
+        packing_type: "CUSTOM_GROUP",
+        hide_defect: "true",
+        ...(scannerType !== "mobile" ? { scanner_type: scannerType } : {}),
+        ...(locationName ? { location_name: locationName } : {}),
+      },
+    });
+  };
+
+  const selectCustomGroupLocation = async (scannerType: ScannerType) => {
+    if (loadingLocations) return;
+
+    setLoadingLocations(true);
+
+    try {
+      const response = await axios.get(
+        `/track-trace-project/onboard/${projectDetails.vendor_id}/packaging-project/${projectDetails.id}`,
+      );
+      const locationRows = response.data?.data?.locations;
+      const uniqueLocations = Array.from(
+        new Map(
+          (Array.isArray(locationRows) ? locationRows : [])
+            .map((row: { location_name?: unknown }) =>
+              String(row?.location_name ?? "").trim(),
+            )
+            .filter(Boolean)
+            .map((locationName: string) => [
+              locationName.toLocaleLowerCase(),
+              locationName,
+            ]),
+        ).values(),
+      ) as string[];
+
+      if (uniqueLocations.length === 0) {
+        openCustomGroupScanner(scannerType);
+        return;
+      }
+
+      setProjectLocations(uniqueLocations);
+      setShowLocationModal(true);
+    } catch (error: any) {
+      showToast(
+        "error",
+        error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          "Failed to load project locations",
+      );
+    } finally {
+      setLoadingLocations(false);
+    }
+  };
+
+  const handleScannerSelected = (
+    scannerType: ScannerType,
+    setAsDefault = false,
+  ) => {
+    setSelectedScannerType(scannerType);
+    setShowScannerSelection(false);
+    if (setAsDefault) {
+      void savePreference(scannerType);
+    }
+    void selectCustomGroupLocation(scannerType);
+  };
+
+  const handlePrimaryAction = () => {
+    if (isProjectDeactivated(projectDetails)) {
+      showToast("error", "Project is deleted or deactivated");
+      return;
+    }
+
+    if (isCustomGroupPacking) {
+      if (!projectDetails.machine_id) {
+        showToast("error", "Packaging machine is not available");
+        return;
+      }
+
+      if (isHydrated && defaultScanner) {
+        handleScannerSelected(defaultScanner);
+      } else {
+        setShowScannerSelection(true);
+      }
+      return;
+    }
+
+    sheetRef.current?.present();
+  };
+
   return (
     <View style={styles.root}>
       {/* ── Navbar ── */}
@@ -1018,6 +1278,8 @@ export default function BoxesScreen() {
             index={index}
             machine_id={projectDetails.machine_id}
             machine_name={projectDetails.machine_name}
+            canEdit={!isCustomGroupPacking}
+            packingType={projectDetails.packing_type}
             handleDownload={() => handleDownload(item)}
             handleEditPress={() => handleEdit(item)}
           />
@@ -1111,7 +1373,7 @@ export default function BoxesScreen() {
                     )}
                   </TouchableOpacity>
 
-                  {boxCounts.projectTotal > 0 && (
+                  {/* {boxCounts.projectTotal > 0 && (
                     <TouchableOpacity
                       style={styles.downloadAllBtn}
                       onPress={() => setShowAllBoxesDownloadModal(true)}
@@ -1120,7 +1382,7 @@ export default function BoxesScreen() {
                       <Download size={15} color="#2A9D8F" />
                       <Text style={styles.downloadAllText}>Download All</Text>
                     </TouchableOpacity>
-                  )}
+                  )} */}
                 </View>
               </View>
 
@@ -1257,7 +1519,9 @@ export default function BoxesScreen() {
               </Text>
               <Text style={styles.emptySubtitle}>
                 {noBoxesExist
-                  ? 'Tap "Add Box" to create your first box'
+                  ? isCustomGroupPacking
+                    ? 'Tap "Scan Items" to start Custom Group Packing'
+                    : 'Tap "Add Box" to create your first box'
                   : "Try another search or packing status"}
               </Text>
 
@@ -1300,17 +1564,12 @@ export default function BoxesScreen() {
         </View>
       )}
 
-      {/* ── Add Box FAB ── */}
+      {/* ── Add Box / Custom Group Scanner FAB ── */}
       <View style={[styles.fabContainer, { bottom: fabBottomInset }]}>
         <TouchableOpacity
           activeOpacity={0.9}
-          onPress={() => {
-            if (isProjectDeactivated(projectDetails)) {
-              showToast("error", "Project is deleted or deactivated");
-              return;
-            }
-            sheetRef.current?.present();
-          }}
+          onPress={handlePrimaryAction}
+          disabled={loadingLocations}
           onPressIn={() => {
             addButtonScale.value = withSpring(0.95);
           }}
@@ -1323,8 +1582,20 @@ export default function BoxesScreen() {
               colors={["#111827", "#374151"]}
               style={styles.fabButton}
             >
-              <Plus size={22} color="#fff" />
-              <Text style={styles.fabText}>Add Box</Text>
+              {isCustomGroupPacking && loadingLocations ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : isCustomGroupPacking ? (
+                <ScanLine size={22} color="#fff" />
+              ) : (
+                <Plus size={22} color="#fff" />
+              )}
+              <Text style={styles.fabText}>
+                {isCustomGroupPacking
+                  ? loadingLocations
+                    ? "Loading Locations..."
+                    : "Scan Items"
+                  : "Add Box"}
+              </Text>
             </LinearGradient>
           </Animated.View>
         </TouchableOpacity>
@@ -1337,7 +1608,22 @@ export default function BoxesScreen() {
       )}
 
       {/* ── Modals ── */}
-      {!creatingBox && (
+      <ScannerSelectionModal
+        visible={showScannerSelection}
+        onSelect={handleScannerSelected}
+        onClose={() => setShowScannerSelection(false)}
+      />
+
+      <PackagingLocationModal
+        visible={showLocationModal}
+        locations={projectLocations}
+        onSelect={(locationName) =>
+          openCustomGroupScanner(selectedScannerType, locationName)
+        }
+        onClose={() => setShowLocationModal(false)}
+      />
+
+      {!creatingBox && !isCustomGroupPacking && (
         <AddBoxModal
           ref={sheetRef}
           onSubmit={onAdd}

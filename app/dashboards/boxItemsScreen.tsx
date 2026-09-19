@@ -1,13 +1,18 @@
 import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
 import { ItemCard } from "@/components/ItemCards/ItemCard";
+import { PackagingLocationModal } from "@/components/modals/PackagingLocationModal";
+import {
+  ScannerSelectionModal,
+  ScannerType,
+} from "@/components/modals/ScannerSelectionModal";
 import { useToast } from "@/components/Notification/ToastProvider";
+import { useScannerPreference } from "@/hooks/useScannerPreference";
 import { colors } from "@/components/theme/colors";
 import { commonStyles } from "@/components/theme/commonStyles";
 import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
 import { fetchBoxtDetailsAndShare } from "@/utils/BoxPdfUtils";
-import { useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import LottieView from "lottie-react-native";
@@ -78,6 +83,8 @@ interface ScanItem {
   qty: number;
   item_name: string;
   category: string;
+  group: string;
+  material_details: string;
   L1: string;
   L2: string;
   L3: string;
@@ -300,7 +307,8 @@ const cmStyles = StyleSheet.create({
 
 export default function BoxItemsScreen() {
   const insets = useSafeAreaInsets();
-  const bottomInset = insets.bottom > 0 ? insets.bottom + 6 : Platform.OS === "ios" ? 14 : 10;
+  const bottomInset =
+    insets.bottom > 0 ? insets.bottom + 6 : Platform.OS === "ios" ? 14 : 10;
 
   const { payload: payloadString } = useLocalSearchParams<{
     payload: string;
@@ -341,7 +349,14 @@ export default function BoxItemsScreen() {
     useState<ManualPackingItem | null>(null);
   const [manualQty, setManualQty] = useState("1");
 
-  const [permission, requestPermission] = useCameraPermissions();
+  const [showScannerSelection, setShowScannerSelection] = useState(false);
+  const [showLocationSelection, setShowLocationSelection] = useState(false);
+  const [selectedScannerType, setSelectedScannerType] =
+    useState<ScannerType>("mobile");
+  const [projectLocations, setProjectLocations] = useState<string[]>([]);
+  const [loadingLocations, setLoadingLocations] = useState(false);
+  const { defaultScanner, isHydrated, savePreference } =
+    useScannerPreference();
 
   const scanButtonScale = useSharedValue(1);
 
@@ -350,6 +365,21 @@ export default function BoxItemsScreen() {
   const deactivated = useMemo(() => {
     return isProjectDeactivated(projectData || box?.project);
   }, [projectData, box]);
+
+  const isCustomGroupPacking = useMemo(
+    () =>
+      String(projectData?.packing_type || box?.project?.packing_type || "") ===
+      "CUSTOM_GROUP",
+    [projectData, box],
+  );
+  const packingType = String(
+    projectData?.packing_type || box?.project?.packing_type || "DEFAULT",
+  );
+  const supportsPackagingLocation =
+    packingType === "GROUPWISE" || packingType === "CUSTOM_GROUP";
+  const hasResolvedPackingType = Boolean(
+    projectData?.packing_type || box?.project?.packing_type,
+  );
 
   const animatedScanButtonStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scanButtonScale.value }],
@@ -505,35 +535,101 @@ export default function BoxItemsScreen() {
 
   // ── Open scanner ───────────────────────────────────────────────────────────
 
-  const openScanner = async () => {
+  const openScanner = () => {
     if (deactivated) {
       showToast("error", "Project is deleted or deactivated");
       return;
     }
     if (!box) return;
 
-    const navigate = () =>
-      router.push({
-        pathname: "/scanner-track-trace",
-        params: {
-          box_id: String(box.id),
-          project_id: String(box.project_id),
-          vendor_id: String(box.vendor_id),
-          client_id: String(box.client_id),
-          machine_id: String(box.machine_id ?? ""),
-          machine_name: String(box.machine_name ?? ""),
-          hide_defect: "true",
-        },
-      });
-
-    if (!permission?.granted) {
-      const result = await requestPermission();
-
-      if (result?.granted) {
-        navigate();
-      }
+    if (isHydrated && defaultScanner) {
+      void handleScannerSelected(defaultScanner);
     } else {
-      navigate();
+      setShowScannerSelection(true);
+    }
+  };
+
+  const navigateToScanner = (
+    scannerType: ScannerType,
+    locationName?: string,
+  ) => {
+    if (!box) return;
+
+    setShowLocationSelection(false);
+    router.push({
+      pathname:
+        scannerType === "mobile"
+          ? "/scanner-track-trace"
+          : "/hardware-scanner",
+      params: {
+        box_id: String(box.id),
+        box_name: boxName || box.name,
+        project_id: String(box.project_id),
+        vendor_id: String(box.vendor_id),
+        client_id: String(box.client_id),
+        machine_id: String(box.machine_id ?? ""),
+        machine_name: String(box.machine_name ?? ""),
+        packing_type: packingType,
+        hide_defect: "true",
+        ...(scannerType !== "mobile" ? { scanner_type: scannerType } : {}),
+        ...(locationName ? { location_name: locationName } : {}),
+      },
+    });
+  };
+
+  const handleScannerSelected = async (
+    scannerType: ScannerType,
+    setAsDefault = false,
+  ) => {
+    if (!box || loadingLocations) return;
+
+    setSelectedScannerType(scannerType);
+    setShowScannerSelection(false);
+    if (setAsDefault) {
+      void savePreference(scannerType);
+    }
+
+    if (!supportsPackagingLocation) {
+      navigateToScanner(scannerType);
+      return;
+    }
+
+    setLoadingLocations(true);
+    try {
+      const response = await axios.get(
+        `/track-trace-project/onboard/${box.vendor_id}/packaging-project/${box.project_id}`,
+      );
+      const locationRows = response.data?.data?.locations;
+      const locations = Array.from(
+        new Map(
+          (Array.isArray(locationRows) ? locationRows : [])
+            .map((row: { location_name?: unknown }) =>
+              String(row?.location_name ?? "").trim(),
+            )
+            .filter(Boolean)
+            .map((locationName: string) => [
+              locationName.toLocaleLowerCase(),
+              locationName,
+            ]),
+        ).values(),
+      ) as string[];
+
+      if (locations.length === 0) {
+        navigateToScanner(scannerType);
+        return;
+      }
+
+      setProjectLocations(locations);
+      setShowLocationSelection(true);
+    } catch (error: any) {
+      showToast(
+        "error",
+        error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          "Failed to load project locations",
+      );
+    } finally {
+      setLoadingLocations(false);
     }
   };
 
@@ -908,65 +1004,69 @@ export default function BoxItemsScreen() {
       )}
 
       {/* ── Bottom actions ── */}
-      <View style={[styles.fabContainer, { bottom: bottomInset }]}>
-        {status === "packed" ? (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => setShowDownloadModal(true)}
-          >
-            <LinearGradient
-              colors={["#000000", "#222222"]}
-              style={styles.fabButton}
-            >
-              <Download size={18} color="#fff" />
-              <Text style={styles.fabText}>Download Label</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.actionRow}>
-            {/* Scan Product */}
-            <TouchableOpacity
-              style={styles.actionHalf}
-              activeOpacity={0.9}
-              onPress={openScanner}
-              onPressIn={() => {
-                scanButtonScale.value = withSpring(0.95);
-              }}
-              onPressOut={() => {
-                scanButtonScale.value = withSpring(1);
-              }}
-            >
-              <Animated.View
-                style={[styles.actionAnimated, animatedScanButtonStyle]}
+      {!loading &&
+        hasResolvedPackingType &&
+        (!isCustomGroupPacking || status === "packed") && (
+          <View style={[styles.fabContainer, { bottom: bottomInset }]}>
+            {status === "packed" ? (
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => setShowDownloadModal(true)}
               >
                 <LinearGradient
                   colors={["#000000", "#222222"]}
-                  style={styles.actionPrimary}
+                  style={styles.fabButton}
                 >
-                  <ScanLine size={21} color="#fff" />
-                  <Text style={styles.actionPrimaryText}>Scan Product</Text>
+                  <Download size={18} color="#fff" />
+                  <Text style={styles.fabText}>Download Label</Text>
                 </LinearGradient>
-              </Animated.View>
-            </TouchableOpacity>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.actionRow}>
+                {/* Scan Product */}
+                <TouchableOpacity
+                  style={styles.actionHalf}
+                  activeOpacity={0.9}
+                  onPress={openScanner}
+                  onPressIn={() => {
+                    scanButtonScale.value = withSpring(0.95);
+                  }}
+                  onPressOut={() => {
+                    scanButtonScale.value = withSpring(1);
+                  }}
+                >
+                  <Animated.View
+                    style={[styles.actionAnimated, animatedScanButtonStyle]}
+                  >
+                    <LinearGradient
+                      colors={["#000000", "#222222"]}
+                      style={styles.actionPrimary}
+                    >
+                      <ScanLine size={21} color="#fff" />
+                      <Text style={styles.actionPrimaryText}>Scan Product</Text>
+                    </LinearGradient>
+                  </Animated.View>
+                </TouchableOpacity>
 
-            {/* Select Product */}
-            <TouchableOpacity
-              style={[styles.actionHalf, styles.actionSecondary]}
-              activeOpacity={0.85}
-              onPress={openProductSelector}
-            >
-              <ListPlus size={21} color="#111827" />
-              <Text style={styles.actionSecondaryText}>Select Product</Text>
-            </TouchableOpacity>
+                {/* Select Product */}
+                <TouchableOpacity
+                  style={[styles.actionHalf, styles.actionSecondary]}
+                  activeOpacity={0.85}
+                  onPress={openProductSelector}
+                >
+                  <ListPlus size={21} color="#111827" />
+                  <Text style={styles.actionSecondaryText}>Select Product</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
-      </View>
 
       {/* ── Product selector modal ── */}
       <Modal
         transparent
         animationType="slide"
-        visible={showProductModal}
+        visible={showProductModal && !isCustomGroupPacking}
         onRequestClose={() => setShowProductModal(false)}
       >
         <View style={styles.manualModalOverlay}>
@@ -1386,6 +1486,34 @@ export default function BoxItemsScreen() {
       </Modal>
 
       {/* ── Existing modals ── */}
+      <Modal transparent visible={loadingLocations} animationType="fade">
+        <View style={styles.locationLoadingOverlay}>
+          <View style={styles.locationLoadingCard}>
+            <ActivityIndicator size="small" color="#111827" />
+            <Text style={styles.locationLoadingText}>
+              Checking project locations...
+            </Text>
+          </View>
+        </View>
+      </Modal>
+
+      <ScannerSelectionModal
+        visible={showScannerSelection}
+        onSelect={(scannerType, setAsDefault) =>
+          void handleScannerSelected(scannerType, setAsDefault)
+        }
+        onClose={() => setShowScannerSelection(false)}
+      />
+
+      <PackagingLocationModal
+        visible={showLocationSelection}
+        locations={projectLocations}
+        onSelect={(locationName) =>
+          navigateToScanner(selectedScannerType, locationName)
+        }
+        onClose={() => setShowLocationSelection(false)}
+      />
+
       <ConfirmModal
         visible={showDeleteModal}
         title="Delete Item?"
@@ -1427,6 +1555,26 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: "#F8FAFC",
+  },
+  locationLoadingOverlay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.38)",
+  },
+  locationLoadingCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+  },
+  locationLoadingText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#111827",
   },
 
   deactivatedBanner: {

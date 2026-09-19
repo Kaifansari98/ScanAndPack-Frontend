@@ -6,8 +6,9 @@ import * as SecureStore from "expo-secure-store";
 const AUTH_TOKEN_KEY = "auth_token";
 
 const instance = axios.create({
-  baseURL: "https://staging-api.furnixcrm.com/api", // base backend URL
-  // baseURL: "http://192.168.1.104:7777/api",
+  // baseURL: "https://staging-api.furnixcrm.com/api", // base backend URL
+  // baseURL: "http://192.168.0.228:7777/api",
+  baseURL: "https://api.furnixcrm.com/api",
   timeout: 15_000,
 });
 

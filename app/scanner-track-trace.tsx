@@ -1,5 +1,6 @@
 // Updated scanner: shared completeScannedItem handles auto and manual completion.
 import { useToast } from "@/components/Notification/ToastProvider";
+import { usePackagingBoxPrinter } from "@/hooks/usePackagingBoxPrinter";
 import axios from "@/lib/axios";
 import { RootState } from "@/redux/store";
 import { playErrorFeedback, playSuccessFeedback, preloadFeedbackSounds, unloadFeedbackSounds } from "@/utils/soundVibration";
@@ -100,9 +101,27 @@ const OTHER_DEFECT: Defect = { id: 0, defect_name: "Other" };
 
 export default function TrackTraceBarcodeScanner() {
   
-  const { machine_id, machine_name, project_id, hide_defect, box_id } = useLocalSearchParams<{ machine_id?: string; machine_name?: string; project_id?: string; hide_defect?: string; box_id?: string }>();
+  const {
+    machine_id,
+    machine_name,
+    project_id,
+    hide_defect,
+    box_id,
+    location_name,
+    packing_type,
+  } = useLocalSearchParams<{
+    machine_id?: string;
+    machine_name?: string;
+    project_id?: string;
+    hide_defect?: string;
+    box_id?: string;
+    location_name?: string;
+    packing_type?: string;
+  }>();
 
   const isDefectHidden = hide_defect === "true";
+  const isCustomGroupPacking = packing_type === "CUSTOM_GROUP";
+  const selectedLocationName = location_name?.trim() || undefined;
 
   // alert(machine_name)
   const [permission, requestPermission] = useCameraPermissions();
@@ -213,6 +232,14 @@ export default function TrackTraceBarcodeScanner() {
   const { showToast } = useToast();
   const user = useSelector((state: RootState) => state.auth.user);
   const vendor_id = (user as any)?.vendor_id;
+  const isPackagingScanner = ["DEFAULT", "GROUPWISE", "CUSTOM_GROUP"].includes(
+    String(packing_type || "").toUpperCase(),
+  );
+  const { queueCompletedBoxPrint } = usePackagingBoxPrinter({
+    enabled: isPackagingScanner || Boolean(box_id),
+    projectId: project_id ? Number(project_id) : null,
+    vendorId: vendor_id ? Number(vendor_id) : null,
+  });
 
   useEffect(() => {
     void preloadFeedbackSounds();
@@ -367,6 +394,7 @@ export default function TrackTraceBarcodeScanner() {
     unique_code: scannedCode,
     created_by: Number(user?.id),
     ...(box_id ? { box_id: Number(box_id) } : {}),
+    ...(selectedLocationName ? { location_name: selectedLocationName } : {}),
   });
 
   const callScanItem = async (scannedCode: string) => {
@@ -415,6 +443,7 @@ export default function TrackTraceBarcodeScanner() {
           apiResponse.message || "Marked as completed",
         );
         void playSuccessFeedback();
+        queueCompletedBoxPrint(apiResponse);
       } else {
         showToast("error", apiResponse.message || "Failed to mark completed");
         void playErrorFeedback();
@@ -491,9 +520,12 @@ export default function TrackTraceBarcodeScanner() {
     setActiveDefect(defect);
     setShowItemDetail(true);
 
-    // Auto-save only when there is no pending defect. The Mark Completed
-    // button remains available and can finish the item before the timer.
-    if (!defect || defect.defect_status === "Completed") {
+    // Custom Group packing must remain a two-step flow: first show the item,
+    // then save it only after the operator taps Mark Completed.
+    if (
+      !isCustomGroupPacking &&
+      (!defect || defect.defect_status === "Completed")
+    ) {
       startCountdown(item, countdownSeconds);
     }
   };
@@ -781,6 +813,7 @@ export default function TrackTraceBarcodeScanner() {
       if (apiResponse.success) {
         showToast("success", apiResponse.message || "Marked completed successfully");
         playSuccessFeedback();
+        queueCompletedBoxPrint(apiResponse);
         setShowCompletionPopup(false);
         setCompletionPhotos([]);
         hideItemDetailSheet();
@@ -1083,6 +1116,14 @@ export default function TrackTraceBarcodeScanner() {
           <View style={styles.machineChip}>
             <Text style={styles.machineChipIcon}>🔧</Text>
             <Text style={styles.machineChipText} numberOfLines={1}>{machine_name}</Text>
+          </View>
+        ) : null}
+        {isCustomGroupPacking ? (
+          <View style={styles.machineChip}>
+            <Text style={styles.machineChipIcon}>📍</Text>
+            <Text style={styles.machineChipText} numberOfLines={1}>
+              {selectedLocationName || "Without location"}
+            </Text>
           </View>
         ) : null}
       </View>
@@ -1667,7 +1708,7 @@ const ItemCard = React.memo(function ItemCard({ item }: { item: MappedItem }) {
 interface DefectSheetProps {
   allDefects: Defect[];
   selectedDefect: Defect | null;
-  setSelectedDefect: (d: Defect) => void;
+  setSelectedDefect: (d: Defect | null) => void;
   otherDefectText: string;
   setOtherDefectText: (t: string) => void;
   defectComment: string;
@@ -1787,7 +1828,9 @@ function DefectSheet({
             }}
             ListEmptyComponent={(
               <View style={styles.defectNoResults}>
-                <Text style={styles.defectNoResultsText}>No defects match "{defectSearchQuery}"</Text>
+                <Text style={styles.defectNoResultsText}>
+                  No defects match {`"${defectSearchQuery}"`}
+                </Text>
               </View>
             )}
             ListFooterComponent={<View style={{ height: 16 }} />}

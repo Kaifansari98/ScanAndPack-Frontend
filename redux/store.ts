@@ -1,10 +1,12 @@
 import { configureStore } from '@reduxjs/toolkit';
 import authReducer from './slices/authSlice';
+import scannerPreferenceReducer from './slices/scannerPreferenceSlice';
 
 // Add your slices here when ready
 export const store = configureStore({
   reducer: {
     auth: authReducer,
+    scannerPreference: scannerPreferenceReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

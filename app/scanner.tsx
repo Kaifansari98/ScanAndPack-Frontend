@@ -1,6 +1,12 @@
 import { useToast } from "@/components/Notification/ToastProvider";
 import axiosInstance from "@/lib/axios";
 import { RootState } from "@/redux/store";
+import {
+  playErrorFeedback,
+  playSuccessFeedback,
+  preloadFeedbackSounds,
+  unloadFeedbackSounds,
+} from "@/utils/soundVibration";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -24,6 +30,25 @@ import { useSelector } from "react-redux";
 
 const { width, height } = Dimensions.get("window");
 const scanAreaSize = width * 0.7;
+
+const getApiFailureMessage = (error: unknown, fallback: string) => {
+  const apiError = error as {
+    message?: string;
+    response?: {
+      data?: {
+        message?: string;
+        error?: string;
+      };
+    };
+  };
+
+  return (
+    apiError.response?.data?.message ||
+    apiError.response?.data?.error ||
+    apiError.message ||
+    fallback
+  );
+};
 
 export default function BarcodeScanner() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -61,6 +86,14 @@ export default function BarcodeScanner() {
       : null;
 
   React.useEffect(() => {
+    void preloadFeedbackSounds();
+
+    return () => {
+      void unloadFeedbackSounds();
+    };
+  }, []);
+
+  React.useEffect(() => {
     Animated.loop(
       Animated.sequence([
         Animated.timing(scanLineAnimation, {
@@ -75,7 +108,7 @@ export default function BarcodeScanner() {
         }),
       ]),
     ).start();
-  }, []);
+  }, [scanLineAnimation]);
 
   // ── API call ──────────────────────────────────────────────────────────────
   const callDispatchApi = async (
@@ -111,6 +144,10 @@ export default function BarcodeScanner() {
       vendor_id: scanned_vendor_id,
       user_id: userId,
     });
+
+    if (res.data?.success === false) {
+      throw new Error(res.data.message || "Failed to update box");
+    }
 
     return res.data;
   };
@@ -149,6 +186,7 @@ export default function BarcodeScanner() {
 
         if (!uniqueCode || !resolvedBoxId || !resolvedProjectId) {
           showToast("error", "Invalid item QR code");
+          playErrorFeedback();
           setScanned(false);
           return;
         }
@@ -165,12 +203,14 @@ export default function BarcodeScanner() {
             "success",
             res?.message ?? "Item marked as received at site",
           );
+          playSuccessFeedback();
           setTimeout(() => setScanned(false), 1500);
-        } catch (apiErr: any) {
+        } catch (apiErr: unknown) {
           showToast(
             "error",
-            apiErr?.response?.data?.message ?? "Failed to mark item",
+            getApiFailureMessage(apiErr, "Failed to mark item"),
           );
+          playErrorFeedback();
           setScanned(false);
         } finally {
           setProcessing(false);
@@ -189,6 +229,7 @@ export default function BarcodeScanner() {
         const scannedVendorId = Number(parsed["vendor"]);
         if (scannedVendorId !== resolvedVendorId) {
           showToast("error", "Barcode does not belong to your account");
+          playErrorFeedback();
           router.back();
           return;
         }
@@ -201,6 +242,7 @@ export default function BarcodeScanner() {
 
           if (resolvedProjectId && scannedProjectId !== resolvedProjectId) {
             showToast("error", "Box does not belong to this project");
+            playErrorFeedback();
             setScanned(false);
             return;
           }
@@ -219,16 +261,19 @@ export default function BarcodeScanner() {
                   ? "Box marked as Factory Out"
                   : "Box marked as Site In"),
             );
-          } catch (apiErr: any) {
+            playSuccessFeedback();
+            setTimeout(() => setScanned(false), 1500);
+          } catch (apiErr: unknown) {
             showToast(
               "error",
-              apiErr?.response?.data?.message ?? "Failed to update box",
+              getApiFailureMessage(apiErr, "Failed to update box"),
             );
+            playErrorFeedback();
             setScanned(false);
+            return;
           } finally {
             setProcessing(false);
           }
-          router.back();
           return;
         }
 
@@ -262,6 +307,7 @@ export default function BarcodeScanner() {
       const scannedVendorId = Number(parts[0]);
       if (scannedVendorId !== resolvedVendorId) {
         showToast("error", "Barcode does not belong to your account");
+        playErrorFeedback();
         router.back();
         return;
       }
@@ -292,9 +338,9 @@ export default function BarcodeScanner() {
       }
 
       throw new Error("Invalid QR format");
-    } catch (err) {
-      //console.log("Failed to parse scanned data:", err);
+    } catch {
       showToast("error", "Scan Failed — invalid QR code");
+      playErrorFeedback();
       router.back();
     }
   };

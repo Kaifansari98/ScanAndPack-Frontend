@@ -1,20 +1,28 @@
 import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
+import { ScannerSelectionModal } from "@/components/modals/ScannerSelectionModal";
 import { useAuth } from "@/hooks/useAuth";
+import { useScannerPreference } from "@/hooks/useScannerPreference";
 import { cacheAuthToken } from "@/lib/axios";
 import { RootState } from "@/redux/store";
+import { SCANNER_LABELS } from "@/types/scanner";
 import { useRouter } from "expo-router";
 import {
   Building2,
+  ChevronRight,
+  CircleDot,
   LogOut,
   Mail,
   Phone,
+  RotateCcw,
+  ScanBarcode,
+  Settings2,
+  Smartphone,
   UserCheck,
   X,
 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
-  Image,
   Modal,
   Platform,
   ScrollView,
@@ -52,6 +60,14 @@ export default function ProfileTabScreen() {
   const router = useRouter();
   const { logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showScannerSettings, setShowScannerSettings] = useState(false);
+  const {
+    defaultScanner,
+    isHydrated: isScannerPreferenceHydrated,
+    isSaving: isSavingScanner,
+    savePreference,
+    resetPreference,
+  } = useScannerPreference();
 
   const handleConfirmLogout = async () => {
     setShowLogoutModal(false);
@@ -77,6 +93,12 @@ export default function ProfileTabScreen() {
     "Furnix Factory OS";
 
   const userRole = getSafeString(User.user_type, "Operator");
+  const DefaultScannerIcon =
+    defaultScanner === "ring"
+      ? CircleDot
+      : defaultScanner === "handheld"
+        ? ScanBarcode
+        : Smartphone;
 
   return (
     <View style={styles.root}>
@@ -139,7 +161,73 @@ export default function ProfileTabScreen() {
           </View>
         </View>
 
-        {/* ── 3. Logout Button ── */}
+        {/* ── 3. Scanner Settings ── */}
+        <View style={styles.settingsCard}>
+          <View style={styles.settingsHeader}>
+            <View style={styles.settingsHeaderIcon}>
+              <Settings2 size={18} color="#2563EB" />
+            </View>
+            <View style={styles.settingsHeaderText}>
+              <Text style={styles.settingsTitle}>Scanner Settings</Text>
+              <Text style={styles.settingsSubtitle}>
+                Choose which scanner opens automatically.
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.scannerSettingRow}
+            activeOpacity={0.82}
+            onPress={() => setShowScannerSettings(true)}
+            disabled={!isScannerPreferenceHydrated || isSavingScanner}
+          >
+            <View
+              style={[
+                styles.scannerSettingIcon,
+                !defaultScanner && styles.scannerSettingIconEmpty,
+              ]}
+            >
+              <DefaultScannerIcon
+                size={21}
+                color={defaultScanner ? "#2563EB" : "#64748B"}
+              />
+            </View>
+
+            <View style={styles.scannerSettingText}>
+              <Text style={styles.scannerSettingLabel}>Default Scanner</Text>
+              <Text style={styles.scannerSettingValue}>
+                {!isScannerPreferenceHydrated
+                  ? "Loading preference..."
+                  : defaultScanner
+                    ? SCANNER_LABELS[defaultScanner]
+                    : "Not set — ask every time"}
+              </Text>
+            </View>
+
+            <View style={styles.changeScannerAction}>
+              <Text style={styles.changeScannerText}>
+                {defaultScanner ? "Change" : "Set"}
+              </Text>
+              <ChevronRight size={17} color="#2563EB" />
+            </View>
+          </TouchableOpacity>
+
+          {defaultScanner && (
+            <TouchableOpacity
+              style={styles.resetScannerButton}
+              activeOpacity={0.8}
+              disabled={isSavingScanner}
+              onPress={() => void resetPreference()}
+            >
+              <RotateCcw size={15} color="#B42318" />
+              <Text style={styles.resetScannerText}>
+                Reset and ask every time
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* ── 4. Logout Button ── */}
         <TouchableOpacity
           style={styles.logoutRow}
           onPress={() => setShowLogoutModal(true)}
@@ -204,6 +292,17 @@ export default function ProfileTabScreen() {
           </View>
         </View>
       </Modal>
+
+      <ScannerSelectionModal
+        visible={showScannerSettings}
+        showDefaultOption={false}
+        selectedScanner={defaultScanner}
+        onSelect={(scannerType) => {
+          setShowScannerSettings(false);
+          void savePreference(scannerType, true);
+        }}
+        onClose={() => setShowScannerSettings(false)}
+      />
     </View>
   );
 }
@@ -326,6 +425,87 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: "#F1F5F9",
   },
+  settingsCard: {
+    borderWidth: 1,
+    borderColor: "#DCE6F5",
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    padding: 14,
+  },
+  settingsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 13,
+  },
+  settingsHeaderIcon: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 11,
+    backgroundColor: "#EFF6FF",
+  },
+  settingsHeaderText: { flex: 1 },
+  settingsTitle: { fontSize: 15, fontWeight: "800", color: "#0F172A" },
+  settingsSubtitle: {
+    marginTop: 2,
+    fontSize: 11,
+    lineHeight: 16,
+    color: "#64748B",
+  },
+  scannerSettingRow: {
+    minHeight: 66,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+    borderRadius: 14,
+    backgroundColor: "#F8FAFF",
+    paddingHorizontal: 11,
+    paddingVertical: 10,
+  },
+  scannerSettingIcon: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: "#DBEAFE",
+  },
+  scannerSettingIconEmpty: { backgroundColor: "#F1F5F9" },
+  scannerSettingText: { flex: 1 },
+  scannerSettingLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#64748B",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  scannerSettingValue: {
+    marginTop: 3,
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  changeScannerAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  changeScannerText: { fontSize: 11, fontWeight: "800", color: "#2563EB" },
+  resetScannerButton: {
+    minHeight: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    marginTop: 10,
+    borderRadius: 11,
+    backgroundColor: "#FEF3F2",
+  },
+  resetScannerText: { fontSize: 12, fontWeight: "700", color: "#B42318" },
   logoutRow: {
     flexDirection: "row",
     alignItems: "center",

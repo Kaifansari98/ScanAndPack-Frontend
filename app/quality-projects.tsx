@@ -5,11 +5,15 @@ import {
   QualityProjectCard,
 } from "@/components/ItemCards/QualityProjectCard";
 import { FilterModal, FilterOption } from "@/components/modals/FilterModal";
+import {
+  ScannerSelectionModal,
+  ScannerType,
+} from "@/components/modals/ScannerSelectionModal";
+import { useScannerPreference } from "@/hooks/useScannerPreference";
 import { colors } from "@/components/theme/colors";
 import { commonStyles } from "@/components/theme/commonStyles";
 import axios from "@/lib/axios";
 import type { RootState } from "@/redux/store";
-import { useCameraPermissions } from "expo-camera";
 import { useFocusEffect, useRouter } from "expo-router";
 import { AlertTriangle, CheckCircle2, Search, X } from "lucide-react-native";
 import { useCallback, useState } from "react";
@@ -54,6 +58,8 @@ const QUALITY_FILTER_OPTIONS: FilterOption[] = [
 export default function QualityProjectsScreen() {
   const router = useRouter();
   const user = useSelector((state: RootState) => state.auth.user);
+  const { defaultScanner, isHydrated, savePreference } =
+    useScannerPreference();
 
   const [projects, setProjects] = useState<QualityProject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,8 +74,8 @@ export default function QualityProjectsScreen() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalProjects, setTotalProjects] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
-
-  const [permission, requestPermission] = useCameraPermissions();
+  const [selectedScannerProject, setSelectedScannerProject] =
+    useState<QualityProject | null>(null);
 
   const openFilterModal = () => {
     setTempStatusFilter(statusFilter);
@@ -81,23 +87,45 @@ export default function QualityProjectsScreen() {
     setFilterModalVisible(false);
   };
 
-  const handleProjectPress = async (item: QualityProject) => {
-    const navigate = () =>
-      router.push({
-        pathname: "/scanner-track-trace",
-        params: {
-          machine_id: String(item.qualityMachineId),
-          machine_name: String(item.qualityMachineName),
-          project_id: String(item.id),
-        },
-      });
+  const navigateToScanner = (
+    project: QualityProject,
+    scannerType: ScannerType,
+  ) => {
+    router.push({
+      pathname:
+        scannerType === "mobile"
+          ? "/scanner-track-trace"
+          : "/hardware-scanner",
+      params: {
+        machine_id: String(project.qualityMachineId),
+        machine_name: String(project.qualityMachineName),
+        project_id: String(project.id),
+        ...(scannerType !== "mobile" ? { scanner_type: scannerType } : {}),
+      },
+    });
+  };
 
-    if (!permission?.granted) {
-      const result = await requestPermission();
-      if (result?.granted) navigate();
-    } else {
-      navigate();
+  const handleProjectPress = (item: QualityProject) => {
+    if (isHydrated && defaultScanner) {
+      navigateToScanner(item, defaultScanner);
+      return;
     }
+
+    setSelectedScannerProject(item);
+  };
+
+  const openSelectedScanner = (
+    scannerType: ScannerType,
+    setAsDefault: boolean,
+  ) => {
+    if (!selectedScannerProject) return;
+
+    const project = selectedScannerProject;
+    setSelectedScannerProject(null);
+    if (setAsDefault) {
+      void savePreference(scannerType);
+    }
+    navigateToScanner(project, scannerType);
   };
 
   const fetchProjects = useCallback(
@@ -310,6 +338,12 @@ export default function QualityProjectsScreen() {
           setStatusFilter(key);
           setFilterModalVisible(false);
         }}
+      />
+
+      <ScannerSelectionModal
+        visible={selectedScannerProject !== null}
+        onSelect={openSelectedScanner}
+        onClose={() => setSelectedScannerProject(null)}
       />
     </View>
   );

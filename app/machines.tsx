@@ -4,6 +4,11 @@
 import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
 import { MachineCard } from "@/components/ItemCards/MachineCard";
+import {
+  ScannerSelectionModal,
+  ScannerType,
+} from "@/components/modals/ScannerSelectionModal";
+import { useScannerPreference } from "@/hooks/useScannerPreference";
 import { colors } from "@/components/theme/colors";
 import { commonStyles } from "@/components/theme/commonStyles";
 import axios from "@/lib/axios";
@@ -35,14 +40,56 @@ export default function MachineTabScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const user = useSelector((state: RootState) => state.auth.user);
+  const { defaultScanner, isHydrated, savePreference } =
+    useScannerPreference();
 
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
+  const [showScannerSelection, setShowScannerSelection] = useState(false);
 
   const flatListRef = useRef<FlatList<Machine>>(null);
 
   const bottomInset = insets.bottom > 0 ? insets.bottom + 6 : Platform.OS === "ios" ? 14 : 10;
+
+  const navigateToScanner = (machine: Machine, scannerType: ScannerType) => {
+    router.push({
+      pathname:
+        scannerType === "mobile"
+          ? "/scanner-track-trace"
+          : "/hardware-scanner",
+      params: {
+        machine_id: String(machine.id),
+        machine_name: machine.machine_name,
+        ...(scannerType !== "mobile" ? { scanner_type: scannerType } : {}),
+      },
+    });
+  };
+
+  const openScannerSelection = (machine: Machine) => {
+    setSelectedMachine(machine);
+
+    if (isHydrated && defaultScanner) {
+      navigateToScanner(machine, defaultScanner);
+      return;
+    }
+
+    setShowScannerSelection(true);
+  };
+
+  const openSelectedScanner = (
+    scannerType: ScannerType,
+    setAsDefault: boolean,
+  ) => {
+    if (!selectedMachine) return;
+
+    const machine = selectedMachine;
+    setShowScannerSelection(false);
+    if (setAsDefault) {
+      void savePreference(scannerType);
+    }
+    navigateToScanner(machine, scannerType);
+  };
 
   // ─── Fetch ──────────────────────────────────────────────
   const fetchMachines = async () => {
@@ -139,16 +186,14 @@ export default function MachineTabScreen() {
               machine={item}
               index={index}
               selected={selectedMachine?.id === item.id}
-              onSelect={(m: Machine) =>
-                setSelectedMachine((prev) => (prev?.id === m.id ? null : m))
+              onSelect={(m) =>
+                setSelectedMachine((prev) =>
+                  prev?.id === m.id
+                    ? null
+                    : { ...m, pending_count: item.pending_count },
+                )
               }
-              onNavigate={(m: Machine) => {
-                setSelectedMachine(m);
-                router.push({
-                  pathname: "/scanner-track-trace",
-                  params: { machine_id: String(m.id), machine_name: m.machine_name },
-                });
-              }}
+              onNavigate={() => openScannerSelection(item)}
             />
             {item.pending_count > 0 && (
               <View style={styles.pendingBadge}>
@@ -170,16 +215,7 @@ export default function MachineTabScreen() {
       <View style={[styles.ctaContainer, { paddingBottom: bottomInset }]}>
         <TouchableOpacity
           style={[styles.scanBtn, !selectedMachine && styles.buttonDisabled]}
-          onPress={() =>
-            selectedMachine &&
-            router.push({
-              pathname: "/scanner-track-trace",
-              params: {
-                machine_id: String(selectedMachine.id),
-                machine_name: selectedMachine.machine_name,
-              },
-            })
-          }
+          onPress={() => selectedMachine && openScannerSelection(selectedMachine)}
           activeOpacity={selectedMachine ? 0.85 : 1}
           disabled={!selectedMachine}
         >
@@ -187,6 +223,12 @@ export default function MachineTabScreen() {
           <Text style={styles.scanBtnText}>Proceed to Scanner</Text>
         </TouchableOpacity>
       </View>
+
+      <ScannerSelectionModal
+        visible={showScannerSelection}
+        onSelect={openSelectedScanner}
+        onClose={() => setShowScannerSelection(false)}
+      />
     </View>
   );
 }

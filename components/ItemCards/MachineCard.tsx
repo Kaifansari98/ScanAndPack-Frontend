@@ -3,7 +3,6 @@
  * Selected: navy bg + amber border. Unselected: white bg + subtle shadow.
  */
 import { colors } from "@/components/theme/colors";
-import { useCameraPermissions } from "expo-camera";
 import { useEffect } from "react";
 import {
   Image,
@@ -28,6 +27,7 @@ export interface MachineData {
   machine_code: string;
   machine_type: string;
   image_path: string;
+  pending_count?: number;
 }
 
 interface MachineCardProps {
@@ -35,14 +35,11 @@ interface MachineCardProps {
   index: number;
   selected: boolean;
   onSelect: (machine: MachineData) => void;
-  /** Called when the card is tapped and camera permission is granted.
-   *  Parent controls navigation so it can pass the correct params. */
+  /** Parent decides which scanner screen to open for the selected machine. */
   onNavigate: (machine: MachineData) => void;
 }
 
 export const MachineCard = ({ machine, index, selected, onSelect, onNavigate }: MachineCardProps) => {
-  const [permission, requestPermission] = useCameraPermissions();
-
   // ─── Entrance animation ───────────────────────────────
   const cardOpacity = useSharedValue(0);
   const cardTranslateY = useSharedValue(30);
@@ -64,17 +61,9 @@ export const MachineCard = ({ machine, index, selected, onSelect, onNavigate }: 
   }));
 
   // ─── Navigate to scanner ──────────────────────────────
-  const handlePress = async () => {
+  const handlePress = () => {
     onSelect(machine);
-
-    const navigate = () => onNavigate(machine);
-
-    if (!permission?.granted) {
-      const result = await requestPermission();
-      if (result?.granted) navigate();
-    } else {
-      navigate();
-    }
+    onNavigate(machine);
   };
 
   // ─── Dynamic styles based on selection ───────────────
