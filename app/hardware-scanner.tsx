@@ -55,7 +55,10 @@ interface QueueItem {
   boxName?: string;
 }
 
-const AUTO_SUBMIT_DELAY_MS = 300;
+// Some Bluetooth/HID scanners send characters with a noticeable gap. Wait
+// until input has been quiet before using the timer fallback; scanners that
+// send an Enter suffix still submit immediately through onSubmitEditing.
+const AUTO_SUBMIT_DELAY_MS = 750;
 
 const isValidPositiveNumber = (value?: string) => {
   const numberValue = Number(value);
@@ -120,6 +123,7 @@ export default function HardwareScannerScreen() {
   const [workerTick, setWorkerTick] = useState(0);
   const inputRef = useRef<TextInput>(null);
   const manualInputRef = useRef<TextInput>(null);
+  const scanValueRef = useRef("");
   const manualEntryVisibleRef = useRef(false);
   const autoSubmitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
@@ -214,6 +218,7 @@ export default function HardwareScannerScreen() {
 
       lastSubmissionRef.current = { value, at: now };
       clearAutoSubmitTimer();
+      scanValueRef.current = "";
       setScanValue("");
       setQueue((current) => [
         {
@@ -232,17 +237,31 @@ export default function HardwareScannerScreen() {
 
   const handleValueChange = useCallback(
     (value: string) => {
+      scanValueRef.current = value;
       setScanValue(value);
       clearAutoSubmitTimer();
 
       if (value.trim()) {
         autoSubmitTimerRef.current = setTimeout(
-          () => enqueueScan(value),
+          () => enqueueScan(scanValueRef.current),
           AUTO_SUBMIT_DELAY_MS,
         );
       }
     },
     [clearAutoSubmitTimer, enqueueScan],
+  );
+
+  const handleScannerSubmit = useCallback(
+    (nativeValue: string) => {
+      // React state can still contain the previous character when a fast HID
+      // scanner sends Enter. Prefer whichever source has the complete value.
+      const currentValue = scanValueRef.current;
+      const value =
+        nativeValue.length >= currentValue.length ? nativeValue : currentValue;
+
+      enqueueScan(value);
+    },
+    [enqueueScan],
   );
 
   const openManualEntry = useCallback(() => {
@@ -254,6 +273,7 @@ export default function HardwareScannerScreen() {
   }, [clearAutoSubmitTimer]);
 
   const closeManualEntry = useCallback(() => {
+    manualInputRef.current?.blur();
     manualEntryVisibleRef.current = false;
     setShowManualEntry(false);
     setManualCode("");
@@ -274,6 +294,7 @@ export default function HardwareScannerScreen() {
       return;
     }
 
+    manualInputRef.current?.blur();
     manualEntryVisibleRef.current = false;
     setShowManualEntry(false);
     setManualCode("");
@@ -482,7 +503,9 @@ export default function HardwareScannerScreen() {
               ref={inputRef}
               value={scanValue}
               onChangeText={handleValueChange}
-              onSubmitEditing={() => enqueueScan(scanValue)}
+              onSubmitEditing={({ nativeEvent }) =>
+                handleScannerSubmit(nativeEvent.text)
+              }
               onBlur={() => setTimeout(focusInput, 250)}
               editable={isConfigured}
               autoFocus
@@ -496,7 +519,7 @@ export default function HardwareScannerScreen() {
             />
             <TouchableOpacity
               style={styles.submitButton}
-              onPress={() => enqueueScan(scanValue)}
+              onPress={() => enqueueScan(scanValueRef.current)}
               disabled={!scanValue.trim() || !isConfigured}
             >
               <Send size={18} color="#FFFFFF" />
@@ -621,7 +644,8 @@ export default function HardwareScannerScreen() {
       >
         <KeyboardAvoidingView
           style={styles.manualModalRoot}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={0}
         >
           <TouchableOpacity
             style={styles.manualBackdrop}

@@ -69,8 +69,22 @@ interface MappedItem {
   project: {
     track_trace_status: string;
     project_name: string;
-  };
+  } | null;
 }
+
+const isMappedItem = (value: unknown): value is MappedItem => {
+  if (!value || typeof value !== "object") return false;
+
+  const candidate = value as Partial<MappedItem>;
+  return (
+    typeof candidate.id === "number" &&
+    Boolean(candidate.machine && typeof candidate.machine.id === "number") &&
+    Boolean(
+      candidate.cut_list &&
+      typeof candidate.cut_list.unique_code === "string"
+    )
+  );
+};
 
 interface Defect {
   id: number;
@@ -171,30 +185,6 @@ export default function TrackTraceBarcodeScanner() {
   const [actionLoading, setActionLoading] = useState(false);
   const actionInFlightRef = useRef(false);
 
-  // ── Auto-complete countdown ───────────────────────────────────────────────
-  const [countdown, setCountdown] = useState<number | null>(null);
-  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const countdownValueRef = useRef(0);
-  const pendingItemRef = useRef<MappedItem | null>(null);
-
-  const clearCountdown = useCallback((updateState = true) => {
-    if (countdownTimerRef.current) {
-      clearInterval(countdownTimerRef.current);
-      countdownTimerRef.current = null;
-    }
-
-    countdownValueRef.current = 0;
-    pendingItemRef.current = null;
-
-    if (updateState) {
-      setCountdown(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => clearCountdown(false);
-  }, [clearCountdown]);
-
   // ── Gallery viewer ────────────────────────────────────────────────────────
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
@@ -255,7 +245,6 @@ export default function TrackTraceBarcodeScanner() {
 
       if (!active) {
         setFlashMode(false);
-        clearCountdown();
         scanRequestControllerRef.current?.abort();
         scanRequestControllerRef.current = null;
         actionRequestControllerRef.current?.abort();
@@ -271,7 +260,7 @@ export default function TrackTraceBarcodeScanner() {
     });
 
     return () => subscription.remove();
-  }, [clearCountdown, resetScanner]);
+  }, [resetScanner]);
 
   useFocusEffect(
     useCallback(() => {
@@ -310,7 +299,6 @@ export default function TrackTraceBarcodeScanner() {
           scanResetTimerRef.current = null;
         }
 
-        clearCountdown();
         setFlashMode(false);
         setShowManualEntry(false);
         setManualCode("");
@@ -332,7 +320,7 @@ export default function TrackTraceBarcodeScanner() {
         setDefectType(null);
         setReworkMachineId(null);
       };
-    }, [clearCountdown, scanLineAnimation])
+    }, [scanLineAnimation])
   );
 
   // ─── Mode toggle ──────────────────────────────────────────────────────────
@@ -419,7 +407,6 @@ export default function TrackTraceBarcodeScanner() {
   // ─── Item detail sheet helpers ─────────────────────────────────────────────
 
   const hideItemDetailSheet = () => {
-    clearCountdown();
     setShowItemDetail(false);
     setMappedItem(null);
     setActiveDefect(null);
@@ -468,51 +455,16 @@ export default function TrackTraceBarcodeScanner() {
     return completed;
   };
 
-  const startCountdown = (item: MappedItem, seconds: number) => {
-    clearCountdown();
-
-    const safeSeconds = Number.isFinite(seconds)
-      ? Math.max(0, Math.floor(seconds))
-      : 5;
-
-    if (safeSeconds === 0) {
-      void completeScannedItem(item);
-      return;
-    }
-
-    pendingItemRef.current = item;
-    countdownValueRef.current = safeSeconds;
-    setCountdown(safeSeconds);
-
-    countdownTimerRef.current = setInterval(() => {
-      countdownValueRef.current -= 1;
-
-      if (countdownValueRef.current <= 0) {
-        const pendingItem = pendingItemRef.current;
-        clearCountdown();
-
-        if (pendingItem) {
-          void completeScannedItem(pendingItem);
-        }
-
-        return;
-      }
-
-      setCountdown(countdownValueRef.current);
-    }, 1000);
-  };
-
-  const showItemDetailSheet = (data: any) => {
+  const showItemDetailSheet = (data: any): boolean => {
     const detailData = data?.mappedItem?.mappedItem ? data.mappedItem : data;
-    const item: MappedItem = detailData?.mappedItem ?? data?.mappedItem ?? data;
+    const itemCandidate = detailData?.mappedItem ?? data?.mappedItem ?? data;
+
+    // Only a validated relational item can be shown in the detail sheet.
+    if (!isMappedItem(itemCandidate)) return false;
+
+    const item = itemCandidate;
     const defect: ActiveDefect | null =
       detailData?.activeDefect ?? data?.activeDefect ?? null;
-    const rawCountdown =
-      detailData?.countdown_timer ??
-      data?.countdown_timer ??
-      data?.mappedItem?.countdown_timer ??
-      5;
-    const countdownSeconds = Number(rawCountdown);
 
     scanLockRef.current = true;
     setScanned(true);
@@ -520,14 +472,7 @@ export default function TrackTraceBarcodeScanner() {
     setActiveDefect(defect);
     setShowItemDetail(true);
 
-    // Custom Group packing must remain a two-step flow: first show the item,
-    // then save it only after the operator taps Mark Completed.
-    if (
-      !isCustomGroupPacking &&
-      (!defect || defect.defect_status === "Completed")
-    ) {
-      startCountdown(item, countdownSeconds);
-    }
+    return true;
   };
 
   // ─── Defect item detail sheet helpers ─────────────────────────────────────
@@ -632,7 +577,14 @@ export default function TrackTraceBarcodeScanner() {
         if (apiResponse.message !== "") showToast("success", apiResponse.message);
         void playSuccessFeedback();
         if (apiResponse.data) {
-          showItemDetailSheet(apiResponse.data);
+          const openedItemDetail = showItemDetailSheet(apiResponse.data);
+
+          if (!openedItemDetail) {
+            showToast("error", "Invalid item details received");
+            void playErrorFeedback();
+            resetScanner(1000);
+            return false;
+          }
         } else {
           resetScanner(1000);
         }
@@ -673,8 +625,16 @@ export default function TrackTraceBarcodeScanner() {
         playSuccessFeedback();
         if (apiResponse.data) {
           // check-defect returns { mappedItem: {...} }
-          const item: MappedItem = apiResponse.data?.mappedItem ?? apiResponse.data;
-          showDefectItemDetailSheet(item);
+          const itemCandidate = apiResponse.data?.mappedItem ?? apiResponse.data;
+
+          if (isMappedItem(itemCandidate)) {
+            showDefectItemDetailSheet(itemCandidate);
+          } else {
+            showToast("error", "Invalid item details received");
+            playErrorFeedback();
+            resetScanner(1000);
+            return false;
+          }
         } else {
           resetScanner(1000);
         }
@@ -702,9 +662,6 @@ export default function TrackTraceBarcodeScanner() {
 
   const handleMarkCompleted = async () => {
     if (!mappedItem || actionInFlightRef.current) return;
-
-    // Manual completion wins over auto-save and cancels the timer first.
-    clearCountdown();
 
     // pending rework defect → show photo popup
     // pending replace defect OR no defect → call directly
@@ -1311,31 +1268,6 @@ export default function TrackTraceBarcodeScanner() {
 
               <Text style={styles.markLabel}>MARK STATUS</Text>
 
-              {countdown !== null && (
-                <View style={styles.countdownBanner}>
-                  <View style={styles.countdownLeft}>
-                    <Text style={styles.countdownNumber}>{countdown}</Text>
-                    <View>
-                      <Text style={styles.countdownTitle}>Auto-completing</Text>
-                      <Text style={styles.countdownSub}>
-                        Or tap Mark Completed now
-                      </Text>
-                    </View>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.countdownCancelBtn}
-                    onPress={() => {
-                      clearCountdown();
-                      showToast("info", "Auto-complete cancelled");
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.countdownCancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
               <TouchableOpacity
                 style={[styles.actionBtn, styles.actionBtnComplete, actionLoading && styles.actionBtnDisabled]}
                 onPress={handleMarkCompleted}
@@ -1678,7 +1610,7 @@ function CompletionPhotoPopup({
 
 const ItemCard = React.memo(function ItemCard({ item }: { item: MappedItem }) {
   const detailRows = useMemo(() => [
-    { icon: "🏗️", label: "Project", value: item.project.project_name },
+    { icon: "🏗️", label: "Project", value: item.project?.project_name ?? "" },
     { icon: "🔧", label: "Machine", value: item.machine.machine_name },
     { icon: "📋", label: "Description", value: item.cut_list.description },
     { icon: "🆔", label: "Item ID", value: String(item.id) },
@@ -2752,26 +2684,5 @@ const styles = StyleSheet.create({
     borderColor: "#86EFAC", padding: 12, marginBottom: 16,
   },
   completionInfoText: { fontSize: 13, color: "#166534", lineHeight: 18 },
-
-  // Auto-complete countdown
-  countdownBanner: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    backgroundColor: "#ECFDF5", borderRadius: 14,
-    borderWidth: 1.5, borderColor: "#10B981",
-    paddingVertical: 12, paddingHorizontal: 14,
-    marginBottom: 12,
-  },
-  countdownLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  countdownNumber: {
-    fontSize: 36, fontWeight: "900", color: "#059669", lineHeight: 40, minWidth: 36,
-  },
-  countdownTitle: { fontSize: 14, fontWeight: "700", color: "#065F46" },
-  countdownSub: { fontSize: 12, color: "#6B7280", marginTop: 1 },
-  countdownCancelBtn: {
-    paddingVertical: 7, paddingHorizontal: 14,
-    borderRadius: 99, borderWidth: 1.5, borderColor: "#10B981",
-    backgroundColor: "white",
-  },
-  countdownCancelText: { fontSize: 13, fontWeight: "700", color: "#059669" },
 
 });
