@@ -61,11 +61,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "2ac0aa5a-52a6-4ba4-9ae7-e4a39d418d5e"
-      }
-    },
-    "owner": "vloq"
+      "router": {}
+    }
   }
 }

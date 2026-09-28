@@ -1,14 +1,11 @@
-// Replace your existing @/lib/axios.ts with this file.
-// cacheAuthToken is exported as a named export below.
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 
 const AUTH_TOKEN_KEY = "auth_token";
 
 const instance = axios.create({
-  // baseURL: "https://staging-api.furnixcrm.com/api", // base backend URL
-  // baseURL: "http://192.168.1.107:7777/api",
-  baseURL: "https://api.furnixcrm.com/api",
+  // baseURL: "https://api.vloq.com/api",
+  baseURL: "http://192.168.1.101:7777/api", // local backend URL
   timeout: 15_000,
 });
 
