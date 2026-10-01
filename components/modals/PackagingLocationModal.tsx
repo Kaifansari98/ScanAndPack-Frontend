@@ -13,6 +13,7 @@ interface PackagingLocationModalProps {
   locations: string[];
   onSelect: (locationName?: string) => void;
   onClose: () => void;
+  hideWithoutLocationOption?: boolean;
 }
 
 export function PackagingLocationModal({
@@ -20,6 +21,7 @@ export function PackagingLocationModal({
   locations,
   onSelect,
   onClose,
+  hideWithoutLocationOption = false,
 }: PackagingLocationModalProps) {
   return (
     <Modal
@@ -45,26 +47,30 @@ export function PackagingLocationModal({
             <View style={styles.headerText}>
               <Text style={styles.title}>Select Location</Text>
               <Text style={styles.message}>
-                Assign scanned items to a location or continue without one.
+                {hideWithoutLocationOption
+                  ? "Assign scanned items to a location."
+                  : "Assign scanned items to a location or continue without one."}
               </Text>
             </View>
           </View>
 
-          <TouchableOpacity
-            style={[styles.option, styles.bypassOption]}
-            activeOpacity={0.82}
-            onPress={() => onSelect()}
-          >
-            <View style={styles.optionIcon}>
-              <Navigation size={19} color="#1A7A70" />
-            </View>
-            <View style={styles.optionTextBlock}>
-              <Text style={styles.optionTitle}>Continue without location</Text>
-              <Text style={styles.optionSubtitle}>
-                Pack without assigning a project location.
-              </Text>
-            </View>
-          </TouchableOpacity>
+          {!hideWithoutLocationOption && (
+            <TouchableOpacity
+              style={[styles.option, styles.bypassOption]}
+              activeOpacity={0.82}
+              onPress={() => onSelect()}
+            >
+              <View style={styles.optionIcon}>
+                <Navigation size={19} color="#1A7A70" />
+              </View>
+              <View style={styles.optionTextBlock}>
+                <Text style={styles.optionTitle}>Continue without location</Text>
+                <Text style={styles.optionSubtitle}>
+                  Pack without assigning a project location.
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
 
           <FlatList
             data={locations}
