@@ -146,8 +146,9 @@ interface ConfirmModalProps {
   message: string;
   confirmLabel: string;
   cancelLabel?: string;
-  type?: "delete" | "download" | "status";
-  onConfirm: () => void;
+  type?: "delete" | "download" | "status" | "unpack" | "pack";
+  requireReason?: boolean;
+  onConfirm: (reason?: string) => void;
   onCancel: () => void;
 }
 
@@ -158,11 +159,25 @@ function ConfirmModal({
   confirmLabel,
   cancelLabel = "Cancel",
   type = "download",
+  requireReason = false,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
   const confirmBg =
-    type === "delete" ? "#E63946" : type === "status" ? "#F4A261" : "#2A9D8F";
+    type === "delete" || type === "unpack" ? "#E63946" : type === "status" ? "#F4A261" : "#2A9D8F";
+
+  const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    if (visible) setReason("");
+  }, [visible]);
+
+  const handleConfirm = () => {
+    if (requireReason && !reason.trim()) {
+      return;
+    }
+    onConfirm(reason);
+  };
 
   return (
     <Modal
@@ -192,6 +207,17 @@ function ConfirmModal({
           <Text style={cmStyles.title}>{title}</Text>
           <Text style={cmStyles.message}>{message}</Text>
 
+          {requireReason && (
+            <TextInput
+              style={cmStyles.reasonInput}
+              placeholder="Enter reason..."
+              placeholderTextColor="#9CA3AF"
+              value={reason}
+              onChangeText={setReason}
+              multiline
+            />
+          )}
+
           <View style={cmStyles.btnRow}>
             <TouchableOpacity
               style={[cmStyles.btn, cmStyles.btnCancel]}
@@ -202,8 +228,13 @@ function ConfirmModal({
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[cmStyles.btn, { backgroundColor: confirmBg }]}
-              onPress={onConfirm}
+              style={[
+                cmStyles.btn,
+                { backgroundColor: confirmBg },
+                requireReason && !reason.trim() ? { opacity: 0.5 } : {}
+              ]}
+              onPress={handleConfirm}
+              disabled={requireReason && !reason.trim()}
               activeOpacity={0.8}
             >
               <Text style={cmStyles.btnConfirmText}>{confirmLabel}</Text>
@@ -273,6 +304,19 @@ const cmStyles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 28,
     lineHeight: 20,
+  },
+  reasonInput: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 24,
+    minHeight: 80,
+    textAlignVertical: "top",
+    fontSize: 14,
+    color: "#111827",
+    backgroundColor: "#F9FAFB",
   },
   btnRow: {
     flexDirection: "row",
@@ -833,7 +877,7 @@ export default function BoxItemsScreen() {
     setShowStatusModal(true);
   };
 
-  const handleConfirmUpdateStatus = async () => {
+  const handleConfirmUpdateStatus = async (reason?: string) => {
     if (deactivated) {
       showToast("error", "Project is deleted or deactivated");
       return;
@@ -853,9 +897,14 @@ export default function BoxItemsScreen() {
     const newStatus = status === "unpacked" ? "packed" : "unpacked";
 
     try {
-      await axios.put(`/boxes/status/${newStatus}/${box.id}`, {
+      const payload: any = {
         user_id: user.id,
-      });
+      };
+      if (newStatus === "unpacked" && reason) {
+        payload.reason = reason;
+      }
+
+      await axios.put(`/boxes/status/${newStatus}/${box.id}`, payload);
 
       showToast("success", `Box status updated to ${newStatus}`);
       setStatus(newStatus);
@@ -871,7 +920,7 @@ export default function BoxItemsScreen() {
 
   // ── Delete item ────────────────────────────────────────────────────────────
 
-  const handleConfirmDeleteItem = async () => {
+  const handleConfirmDeleteItem = async (reason?: string) => {
     if (deactivated) {
       showToast("error", "Project is deleted or deactivated");
       return;
@@ -897,6 +946,7 @@ export default function BoxItemsScreen() {
           project_id: box.project_id,
           box_id: box.id,
           deleted_by: user?.id,
+          reason,
         },
       });
 
@@ -1517,9 +1567,10 @@ export default function BoxItemsScreen() {
       <ConfirmModal
         visible={showDeleteModal}
         title="Delete Item?"
-        message="Are you sure you want to delete this scanned item?"
+        message="Are you sure you want to delete this scanned item? Please provide a reason."
         confirmLabel="Yes, Delete"
         type="delete"
+        requireReason={true}
         onConfirm={handleConfirmDeleteItem}
         onCancel={() => setShowDeleteModal(false)}
       />
@@ -1529,11 +1580,12 @@ export default function BoxItemsScreen() {
         title={status === "packed" ? "Mark As Unpacked" : "Mark As Packed"}
         message={
           status === "packed"
-            ? "Are you sure you want to mark this box as unpacked?"
+            ? "Are you sure you want to mark this box as unpacked? Please provide a reason."
             : "Are you sure you want to mark this box as packed?"
         }
         confirmLabel={`Yes, ${status === "packed" ? "Unpack" : "Pack"}`}
-        type="status"
+        type={status === "packed" ? "unpack" : "pack"}
+        requireReason={status === "packed"}
         onConfirm={handleConfirmUpdateStatus}
         onCancel={() => setShowStatusModal(false)}
       />
