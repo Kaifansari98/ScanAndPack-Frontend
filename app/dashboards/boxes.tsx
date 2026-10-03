@@ -10,6 +10,7 @@ import {
 import { UpdateBoxModal } from "@/components/modals/UpdateBoxModal";
 import { useToast } from "@/components/Notification/ToastProvider";
 import { useScannerPreference } from "@/hooks/useScannerPreference";
+import { HardwarePackingModal } from "@/components/modals/HardwarePackingModal";
 import { colors } from "@/components/theme/colors";
 import { commonStyles } from "@/components/theme/commonStyles";
 import axios from "@/lib/axios";
@@ -38,6 +39,7 @@ import {
   SlidersHorizontal,
   SquarePen,
   X,
+  PackagePlus,
 } from "lucide-react-native";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -96,6 +98,7 @@ interface ProjectDetailsResponse {
   machine_id: number;
   machine_name: string;
   packing_type: "DEFAULT" | "GROUPWISE" | "CUSTOM_GROUP";
+  is_multi_location?: boolean;
 }
 
 export const isProjectDeactivated = (projectObj: any) => {
@@ -825,6 +828,7 @@ export default function BoxesScreen() {
   const [showAllBoxesDownloadModal, setShowAllBoxesDownloadModal] =
     useState(false); // ← new
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showHardwareModal, setShowHardwareModal] = useState(false);
   const [showScannerSelection, setShowScannerSelection] = useState(false);
   const [selectedScannerType, setSelectedScannerType] =
     useState<ScannerType>("mobile");
@@ -1019,6 +1023,9 @@ export default function BoxesScreen() {
         machine_id: Number(data.machine_id) || 0,
         machine_name: data.machine_name ?? "Packaging",
         packing_type: data.packing_type ?? "DEFAULT",
+        is_multi_location: Boolean(
+          data.is_multi_location ?? data.project?.is_multi_location,
+        ),
       });
     } catch (error: any) {
       if (!isCanceledRequest(error)) {
@@ -1566,39 +1573,86 @@ export default function BoxesScreen() {
 
       {/* ── Add Box / Custom Group Scanner FAB ── */}
       <View style={[styles.fabContainer, { bottom: fabBottomInset }]}>
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={handlePrimaryAction}
-          disabled={loadingLocations}
-          onPressIn={() => {
-            addButtonScale.value = withSpring(0.95);
-          }}
-          onPressOut={() => {
-            addButtonScale.value = withSpring(1);
-          }}
-        >
-          <Animated.View style={animatedAddButtonStyle}>
-            <LinearGradient
-              colors={["#111827", "#374151"]}
-              style={styles.fabButton}
+        {isCustomGroupPacking ? (
+          <View style={{ flexDirection: "row", gap: 12, width: "100%" }}>
+            <TouchableOpacity
+              style={{ flex: 1 }}
+              activeOpacity={0.9}
+              onPress={handlePrimaryAction}
+              disabled={loadingLocations}
+              onPressIn={() => {
+                addButtonScale.value = withSpring(0.95);
+              }}
+              onPressOut={() => {
+                addButtonScale.value = withSpring(1);
+              }}
             >
-              {isCustomGroupPacking && loadingLocations ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : isCustomGroupPacking ? (
-                <ScanLine size={22} color="#fff" />
-              ) : (
+              <Animated.View style={animatedAddButtonStyle}>
+                <LinearGradient
+                  colors={["#111827", "#374151"]}
+                  style={styles.fabButton}
+                >
+                  {loadingLocations ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <ScanLine size={22} color="#fff" />
+                  )}
+                  <Text style={styles.fabText}>
+                    {loadingLocations ? "Loading..." : "Scan Items"}
+                  </Text>
+                </LinearGradient>
+              </Animated.View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{ flex: 1 }}
+              activeOpacity={0.9}
+              onPress={() => setShowHardwareModal(true)}
+              onPressIn={() => {
+                addButtonScale.value = withSpring(0.95);
+              }}
+              onPressOut={() => {
+                addButtonScale.value = withSpring(1);
+              }}
+            >
+              <Animated.View style={animatedAddButtonStyle}>
+                <View
+                  style={[
+                    styles.fabButton,
+                    { backgroundColor: "#fff", borderWidth: 1, borderColor: "#E5E7EB" },
+                  ]}
+                >
+                  <PackagePlus size={22} color="#111827" />
+                  <Text style={[styles.fabText, { color: "#111827" }]}>
+                    Pack Hardware
+                  </Text>
+                </View>
+              </Animated.View>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={handlePrimaryAction}
+            disabled={loadingLocations}
+            onPressIn={() => {
+              addButtonScale.value = withSpring(0.95);
+            }}
+            onPressOut={() => {
+              addButtonScale.value = withSpring(1);
+            }}
+          >
+            <Animated.View style={animatedAddButtonStyle}>
+              <LinearGradient
+                colors={["#111827", "#374151"]}
+                style={styles.fabButton}
+              >
                 <Plus size={22} color="#fff" />
-              )}
-              <Text style={styles.fabText}>
-                {isCustomGroupPacking
-                  ? loadingLocations
-                    ? "Loading Locations..."
-                    : "Scan Items"
-                  : "Add Box"}
-              </Text>
-            </LinearGradient>
-          </Animated.View>
-        </TouchableOpacity>
+                <Text style={styles.fabText}>Add Box</Text>
+              </LinearGradient>
+            </Animated.View>
+          </TouchableOpacity>
+        )}
       </View>
 
       {creatingBox && (
@@ -1622,6 +1676,21 @@ export default function BoxesScreen() {
         }
         onClose={() => setShowLocationModal(false)}
       />
+
+      {isCustomGroupPacking && (
+        <HardwarePackingModal
+          visible={showHardwareModal}
+          onClose={() => setShowHardwareModal(false)}
+          vendorId={projectDetails.vendor_id}
+          projectId={projectDetails.id}
+          projectDetailsId={projectDetails.project_details_id}
+          leadId={projectDetails.lead_id}
+          userId={Number(user?.id) || 0}
+          projectName={projectDetails.project_name}
+          isMultiLocation={projectDetails.is_multi_location === true}
+          onSuccess={() => fetchBoxes({ pageNumber: 1 })}
+        />
+      )}
 
       {!creatingBox && !isCustomGroupPacking && (
         <AddBoxModal
