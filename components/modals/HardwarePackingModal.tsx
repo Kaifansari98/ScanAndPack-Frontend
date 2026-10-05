@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import {
   Modal,
   View,
@@ -10,6 +16,7 @@ import {
   FlatList,
   Platform,
   KeyboardAvoidingView,
+  Animated
 } from "react-native";
 import {
   X,
@@ -41,6 +48,7 @@ interface HardwarePackingModalProps {
   userId: number;
   projectName?: string;
   isMultiLocation?: boolean;
+  qualityMachineId?: number;
   onSuccess: () => void;
 }
 
@@ -54,6 +62,7 @@ export function HardwarePackingModal({
   userId,
   projectName,
   isMultiLocation = false,
+  qualityMachineId,
   onSuccess,
 }: HardwarePackingModalProps) {
   const { showToast } = useToast();
@@ -71,6 +80,25 @@ export function HardwarePackingModal({
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [loadingLocations, setLoadingLocations] = useState(false);
 
+  const minusScale = useRef(new Animated.Value(1)).current;
+const plusScale = useRef(new Animated.Value(1)).current;
+
+const animateButton = (scale: Animated.Value) => {
+  Animated.sequence([
+    Animated.timing(scale, {
+      toValue: 0.85,
+      duration: 80,
+      useNativeDriver: true,
+    }),
+    Animated.spring(scale, {
+      toValue: 1,
+      friction: 4,
+      tension: 120,
+      useNativeDriver: true,
+    }),
+  ]).start();
+};
+
   const fetchItems = useCallback(async () => {
     if (!vendorId || !projectId) return;
     setLoading(true);
@@ -78,7 +106,11 @@ export function HardwarePackingModal({
       const response = await axios.get(
         "/track-trace/boxes/packing/manual-items",
         {
-          params: { vendor_id: vendorId, project_id: projectId },
+          params: { 
+            vendor_id: vendorId, 
+            project_id: projectId,
+            ...(qualityMachineId ? { machine_id: qualityMachineId } : {})
+          },
         }
       );
       setItems(response.data?.data?.items || []);
@@ -140,8 +172,8 @@ export function HardwarePackingModal({
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
-      if (statusFilter === "pending" && item.pending_qty <= 0) return false;
-      if (statusFilter === "packed" && item.pending_qty > 0) return false;
+      if (statusFilter === "pending" && item.packed_qty >= item.total_qty) return false;
+      if (statusFilter === "packed" && item.packed_qty < item.total_qty) return false;
 
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase().trim();
@@ -183,56 +215,81 @@ export function HardwarePackingModal({
 
     setIsPacking(true);
     try {
-      const fetchBoxesResponse = await axios.get(`/boxes/vendor/v1/${vendorId}/project/${projectId}`, {
-        params: { limit: 1 },
-      });
-      const existingBoxesCount = fetchBoxesResponse.data?.pagination?.total || 0;
-      const nextBoxNumber = existingBoxesCount + 1;
-      
-      const createBoxRes = await axios.post(`/boxes`, {
-        project_id: projectId,
-        project_details_id: projectDetailsId,
-        vendor_id: vendorId,
-        lead_id: leadId || null,
-        box_name: `${nextBoxNumber}`,
-        box_status: "unpacked",
-        created_by: userId,
-        is_auto_created: true,
-        box_info_values: [],
-      });
-      
-      const createdBox = createBoxRes.data?.box;
-      if (!createdBox || !createdBox.id) {
-        throw new Error("Failed to create target box");
-      }
-
-      const targetBoxId = createdBox.id;
-      let successCount = 0;
-
-      for (const item of itemsToPack) {
-        const qtyToPack = getItemInputQty(item.id);
-        if (qtyToPack > 0 && qtyToPack <= item.pending_qty) {
-          await axios.post("/track-trace/boxes/packing/manual-items", {
-            project_id: projectId,
-            vendor_id: vendorId,
-            box_id: targetBoxId,
-            cut_list_id: item.id,
-            qty: qtyToPack,
-            user_id: userId,
-          });
-          successCount++;
+      if (qualityMachineId) {
+        let successCount = 0;
+        for (const item of itemsToPack) {
+          const qtyToPack = getItemInputQty(item.id);
+          if (qtyToPack > 0 && qtyToPack <= item.pending_qty) {
+            const res = await axios.post("/track-trace/quality/manual-items", {
+              project_id: projectId,
+              vendor_id: vendorId,
+              machine_id: qualityMachineId,
+              cut_list_id: item.id,
+              qty: qtyToPack,
+              user_id: userId,
+            });
+            if (res.data?.success === false || res.data?.status === false || res.data?.status === 0) {
+              throw new Error(res.data?.message || "Failed to check item");
+            }
+            successCount++;
+          }
         }
+        showToast(
+          "success",
+          `Successfully checked quality for ${successCount} item(s).`
+        );
+      } else {
+        const fetchBoxesResponse = await axios.get(`/boxes/vendor/v1/${vendorId}/project/${projectId}`, {
+          params: { limit: 1 },
+        });
+        const existingBoxesCount = fetchBoxesResponse.data?.pagination?.total || 0;
+        const nextBoxNumber = existingBoxesCount + 1;
+        
+        const createBoxRes = await axios.post(`/boxes`, {
+          project_id: projectId,
+          project_details_id: projectDetailsId,
+          vendor_id: vendorId,
+          lead_id: leadId || null,
+          box_name: `${nextBoxNumber}`,
+          box_status: "unpacked",
+          created_by: userId,
+          is_auto_created: true,
+          box_info_values: [],
+        });
+        
+        const createdBox = createBoxRes.data?.box;
+        if (!createdBox || !createdBox.id) {
+          throw new Error("Failed to create target box");
+        }
+
+        const targetBoxId = createdBox.id;
+        let successCount = 0;
+
+        for (const item of itemsToPack) {
+          const qtyToPack = getItemInputQty(item.id);
+          if (qtyToPack > 0 && qtyToPack <= item.pending_qty) {
+            await axios.post("/track-trace/boxes/packing/manual-items", {
+              project_id: projectId,
+              vendor_id: vendorId,
+              box_id: targetBoxId,
+              cut_list_id: item.id,
+              qty: qtyToPack,
+              user_id: userId,
+            });
+            successCount++;
+          }
+        }
+
+        await axios.put(`/boxes/status/packed/${targetBoxId}`, {
+          user_id: userId,
+          ...(selectedLocation ? { location_name: selectedLocation } : {}),
+        });
+
+        showToast(
+          "success",
+          `Successfully packed ${successCount} item(s) into box "${createdBox.box_name}".`
+        );
       }
-
-      await axios.put(`/boxes/status/packed/${targetBoxId}`, {
-        user_id: userId,
-        ...(selectedLocation ? { location_name: selectedLocation } : {}),
-      });
-
-      showToast(
-        "success",
-        `Successfully packed ${successCount} item(s) into box "${createdBox.box_name}".`
-      );
       
       setPackQuantities({});
       onSuccess();
@@ -244,7 +301,7 @@ export function HardwarePackingModal({
         error?.response?.data?.message ||
           error?.response?.data?.error ||
           error?.message ||
-          "Failed to pack items"
+          "Failed to process items"
       );
     } finally {
       setIsPacking(false);
@@ -258,16 +315,16 @@ export function HardwarePackingModal({
       visible={visible}
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView 
+        style={styles.overlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
         <TouchableOpacity
           style={styles.backdrop}
           activeOpacity={1}
           onPress={onClose}
         />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={styles.sheet}
-        >
+        <View style={styles.sheet}>
           <View style={styles.handle} />
 
           {/* Header */}
@@ -276,9 +333,9 @@ export function HardwarePackingModal({
               <Wrench size={22} color="#111827" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Hardware Packing</Text>
+              <Text style={styles.title}>{qualityMachineId ? "Quality Check" : "Hardware Packing"}</Text>
               <Text style={styles.subtitle}>
-                Auto-creates a box and packs multiple items
+                {qualityMachineId ? "Pass quality check for items" : "Auto-creates a box and packs multiple items"}
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -286,107 +343,112 @@ export function HardwarePackingModal({
             </TouchableOpacity>
           </View>
 
-          {/* Context Info */}
-          <View style={styles.contextRow}>
-            <View style={styles.contextChip}>
-              <Box size={14} color="#059669" />
-              <Text style={styles.contextChipText}>Target Box: Auto-create</Text>
-            </View>
-            <TouchableOpacity 
-              style={styles.refreshBtn} 
-              onPress={fetchItems}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#374151" />
-              ) : (
-                <RefreshCw size={14} color="#374151" />
-              )}
-              <Text style={styles.refreshBtnText}>Refresh</Text>
-            </TouchableOpacity>
-          </View>
+          <FlatList
+            data={loading ? [] : filteredItems}
+            keyExtractor={(item) => String(item.id)}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+            ListHeaderComponent={
+              <View style={{ marginBottom: 16 }}>
+                {/* Context Info */}
+                <View style={[styles.contextRow, qualityMachineId ? { justifyContent: 'flex-end', marginBottom: 0 } : null]}>
+                  {!qualityMachineId && (
+                    <View style={styles.contextChip}>
+                      <Box size={14} color="#059669" />
+                      <Text style={styles.contextChipText}>Target Box: Auto-create</Text>
+                    </View>
+                  )}
 
-          {isMultiLocation && (
-            <TouchableOpacity
-              style={styles.locationSelector}
-              onPress={() => void openLocationPicker()}
-              disabled={loadingLocations || isPacking}
-            >
-              <View style={styles.locationSelectorIcon}>
-                <MapPin size={16} color="#047857" />
+                </View>
+
+                {isMultiLocation && (
+                  <TouchableOpacity
+                    style={styles.locationSelector}
+                    onPress={() => void openLocationPicker()}
+                    disabled={loadingLocations || isPacking}
+                  >
+                    <View style={styles.locationSelectorIcon}>
+                      <MapPin size={16} color="#047857" />
+                    </View>
+                    <View style={styles.locationSelectorText}>
+                      <Text style={styles.locationSelectorLabel}>Packing Location</Text>
+                      <Text style={styles.locationSelectorValue}>
+                        {selectedLocation || "Select location"}
+                      </Text>
+                    </View>
+                    {loadingLocations ? (
+                      <ActivityIndicator size="small" color="#047857" />
+                    ) : (
+                      <ChevronDown size={18} color="#6B7280" />
+                    )}
+                  </TouchableOpacity>
+                )}
+
+                {/* Filters */}
+                <View style={styles.filterRow}>
+                  <View style={styles.searchBox}>
+                    <Search size={16} color="#9CA3AF" />
+                    <TextInput
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                      placeholder="Search hardware..."
+                      placeholderTextColor="#9CA3AF"
+                      style={styles.searchInput}
+                    />
+                    {searchQuery.length > 0 && (
+                      <TouchableOpacity onPress={() => setSearchQuery("")}>
+                        <X size={16} color="#9CA3AF" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+                
+<View style={styles.tabsRow}>
+  {(["pending", "all", "packed"] as const).map((tab) => {
+    const isActive = statusFilter === tab;
+
+    return (
+      <TouchableOpacity
+        key={tab}
+        style={[
+          styles.tabBtn,
+          isActive && styles.tabBtnActive,
+        ]}
+        onPress={() => setStatusFilter(tab)}
+        activeOpacity={1}
+      >
+        <Text
+          style={[
+            styles.tabText,
+            isActive && styles.tabTextActive,
+          ]}
+        >
+          {tab === "packed" && qualityMachineId
+            ? "Checked"
+            : tab.charAt(0).toUpperCase() + tab.slice(1)}
+        </Text>
+      </TouchableOpacity>
+    );
+  })}
+</View>
+
               </View>
-              <View style={styles.locationSelectorText}>
-                <Text style={styles.locationSelectorLabel}>Packing Location</Text>
-                <Text style={styles.locationSelectorValue}>
-                  {selectedLocation || "Select location"}
-                </Text>
-              </View>
-              {loadingLocations ? (
-                <ActivityIndicator size="small" color="#047857" />
+            }
+            ListEmptyComponent={
+              loading ? (
+                <View style={styles.center}>
+                  <ActivityIndicator size="large" color="#111827" />
+                </View>
               ) : (
-                <ChevronDown size={18} color="#6B7280" />
-              )}
-            </TouchableOpacity>
-          )}
-
-          {/* Filters */}
-          <View style={styles.filterRow}>
-            <View style={styles.searchBox}>
-              <Search size={16} color="#9CA3AF" />
-              <TextInput
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Search hardware..."
-                placeholderTextColor="#9CA3AF"
-                style={styles.searchInput}
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery("")}>
-                  <X size={16} color="#9CA3AF" />
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-          
-          <View style={styles.tabsRow}>
-            {(["pending", "all", "packed"] as const).map((tab) => (
-              <TouchableOpacity
-                key={tab}
-                style={[styles.tabBtn, statusFilter === tab && styles.tabBtnActive]}
-                onPress={() => setStatusFilter(tab)}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    statusFilter === tab && styles.tabTextActive,
-                  ]}
-                >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* List */}
-          {loading ? (
-            <View style={styles.center}>
-              <ActivityIndicator size="large" color="#111827" />
-            </View>
-          ) : (
-            <FlatList
-              data={filteredItems}
-              keyExtractor={(item) => String(item.id)}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.listContent}
-              keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={
                 <View style={styles.center}>
                   <PackagePlus size={32} color="#D1D5DB" />
                   <Text style={styles.emptyText}>No hardware found</Text>
                 </View>
-              }
-              renderItem={({ item }) => {
-                const isFullyPacked = item.pending_qty <= 0;
+              )
+            }
+            renderItem={({ item }) => {
+                const isFullyPacked = item.packed_qty >= item.total_qty;
                 const currentQty = getItemInputQty(item.id);
 
                 return (
@@ -398,48 +460,86 @@ export function HardwarePackingModal({
                       {isFullyPacked ? (
                         <View style={styles.badgeSuccess}>
                           <CheckCircle2 size={12} color="#047857" />
-                          <Text style={styles.badgeSuccessText}>Packed</Text>
+                          <Text style={styles.badgeSuccessText}>{qualityMachineId ? "Checked" : "Packed"}</Text>
                         </View>
                       ) : item.packed_qty > 0 ? (
                         <View style={styles.badgeWarn}>
                           <Clock3 size={12} color="#B45309" />
-                          <Text style={styles.badgeWarnText}>Partially Packed</Text>
+                          <Text style={styles.badgeWarnText}>{qualityMachineId ? "Partially Checked" : "Partially Packed"}</Text>
                         </View>
                       ) : null}
                     </View>
                     
-                    <Text style={styles.itemDesc} numberOfLines={1}>
-                      {item.description || item.material_details || "-"}
-                    </Text>
+                    {item.description && item.description.toLowerCase() !== item.item_name?.toLowerCase() ? (
+                      <Text style={styles.itemDesc} numberOfLines={1}>
+                        {item.description}
+                      </Text>
+                    ) : item.material_details && item.material_details.toLowerCase() !== item.item_name?.toLowerCase() ? (
+                      <Text style={styles.itemDesc} numberOfLines={1}>
+                        {item.material_details}
+                      </Text>
+                    ) : null}
                     
                     <View style={styles.statsRow}>
                       <Text style={styles.statText}>Total: {item.total_qty}</Text>
-                      <Text style={styles.statText}>Packed: {item.packed_qty}</Text>
-                      <Text style={styles.statTextWarn}>Pending: {item.pending_qty}</Text>
+                      {!qualityMachineId && item.packed_qty + item.pending_qty < item.total_qty && (
+                        <Text style={styles.statText}>QC Passed: {item.packed_qty + item.pending_qty}</Text>
+                      )}
+                      <Text style={styles.statText}>{qualityMachineId ? "Checked:" : "Packed:"} {item.packed_qty}</Text>
+                      <Text style={styles.statTextWarn}>{qualityMachineId ? "Pending:" : "Ready:"} {item.pending_qty}</Text>
                     </View>
 
                     {!isFullyPacked && (
                       <View style={styles.stepperRow}>
-                        <TouchableOpacity
-                          style={styles.stepBtn}
-                          onPress={() => handleQtyChange(item.id, currentQty - 1, item.pending_qty)}
-                          disabled={currentQty <= 0}
-                        >
-                          <Minus size={16} color={currentQty > 0 ? "#111827" : "#9CA3AF"} />
-                        </TouchableOpacity>
+<Animated.View
+  style={{
+    transform: [{ scale: minusScale }],
+  }}
+>
+  <TouchableOpacity
+    style={styles.stepBtn}
+    onPress={() => {
+      animateButton(minusScale);
+      handleQtyChange(
+        item.id,
+        currentQty - 1,
+        item.pending_qty
+      );
+    }}
+    disabled={currentQty <= 0}
+    activeOpacity={1}
+  >
+    <Minus size={16} color="#111827" />
+  </TouchableOpacity>
+</Animated.View>
                         <TextInput
                           value={String(currentQty)}
                           onChangeText={(v) => handleQtyChange(item.id, parseInt(v) || 0, item.pending_qty)}
                           keyboardType="numeric"
                           style={styles.qtyInput}
                         />
-                        <TouchableOpacity
-                          style={styles.stepBtn}
-                          onPress={() => handleQtyChange(item.id, currentQty + 1, item.pending_qty)}
-                          disabled={currentQty >= item.pending_qty}
-                        >
-                          <Plus size={16} color={currentQty < item.pending_qty ? "#111827" : "#9CA3AF"} />
-                        </TouchableOpacity>
+<Animated.View
+  style={{
+    transform: [{ scale: plusScale }],
+  }}
+>
+  <TouchableOpacity
+    style={styles.stepBtn}
+    onPress={() => {
+      animateButton(plusScale);
+      handleQtyChange(
+        item.id,
+        currentQty + 1,
+        item.pending_qty
+      );
+    }}
+    disabled={currentQty >= item.pending_qty}
+    activeOpacity={1}
+  >
+   
+    <Plus size={16} color="#111827" />
+  </TouchableOpacity>
+</Animated.View>
                         
                         {item.pending_qty > 0 && (
                           <TouchableOpacity
@@ -455,7 +555,7 @@ export function HardwarePackingModal({
                 );
               }}
             />
-          )}
+
 
           {/* Footer */}
           <View style={styles.footer}>
@@ -477,7 +577,9 @@ export function HardwarePackingModal({
                 <>
                   <PackageCheck size={18} color="#fff" />
                   <Text style={styles.submitBtnText}>
-                    {isMultiLocation && !selectedLocation
+                    {qualityMachineId
+                      ? "Pass Selected"
+                      : isMultiLocation && !selectedLocation
                       ? "Select Location First"
                       : "Pack Selected"}
                   </Text>
@@ -485,8 +587,8 @@ export function HardwarePackingModal({
               )}
             </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
 
       <PackagingLocationModal
         visible={showLocationPicker}
@@ -515,7 +617,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    height: "85%",
+    flex: 1,
+    maxHeight: "85%",
     paddingTop: 12,
   },
   handle: {
@@ -557,25 +660,24 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   contextRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12,
+    },
   contextChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#D1FAE5",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
     gap: 6,
   },
   contextChipText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
-    color: "#065F46",
+    color: "#059669",
   },
   refreshBtn: {
     flexDirection: "row",
@@ -627,18 +729,17 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   filterRow: {
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
+      marginBottom: 12,
+    },
   searchBox: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F3F4F6",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
+    borderColor: "transparent",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 48,
   },
   searchInput: {
     flex: 1,
@@ -648,27 +749,29 @@ const styles = StyleSheet.create({
   },
   tabsRow: {
     flexDirection: "row",
-    paddingHorizontal: 20,
     gap: 8,
     marginBottom: 12,
   },
-  tabBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: "#F3F4F6",
-  },
-  tabBtnActive: {
-    backgroundColor: "#111827",
-  },
-  tabText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#4B5563",
-  },
-  tabTextActive: {
-    color: "#fff",
-  },
+tabBtn: {
+  paddingVertical: 8,
+  paddingHorizontal: 16,
+  borderRadius: 16,
+  backgroundColor: "#F3F4F6",
+},
+
+tabBtnActive: {
+  backgroundColor: "#000000",
+},
+
+tabText: {
+  fontSize: 12,
+  fontWeight: "600",
+  color: "#4B5563",
+},
+
+tabTextActive: {
+  color: "#FFFFFF",
+},
   listContent: {
     paddingHorizontal: 20,
     paddingBottom: 20,
@@ -688,9 +791,14 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 16,
+    borderColor: "#F3F4F6",
+    borderRadius: 20,
     padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
   },
   cardDisabled: {
     opacity: 0.6,
@@ -712,30 +820,30 @@ const styles = StyleSheet.create({
   badgeSuccess: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#D1FAE5",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
     gap: 4,
   },
   badgeSuccessText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "600",
-    color: "#065F46",
+    color: "#059669",
   },
   badgeWarn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FEF3C7",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    backgroundColor: "#FFFBEB",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
     gap: 4,
   },
   badgeWarnText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "600",
-    color: "#92400E",
+    color: "#D97706",
   },
   itemDesc: {
     fontSize: 13,
@@ -744,6 +852,7 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
     marginBottom: 12,
   },
@@ -759,18 +868,25 @@ const styles = StyleSheet.create({
   stepperRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 14,
     padding: 4,
     alignSelf: "flex-end",
   },
   stepBtn: {
     padding: 8,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   qtyInput: {
-    width: 40,
+    width: 48,
     textAlign: "center",
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "700",
     color: "#111827",
   },
@@ -807,12 +923,17 @@ const styles = StyleSheet.create({
   submitBtn: {
     flex: 2,
     flexDirection: "row",
-    height: 48,
+    height: 52,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 12,
-    backgroundColor: "#111827",
+    borderRadius: 16,
+    backgroundColor: "#0F172A",
     gap: 8,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   submitBtnDisabled: {
     opacity: 0.5,

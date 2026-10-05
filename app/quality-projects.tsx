@@ -9,6 +9,7 @@ import {
   ScannerSelectionModal,
   ScannerType,
 } from "@/components/modals/ScannerSelectionModal";
+import { HardwarePackingModal } from "@/components/modals/HardwarePackingModal";
 import { useScannerPreference } from "@/hooks/useScannerPreference";
 import { colors } from "@/components/theme/colors";
 import { commonStyles } from "@/components/theme/commonStyles";
@@ -75,6 +76,8 @@ export default function QualityProjectsScreen() {
   const [totalProjects, setTotalProjects] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [selectedScannerProject, setSelectedScannerProject] =
+    useState<QualityProject | null>(null);
+  const [hardwareModalProject, setHardwareModalProject] =
     useState<QualityProject | null>(null);
 
   const openFilterModal = () => {
@@ -323,7 +326,11 @@ export default function QualityProjectsScreen() {
             </View>
           }
           renderItem={({ item }) => (
-            <QualityProjectCard item={item} onPress={handleProjectPress} />
+            <QualityProjectCard
+              item={item}
+              onPress={handleProjectPress}
+              onHardwarePress={setHardwareModalProject}
+            />
           )}
         />
       )}
@@ -344,6 +351,20 @@ export default function QualityProjectsScreen() {
         visible={selectedScannerProject !== null}
         onSelect={openSelectedScanner}
         onClose={() => setSelectedScannerProject(null)}
+      />
+
+      <HardwarePackingModal
+        visible={hardwareModalProject !== null}
+        onClose={() => setHardwareModalProject(null)}
+        vendorId={Number(user?.vendor_id) || 0}
+        projectId={hardwareModalProject?.id || 0}
+        projectDetailsId={null}
+        leadId={null}
+        userId={Number(user?.id) || 0}
+        projectName={hardwareModalProject?.project_name}
+        isMultiLocation={false}
+        qualityMachineId={hardwareModalProject?.qualityMachineId}
+        onSuccess={() => fetchProjects(page, true)}
       />
     </View>
   );

@@ -34,6 +34,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   StyleSheet,
@@ -167,30 +169,46 @@ function ConfirmModal({
     type === "delete" || type === "unpack" ? "#E63946" : type === "status" ? "#F4A261" : "#2A9D8F";
 
   const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (visible) setReason("");
+    if (visible) {
+      setReason("");
+      setSubmitting(false);
+    }
   }, [visible]);
 
   const handleConfirm = () => {
     if (requireReason && !reason.trim()) {
       return;
     }
+    Keyboard.dismiss();
+    setSubmitting(true);
     onConfirm(reason);
   };
+
+  const handleCancel = () => {
+    Keyboard.dismiss();
+    onCancel();
+  };
+
+  const isBtnDisabled = (requireReason && !reason.trim()) || submitting;
 
   return (
     <Modal
       transparent
       animationType="slide"
       visible={visible}
-      onRequestClose={onCancel}
+      onRequestClose={handleCancel}
     >
-      <View style={cmStyles.overlay}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={cmStyles.overlay}
+      >
         <TouchableOpacity
           style={cmStyles.backdrop}
           activeOpacity={1}
-          onPress={onCancel}
+          onPress={handleCancel}
         />
 
         <View style={cmStyles.sheet}>
@@ -198,7 +216,7 @@ function ConfirmModal({
 
           <TouchableOpacity
             style={cmStyles.closeBtn}
-            onPress={onCancel}
+            onPress={handleCancel}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <X size={18} color="#6B7280" />
@@ -215,14 +233,17 @@ function ConfirmModal({
               value={reason}
               onChangeText={setReason}
               multiline
+              blurOnSubmit={true}
+              returnKeyType="done"
             />
           )}
 
           <View style={cmStyles.btnRow}>
             <TouchableOpacity
               style={[cmStyles.btn, cmStyles.btnCancel]}
-              onPress={onCancel}
+              onPress={handleCancel}
               activeOpacity={0.8}
+              disabled={submitting}
             >
               <Text style={cmStyles.btnCancelText}>{cancelLabel}</Text>
             </TouchableOpacity>
@@ -230,18 +251,30 @@ function ConfirmModal({
             <TouchableOpacity
               style={[
                 cmStyles.btn,
-                { backgroundColor: confirmBg },
-                requireReason && !reason.trim() ? { opacity: 0.5 } : {}
+                {
+                  backgroundColor: isBtnDisabled ? "#E5E7EB" : confirmBg,
+                },
               ]}
               onPress={handleConfirm}
-              disabled={requireReason && !reason.trim()}
+              disabled={isBtnDisabled}
               activeOpacity={0.8}
             >
-              <Text style={cmStyles.btnConfirmText}>{confirmLabel}</Text>
+              {submitting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text
+                  style={[
+                    cmStyles.btnConfirmText,
+                    { color: isBtnDisabled ? "#9CA3AF" : "#FFFFFF" },
+                  ]}
+                >
+                  {confirmLabel}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
