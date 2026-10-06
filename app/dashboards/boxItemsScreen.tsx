@@ -34,6 +34,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   StyleSheet,
@@ -146,8 +148,9 @@ interface ConfirmModalProps {
   message: string;
   confirmLabel: string;
   cancelLabel?: string;
-  type?: "delete" | "download" | "status";
-  onConfirm: () => void;
+  type?: "delete" | "download" | "status" | "unpack" | "pack";
+  requireReason?: boolean;
+  onConfirm: (reason?: string) => void;
   onCancel: () => void;
 }
 
@@ -158,24 +161,54 @@ function ConfirmModal({
   confirmLabel,
   cancelLabel = "Cancel",
   type = "download",
+  requireReason = false,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
   const confirmBg =
-    type === "delete" ? "#E63946" : type === "status" ? "#F4A261" : "#2A9D8F";
+    type === "delete" || type === "unpack" ? "#E63946" : type === "status" ? "#F4A261" : "#2A9D8F";
+
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setReason("");
+      setSubmitting(false);
+    }
+  }, [visible]);
+
+  const handleConfirm = () => {
+    if (requireReason && !reason.trim()) {
+      return;
+    }
+    Keyboard.dismiss();
+    setSubmitting(true);
+    onConfirm(reason);
+  };
+
+  const handleCancel = () => {
+    Keyboard.dismiss();
+    onCancel();
+  };
+
+  const isBtnDisabled = (requireReason && !reason.trim()) || submitting;
 
   return (
     <Modal
       transparent
       animationType="slide"
       visible={visible}
-      onRequestClose={onCancel}
+      onRequestClose={handleCancel}
     >
-      <View style={cmStyles.overlay}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={cmStyles.overlay}
+      >
         <TouchableOpacity
           style={cmStyles.backdrop}
           activeOpacity={1}
-          onPress={onCancel}
+          onPress={handleCancel}
         />
 
         <View style={cmStyles.sheet}>
@@ -183,7 +216,7 @@ function ConfirmModal({
 
           <TouchableOpacity
             style={cmStyles.closeBtn}
-            onPress={onCancel}
+            onPress={handleCancel}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <X size={18} color="#6B7280" />
@@ -192,25 +225,56 @@ function ConfirmModal({
           <Text style={cmStyles.title}>{title}</Text>
           <Text style={cmStyles.message}>{message}</Text>
 
+          {requireReason && (
+            <TextInput
+              style={cmStyles.reasonInput}
+              placeholder="Enter reason..."
+              placeholderTextColor="#9CA3AF"
+              value={reason}
+              onChangeText={setReason}
+              multiline
+              blurOnSubmit={true}
+              returnKeyType="done"
+            />
+          )}
+
           <View style={cmStyles.btnRow}>
             <TouchableOpacity
               style={[cmStyles.btn, cmStyles.btnCancel]}
-              onPress={onCancel}
+              onPress={handleCancel}
               activeOpacity={0.8}
+              disabled={submitting}
             >
               <Text style={cmStyles.btnCancelText}>{cancelLabel}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[cmStyles.btn, { backgroundColor: confirmBg }]}
-              onPress={onConfirm}
+              style={[
+                cmStyles.btn,
+                {
+                  backgroundColor: isBtnDisabled ? "#E5E7EB" : confirmBg,
+                },
+              ]}
+              onPress={handleConfirm}
+              disabled={isBtnDisabled}
               activeOpacity={0.8}
             >
-              <Text style={cmStyles.btnConfirmText}>{confirmLabel}</Text>
+              {submitting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text
+                  style={[
+                    cmStyles.btnConfirmText,
+                    { color: isBtnDisabled ? "#9CA3AF" : "#FFFFFF" },
+                  ]}
+                >
+                  {confirmLabel}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -273,6 +337,19 @@ const cmStyles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 28,
     lineHeight: 20,
+  },
+  reasonInput: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 24,
+    minHeight: 80,
+    textAlignVertical: "top",
+    fontSize: 14,
+    color: "#111827",
+    backgroundColor: "#F9FAFB",
   },
   btnRow: {
     flexDirection: "row",
@@ -351,6 +428,9 @@ export default function BoxItemsScreen() {
 
   const [showScannerSelection, setShowScannerSelection] = useState(false);
   const [showLocationSelection, setShowLocationSelection] = useState(false);
+  const [showPackLocationSelection, setShowPackLocationSelection] =
+    useState(false);
+  const [packLocationName, setPackLocationName] = useState<string | undefined>();
   const [selectedScannerType, setSelectedScannerType] =
     useState<ScannerType>("mobile");
   const [projectLocations, setProjectLocations] = useState<string[]>([]);
@@ -830,10 +910,56 @@ export default function BoxItemsScreen() {
       return;
     }
 
+    if (
+      status === "unpacked" &&
+      isCustomGroupPacking &&
+      projectData?.is_multi_location === true
+    ) {
+      void loadPackingLocations();
+      return;
+    }
+
     setShowStatusModal(true);
   };
 
-  const handleConfirmUpdateStatus = async () => {
+  const loadPackingLocations = async () => {
+    if (!box || loadingLocations) return;
+
+    setLoadingLocations(true);
+    try {
+      const response = await axios.get(
+        `/track-trace-project/onboard/${box.vendor_id}/packaging-project/${box.project_id}`,
+      );
+      const locationRows = response.data?.data?.locations;
+      const locations = Array.from(
+        new Map(
+          (Array.isArray(locationRows) ? locationRows : [])
+            .map((row: { location_name?: unknown }) =>
+              String(row?.location_name ?? "").trim(),
+            )
+            .filter(Boolean)
+            .map((name: string) => [name.toLocaleLowerCase(), name]),
+        ).values(),
+      ) as string[];
+
+      if (locations.length === 0) {
+        showToast("error", "No project locations are configured");
+        return;
+      }
+
+      setProjectLocations(locations);
+      setShowPackLocationSelection(true);
+    } catch (error: any) {
+      showToast(
+        "error",
+        error?.response?.data?.message || "Failed to load project locations",
+      );
+    } finally {
+      setLoadingLocations(false);
+    }
+  };
+
+  const handleConfirmUpdateStatus = async (reason?: string) => {
     if (deactivated) {
       showToast("error", "Project is deleted or deactivated");
       return;
@@ -853,12 +979,21 @@ export default function BoxItemsScreen() {
     const newStatus = status === "unpacked" ? "packed" : "unpacked";
 
     try {
-      await axios.put(`/boxes/status/${newStatus}/${box.id}`, {
+      const payload: any = {
         user_id: user.id,
-      });
+      };
+      if (newStatus === "packed" && packLocationName) {
+        payload.location_name = packLocationName;
+      }
+      if (newStatus === "unpacked" && reason) {
+        payload.reason = reason;
+      }
+
+      await axios.put(`/boxes/status/${newStatus}/${box.id}`, payload);
 
       showToast("success", `Box status updated to ${newStatus}`);
       setStatus(newStatus);
+      setPackLocationName(undefined);
     } catch (error: any) {
       showToast(
         "error",
@@ -871,7 +1006,7 @@ export default function BoxItemsScreen() {
 
   // ── Delete item ────────────────────────────────────────────────────────────
 
-  const handleConfirmDeleteItem = async () => {
+  const handleConfirmDeleteItem = async (reason?: string) => {
     if (deactivated) {
       showToast("error", "Project is deleted or deactivated");
       return;
@@ -897,6 +1032,7 @@ export default function BoxItemsScreen() {
           project_id: box.project_id,
           box_id: box.id,
           deleted_by: user?.id,
+          reason,
         },
       });
 
@@ -1004,9 +1140,7 @@ export default function BoxItemsScreen() {
       )}
 
       {/* ── Bottom actions ── */}
-      {!loading &&
-        hasResolvedPackingType &&
-        (!isCustomGroupPacking || status === "packed") && (
+      {!loading && hasResolvedPackingType && (
           <View style={[styles.fabContainer, { bottom: bottomInset }]}>
             {status === "packed" ? (
               <TouchableOpacity
@@ -1023,40 +1157,49 @@ export default function BoxItemsScreen() {
               </TouchableOpacity>
             ) : (
               <View style={styles.actionRow}>
-                {/* Scan Product */}
-                <TouchableOpacity
-                  style={styles.actionHalf}
-                  activeOpacity={0.9}
-                  onPress={openScanner}
-                  onPressIn={() => {
-                    scanButtonScale.value = withSpring(0.95);
-                  }}
-                  onPressOut={() => {
-                    scanButtonScale.value = withSpring(1);
-                  }}
-                >
-                  <Animated.View
-                    style={[styles.actionAnimated, animatedScanButtonStyle]}
+                {/* Automatic custom-group boxes must still be scanned from the
+                    workstation. Only manual (Scan & Pack = No) items can be
+                    added from this screen. */}
+                {!isCustomGroupPacking && (
+                  <TouchableOpacity
+                    style={styles.actionHalf}
+                    activeOpacity={0.9}
+                    onPress={openScanner}
+                    onPressIn={() => {
+                      scanButtonScale.value = withSpring(0.95);
+                    }}
+                    onPressOut={() => {
+                      scanButtonScale.value = withSpring(1);
+                    }}
                   >
-                    <LinearGradient
-                      colors={["#000000", "#222222"]}
-                      style={styles.actionPrimary}
+                    <Animated.View
+                      style={[styles.actionAnimated, animatedScanButtonStyle]}
                     >
-                      <ScanLine size={21} color="#fff" />
-                      <Text style={styles.actionPrimaryText}>Scan Product</Text>
-                    </LinearGradient>
-                  </Animated.View>
-                </TouchableOpacity>
+                      <LinearGradient
+                        colors={["#000000", "#222222"]}
+                        style={styles.actionPrimary}
+                      >
+                        <ScanLine size={21} color="#fff" />
+                        <Text style={styles.actionPrimaryText}>Scan Product</Text>
+                      </LinearGradient>
+                    </Animated.View>
+                  </TouchableOpacity>
+                )}
 
                 {/* Select Product */}
-                <TouchableOpacity
-                  style={[styles.actionHalf, styles.actionSecondary]}
-                  activeOpacity={0.85}
-                  onPress={openProductSelector}
-                >
-                  <ListPlus size={21} color="#111827" />
-                  <Text style={styles.actionSecondaryText}>Select Product</Text>
-                </TouchableOpacity>
+                {!(isCustomGroupPacking && status === "unpacked") && (
+                  <TouchableOpacity
+                    style={[
+                      styles.actionHalf,
+                      styles.actionSecondary,
+                    ]}
+                    activeOpacity={0.85}
+                    onPress={openProductSelector}
+                  >
+                    <ListPlus size={21} color="#111827" />
+                    <Text style={styles.actionSecondaryText}>Select Product</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </View>
@@ -1066,7 +1209,7 @@ export default function BoxItemsScreen() {
       <Modal
         transparent
         animationType="slide"
-        visible={showProductModal && !isCustomGroupPacking}
+        visible={showProductModal}
         onRequestClose={() => setShowProductModal(false)}
       >
         <View style={styles.manualModalOverlay}>
@@ -1514,12 +1657,25 @@ export default function BoxItemsScreen() {
         onClose={() => setShowLocationSelection(false)}
       />
 
+      <PackagingLocationModal
+        visible={showPackLocationSelection}
+        locations={projectLocations}
+        hideWithoutLocationOption={true}
+        onSelect={(locationName) => {
+          setPackLocationName(locationName);
+          setShowPackLocationSelection(false);
+          setShowStatusModal(true);
+        }}
+        onClose={() => setShowPackLocationSelection(false)}
+      />
+
       <ConfirmModal
         visible={showDeleteModal}
         title="Delete Item?"
-        message="Are you sure you want to delete this scanned item?"
+        message="Are you sure you want to delete this scanned item? Please provide a reason."
         confirmLabel="Yes, Delete"
         type="delete"
+        requireReason={true}
         onConfirm={handleConfirmDeleteItem}
         onCancel={() => setShowDeleteModal(false)}
       />
@@ -1529,11 +1685,12 @@ export default function BoxItemsScreen() {
         title={status === "packed" ? "Mark As Unpacked" : "Mark As Packed"}
         message={
           status === "packed"
-            ? "Are you sure you want to mark this box as unpacked?"
+            ? "Are you sure you want to mark this box as unpacked? Please provide a reason."
             : "Are you sure you want to mark this box as packed?"
         }
         confirmLabel={`Yes, ${status === "packed" ? "Unpack" : "Pack"}`}
-        type="status"
+        type={status === "packed" ? "unpack" : "pack"}
+        requireReason={status === "packed"}
         onConfirm={handleConfirmUpdateStatus}
         onCancel={() => setShowStatusModal(false)}
       />

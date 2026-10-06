@@ -13,6 +13,7 @@ import {
   Flashlight,
   FlashlightOff,
   Focus,
+  MapPin,
   ScanLine,
   X,
 } from "lucide-react-native";
@@ -68,11 +69,13 @@ export default function BarcodeScanner() {
     project_id: paramProjectId,
     vendor_id: paramVendorId,
     box_id: paramBoxId,
+    location_name: paramLocationName,
   } = useLocalSearchParams<{
     scan_type?: string;
     project_id?: string;
     vendor_id?: string;
     box_id?: string;
+    location_name?: string;
   }>();
 
   const resolvedVendorId = paramVendorId
@@ -139,11 +142,17 @@ export default function BarcodeScanner() {
         ? `/track-trace/boxes/${box_id}/factory-out`
         : `/track-trace/boxes/${box_id}/site-in`;
 
-    const res = await axiosInstance.patch(endpoint, {
+    const payload: any = {
       project_id: scanned_project_id,
       vendor_id: scanned_vendor_id,
       user_id: userId,
-    });
+    };
+
+    if (resolvedScanType === "OUT" && paramLocationName) {
+      payload.target_location = paramLocationName;
+    }
+
+    const res = await axiosInstance.patch(endpoint, payload);
 
     if (res.data?.success === false) {
       throw new Error(res.data.message || "Failed to update box");
@@ -458,27 +467,38 @@ export default function BarcodeScanner() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.closeButton}
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <X size={28} color="white" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{headerTitle}</Text>
-        <TouchableOpacity
-          style={styles.flashButton}
-          onPress={() => setFlashMode(!flashMode)}
-          activeOpacity={0.7}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          {flashMode ? (
-            <FlashlightOff size={28} color="white" />
-          ) : (
-            <Flashlight size={28} color="white" />
-          )}
-        </TouchableOpacity>
+        <View style={styles.headerTopRow}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <X size={28} color="white" />
+          </TouchableOpacity>
+          <View style={styles.headerPill}>
+            <Text style={styles.headerPillText}>{headerTitle}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.flashButton}
+            onPress={() => setFlashMode(!flashMode)}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            {flashMode ? (
+              <FlashlightOff size={28} color="white" />
+            ) : (
+              <Flashlight size={28} color="white" />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {paramLocationName && (
+          <View style={styles.contextChip}>
+            <Text style={styles.contextChipIcon}>📍</Text>
+            <Text style={styles.contextChipText} numberOfLines={1}>{paramLocationName}</Text>
+          </View>
+        )}
       </View>
 
       {/* Scan overlay */}
@@ -539,34 +559,71 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 10,
+    flexDirection: "column",
+    paddingTop: 30,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    gap: 10,
+  },
+  headerTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: 30,
-    paddingHorizontal: 20,
-    paddingBottom: 25,
-    backgroundColor: "rgba(0,0,0,0.4)",
   },
   closeButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.3)",
+    backgroundColor: "rgba(255,255,255,0.2)",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.4)",
+    borderColor: "rgba(255,255,255,0.3)",
   },
-  headerTitle: { color: "white", fontSize: 20, fontWeight: "600" },
+  headerPill: {
+    backgroundColor: "#007AFF",
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerPillText: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "600",
+  },
   flashButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.3)",
+    backgroundColor: "rgba(255,255,255,0.2)",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.4)",
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  contextChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "center",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  contextChipIcon: {
+    fontSize: 13,
+  },
+  contextChipText: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 13,
+    fontWeight: "600",
+    maxWidth: width * 0.6,
   },
   overlay: {
     position: "absolute",
