@@ -6,9 +6,9 @@ import * as SecureStore from "expo-secure-store";
 const AUTH_TOKEN_KEY = "auth_token";
 
 const instance = axios.create({
-  baseURL: "https://demo-api.furnixcrm.com/api", // base vloq demo
+  // baseURL: "https://demo-api.furnixcrm.com/api", // base vloq demo
   //baseURL: "https://staging-api.furnixcrm.com/api", // base vloq demo
-  // baseURL: "http://192.168.1.107:7777/api", // local
+  baseURL: "http://192.168.1.110:7777/api", // local
   // baseURL: "https://api.furnixcrm.com/api", // live
   timeout: 15_000,
 });

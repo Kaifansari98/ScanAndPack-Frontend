@@ -924,7 +924,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   manualBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(16, 24, 40, 0.5)",
   },
   manualSheet: {

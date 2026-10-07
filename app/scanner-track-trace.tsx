@@ -1135,7 +1135,7 @@ export default function TrackTraceBarcodeScanner() {
             style={{ flex: 1, justifyContent: "flex-end" }}
           >
             <TouchableOpacity
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               activeOpacity={1}
               onPress={closeManualEntry}
             >
@@ -1206,7 +1206,7 @@ export default function TrackTraceBarcodeScanner() {
         <Modal transparent animationType="slide" visible={showItemDetail} onRequestClose={showDefectModal ? closeDefectModal : hideItemDetailSheet}>
           <View style={{ flex: 1, justifyContent: "flex-end" }}>
             <TouchableOpacity
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               activeOpacity={1}
               onPress={showDefectModal ? closeDefectModal : hideItemDetailSheet}
             >
@@ -1399,7 +1399,7 @@ export default function TrackTraceBarcodeScanner() {
         <Modal transparent animationType="slide" visible={showDefectItemDetail} onRequestClose={showDefectModal ? closeDefectModal : hideDefectItemDetailSheet}>
           <View style={{ flex: 1, justifyContent: "flex-end" }}>
             <TouchableOpacity
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               activeOpacity={1}
               onPress={showDefectModal ? closeDefectModal : hideDefectItemDetailSheet}
             >

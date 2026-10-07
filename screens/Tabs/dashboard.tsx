@@ -2,7 +2,7 @@ import { colors } from "@/components/theme/colors";
 import { commonStyles } from "@/components/theme/commonStyles";
 import axios from "@/lib/axios";
 import type { RootState } from "@/redux/store";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "expo-router/react-navigation";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
   Building2,

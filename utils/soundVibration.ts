@@ -1,8 +1,8 @@
-import { Audio } from "expo-av";
+import { AudioPlayer, createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { Vibration } from "react-native";
 
-let successSound: Audio.Sound | null = null;
-let errorSound: Audio.Sound | null = null;
+let successSound: AudioPlayer | null = null;
+let errorSound: AudioPlayer | null = null;
 let isReady = false;
 let preloadPromise: Promise<void> | null = null;
 let successFeedbackInProgress = false;
@@ -14,31 +14,21 @@ export const preloadFeedbackSounds = async (): Promise<void> => {
 
   preloadPromise = (async () => {
     try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        allowsRecordingIOS: false,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: false,
-      });
+      try {
+        await setAudioModeAsync({
+          playsInSilentMode: true,
+          interruptionMode: "mixWithOthers",
+        });
+      } catch (modeError) {
+        if (__DEV__) {
+          console.warn("setAudioModeAsync failed:", modeError);
+        }
+      }
 
-      const nextSuccessSound = new Audio.Sound();
-      const nextErrorSound = new Audio.Sound();
-
-      await Promise.all([
-        nextSuccessSound.loadAsync(
-          require("@/assets/sounds/success.mp3"),
-          { shouldPlay: false },
-        ),
-        nextErrorSound.loadAsync(
-          require("@/assets/sounds/error.mp3"),
-          { shouldPlay: false },
-        ),
-      ]);
-
-      successSound = nextSuccessSound;
-      errorSound = nextErrorSound;
+      successSound = createAudioPlayer(require("@/assets/sounds/success.mp3"));
+      errorSound = createAudioPlayer(require("@/assets/sounds/error.mp3"));
       isReady = true;
-    } catch (error) {
+    } catch (error: unknown) {
       isReady = false;
       successSound = null;
       errorSound = null;
@@ -56,48 +46,73 @@ export const preloadFeedbackSounds = async (): Promise<void> => {
 
 /** Fire-and-forget: never blocks API handling or UI state updates. */
 export const playSuccessFeedback = (): void => {
-  Vibration.vibrate(100);
+  try {
+    Vibration.vibrate(100);
+  } catch (error: unknown) {
+    if (__DEV__) {
+      console.warn("Success vibration failed:", error);
+    }
+  }
 
   if (!isReady || !successSound || successFeedbackInProgress) return;
 
+  const player = successSound;
   successFeedbackInProgress = true;
 
-  void successSound
-    .replayAsync()
-    .catch((error) => {
-      if (__DEV__) {
-        console.warn("Success feedback failed:", error);
+  (async () => {
+    try {
+      try {
+        await player.seekTo(0);
+      } catch {
+        // seek may not be needed if at start
       }
-    })
-    .finally(() => {
+      player.play();
+    } catch (error: unknown) {
+      if (__DEV__) {
+        console.warn("Success feedback sound failed:", error);
+      }
+    } finally {
       successFeedbackInProgress = false;
-    });
+    }
+  })();
 };
 
 /** Fire-and-forget: never blocks API handling or UI state updates. */
 export const playErrorFeedback = (): void => {
-  Vibration.vibrate([0, 200, 100, 200]);
+  try {
+    Vibration.vibrate([0, 200, 100, 200]);
+  } catch (error: unknown) {
+    if (__DEV__) {
+      console.warn("Error vibration failed:", error);
+    }
+  }
 
   if (!isReady || !errorSound || errorFeedbackInProgress) return;
 
+  const player = errorSound;
   errorFeedbackInProgress = true;
 
-  void errorSound
-    .replayAsync()
-    .catch((error) => {
-      if (__DEV__) {
-        console.warn("Error feedback failed:", error);
+  (async () => {
+    try {
+      try {
+        await player.seekTo(0);
+      } catch {
+        // seek may not be needed if at start
       }
-    })
-    .finally(() => {
+      player.play();
+    } catch (error: unknown) {
+      if (__DEV__) {
+        console.warn("Error feedback sound failed:", error);
+      }
+    } finally {
       errorFeedbackInProgress = false;
-    });
+    }
+  })();
 };
 
 export const unloadFeedbackSounds = async (): Promise<void> => {
-  const sounds = [successSound, errorSound].filter(
-    (sound): sound is Audio.Sound => sound !== null,
-  );
+  const currentSuccess = successSound;
+  const currentError = errorSound;
 
   successSound = null;
   errorSound = null;
@@ -105,5 +120,20 @@ export const unloadFeedbackSounds = async (): Promise<void> => {
   successFeedbackInProgress = false;
   errorFeedbackInProgress = false;
 
-  await Promise.allSettled(sounds.map((sound) => sound.unloadAsync()));
+  try {
+    currentSuccess?.remove();
+  } catch (error: unknown) {
+    if (__DEV__) {
+      console.warn("Failed to unload success sound:", error);
+    }
+  }
+
+  try {
+    currentError?.remove();
+  } catch (error: unknown) {
+    if (__DEV__) {
+      console.warn("Failed to unload error sound:", error);
+    }
+  }
 };
+

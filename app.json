@@ -4,10 +4,9 @@
     "slug": "furnix",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/furnix.jpeg",
+    "icon": "./assets/images/furnix.png",
     "scheme": "frontend",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -18,7 +17,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/furnix.jpeg",
+        "foregroundImage": "./assets/images/furnix.png",
         "backgroundColor": "#ffffff"
       },
       "permissions": [
@@ -26,13 +25,12 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "edgeToEdgeEnabled": true,
       "package": "com.vloq.furnixcrm"
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/furnix.jpeg"
+      "favicon": "./assets/images/furnix.png"
     },
     "plugins": [
       [
@@ -47,7 +45,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/furnix.jpeg",
+          "image": "./assets/images/furnix.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
@@ -55,7 +53,11 @@
       ],
       "expo-secure-store",
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-image",
+      "expo-sharing",
+      "expo-status-bar",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true

@@ -89,7 +89,7 @@ export default function Navbar({
 
   return (
     <View style={[styles.wrapper, { backgroundColor: bg, paddingTop: safeTop }]}>
-      <StatusBar style={barStyle} backgroundColor={bg} translucent />
+      <StatusBar style={barStyle} />
       
       {/* Container */}
       <View style={styles.container}>

@@ -3,11 +3,16 @@ import { RootState } from "@/redux/store";
 import DashboardTabScreen from "@/screens/Tabs/dashboard";
 import ProfileTabScreen from "@/screens/Tabs/profile";
 import ProjectsTabScreen from "@/screens/Tabs/projects";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Redirect } from "expo-router";
+import { createBottomTabNavigator } from "expo-router/js-tabs";
 import { FolderKanban, Home, Settings } from "lucide-react-native";
 import React from "react";
-import { ActivityIndicator, Platform, View } from "react-native";
+import {
+  ActivityIndicator,
+  Platform,
+  View,
+  type ColorValue,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 
@@ -21,13 +26,21 @@ function tabIcon(
     strokeWidth?: number;
   }>,
 ) {
-  return ({ color, focused }: { color: string; focused: boolean }) => (
-    <Icon
-      size={focused ? 24 : 22}
-      color={color}
-      strokeWidth={focused ? 2.4 : 1.8}
-    />
-  );
+  return function TabBarIcon({
+    color,
+    focused,
+  }: {
+    color: ColorValue;
+    focused: boolean;
+  }) {
+    return (
+      <Icon
+        size={focused ? 24 : 22}
+        color={String(color)}
+        strokeWidth={focused ? 2.4 : 1.8}
+      />
+    );
+  };
 }
 
 export default function DashboardScreen() {
