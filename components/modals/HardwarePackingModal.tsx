@@ -482,11 +482,13 @@ const animateButton = (scale: Animated.Value) => {
                     
                     <View style={styles.statsRow}>
                       <Text style={styles.statText}>Total: {item.total_qty}</Text>
-                      {!qualityMachineId && item.packed_qty + item.pending_qty < item.total_qty && (
-                        <Text style={styles.statText}>QC Passed: {item.packed_qty + item.pending_qty}</Text>
+                      {!qualityMachineId && item.qc_passed_qty > 0 && (
+                        <Text style={styles.statText}>QC Passed: {item.qc_passed_qty}</Text>
                       )}
                       <Text style={styles.statText}>{qualityMachineId ? "Checked:" : "Packed:"} {item.packed_qty}</Text>
-                      <Text style={styles.statTextWarn}>{qualityMachineId ? "Pending:" : "Ready:"} {item.pending_qty}</Text>
+                      {(!qualityMachineId && item.qc_passed_qty > 0) || qualityMachineId ? (
+                        <Text style={styles.statTextWarn}>{qualityMachineId ? "Pending:" : "Ready:"} {item.pending_qty}</Text>
+                      ) : null}
                     </View>
 
                     {!isFullyPacked && (
