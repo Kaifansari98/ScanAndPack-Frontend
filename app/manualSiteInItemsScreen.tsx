@@ -214,7 +214,7 @@ export default function ManualSiteInItemsScreen() {
 
   /*
   |--------------------------------------------------------------------------
-  | Load manually packed items
+  | Load hardware packed items
   |--------------------------------------------------------------------------
   */
 
@@ -287,7 +287,7 @@ export default function ManualSiteInItemsScreen() {
             error?.response
               ?.data
               ?.message ??
-              "Failed to fetch manual items"
+              "Failed to fetch hardware items"
           );
         } finally {
           setLoading(
@@ -519,7 +519,7 @@ export default function ManualSiteInItemsScreen() {
           "success",
           response.data
             ?.message ??
-            "Manual item verified"
+            "Hardware item verified"
         );
 
         await fetchItems();
@@ -615,7 +615,7 @@ export default function ManualSiteInItemsScreen() {
               1
             }
           >
-            Manual Site
+            Hardware Site
             Verification
             {project_name
               ? ` · ${project_name}`
@@ -663,7 +663,7 @@ export default function ManualSiteInItemsScreen() {
                 styles.summaryTitle
               }
             >
-              Manual Items
+              Hardware Items
             </Text>
 
             <Text
@@ -810,7 +810,7 @@ export default function ManualSiteInItemsScreen() {
           onChangeText={
             setSearch
           }
-          placeholder="Search manual items..."
+          placeholder="Search hardware items..."
           placeholderTextColor="#9CA3AF"
           style={
             styles.searchInput
@@ -861,7 +861,7 @@ export default function ManualSiteInItemsScreen() {
                 styles.emptyTitle
               }
             >
-              No manually
+              No hardware
               packed items
             </Text>
 
@@ -872,7 +872,7 @@ export default function ManualSiteInItemsScreen() {
             >
               This box has
               no items added
-              through manual
+              through hardware
               packing.
             </Text>
           </View>

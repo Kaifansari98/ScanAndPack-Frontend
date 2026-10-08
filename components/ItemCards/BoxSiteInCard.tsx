@@ -191,7 +191,7 @@ export function BoxSiteInCard({
                   { color: manualDone ? "#047857" : "#7C3AED" },
                 ]}
               >
-                Manual: {item.manual_received_items}/{item.manual_total_items}
+                Hardware: {item.manual_received_items}/{item.manual_total_items}
               </Text>
             </View>
           )}
@@ -213,7 +213,7 @@ export function BoxSiteInCard({
               activeOpacity={0.82}
             >
               <ClipboardCheck size={12} color="#7C3AED" />
-              <Text style={styles.manualBtnText}>Manual</Text>
+              <Text style={styles.manualBtnText}>Hardware</Text>
             </TouchableOpacity>
           )}
 
