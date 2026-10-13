@@ -12,6 +12,9 @@ interface CompletedPackagingScan {
   box_completed?: boolean;
   box_id?: number | string | null;
   box_name?: string | null;
+  project_id?: number | string | null;
+  vendor_id?: number | string | null;
+  mappedItem?: any;
 }
 
 const getPrintErrorMessage = (error: unknown) => {
@@ -39,27 +42,60 @@ export const usePackagingBoxPrinter = ({
   vendorId,
 }: PackagingBoxPrinterOptions) => {
   const { showToast } = useToast();
-  const scheduledBoxIdsRef = useRef(new Set<number>());
-  const printedBoxIdsRef = useRef(new Set<number>());
+  const scheduledBoxIdsRef = useRef<Set<number>>(new Set<number>());
+  const printedBoxIdsRef = useRef<Set<number>>(new Set<number>());
   const printChainRef = useRef<Promise<void>>(Promise.resolve());
 
   const queueCompletedBoxPrint = useCallback(
     (
       responseOrData:
-        | { data?: CompletedPackagingScan }
-        | CompletedPackagingScan,
+        | { data?: CompletedPackagingScan | any }
+        | CompletedPackagingScan
+        | any,
     ) => {
-      const scanData =
-        "data" in responseOrData && responseOrData.data
+      let rawData: any =
+        responseOrData && "data" in responseOrData && responseOrData.data
           ? responseOrData.data
-          : (responseOrData as CompletedPackagingScan);
-      const boxId = Number(scanData?.box_id);
-      const resolvedProjectId = Number(projectId);
-      const resolvedVendorId = Number(vendorId);
+          : responseOrData;
+
+      if (rawData?.mappedItem && typeof rawData.mappedItem === "object") {
+        rawData = rawData.mappedItem?.mappedItem ?? rawData.mappedItem;
+      }
+
+      const scanData = rawData as CompletedPackagingScan | undefined;
+      const isBoxCompleted = Boolean(
+        scanData?.box_completed ||
+        (responseOrData as any)?.data?.box_completed ||
+        (responseOrData as any)?.data?.mappedItem?.box_completed ||
+        (responseOrData as any)?.box_completed
+      );
+
+      const boxId = Number(
+        scanData?.box_id ??
+        (responseOrData as any)?.data?.box_id ??
+        (responseOrData as any)?.data?.mappedItem?.box_id
+      );
+
+      const resolvedProjectId = Number(
+        scanData?.project_id ??
+        (responseOrData as any)?.data?.project_id ??
+        (responseOrData as any)?.data?.mappedItem?.project_id ??
+        projectId
+      );
+
+      const resolvedVendorId = Number(
+        scanData?.vendor_id ??
+        (responseOrData as any)?.data?.vendor_id ??
+        (responseOrData as any)?.data?.mappedItem?.vendor_id ??
+        vendorId
+      );
+
+      // A completed box is always eligible to print
+      const isEligibleToPrint = enabled || isBoxCompleted;
 
       if (
-        !enabled ||
-        scanData?.box_completed !== true ||
+        !isEligibleToPrint ||
+        !isBoxCompleted ||
         !Number.isInteger(boxId) ||
         boxId <= 0 ||
         !Number.isInteger(resolvedProjectId) ||
@@ -73,7 +109,7 @@ export const usePackagingBoxPrinter = ({
       }
 
       scheduledBoxIdsRef.current.add(boxId);
-      const boxLabel = String(scanData.box_name || boxId)
+      const boxLabel = String(scanData?.box_name || boxId)
         .replace(/^box\s*/i, "")
         .trim();
 
