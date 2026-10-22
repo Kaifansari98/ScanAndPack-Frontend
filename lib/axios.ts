@@ -7,8 +7,9 @@ const AUTH_TOKEN_KEY = "auth_token";
 
 const instance = axios.create({
   // baseURL: "https://staging-api.furnixcrm.com/api", // base backend URL
-  // baseURL: "http://192.168.1.107:7777/api",
-  baseURL: "https://api.furnixcrm.com/api",
+  baseURL: "http://192.168.1.101:7777/api",
+  // baseURL: "http://localhost:7777/api", // Use with `adb reverse tcp:7777 tcp:7777`
+  // baseURL: "https://api.furnixcrm.com/api",
   timeout: 15_000,
 });
 

@@ -95,6 +95,10 @@ export default function ProjectsTabScreen() {
   const [projectLocations, setProjectLocations] = useState<string[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
 
+  const [showVerifyLocationModal, setShowVerifyLocationModal] = useState(false);
+  const [verifyProject, setVerifyProject] = useState<FormattedProject | null>(null);
+  const [verifyLocations, setVerifyLocations] = useState<string[]>([]);
+
   const fetchProjects = useCallback(
     async (targetPage = 1, isRefresh = false) => {
       try {
@@ -166,6 +170,11 @@ export default function ProjectsTabScreen() {
           site_in_at: p.site_in_at ?? null,
           all_factory_out: p.all_factory_out ?? false,
           any_factory_out: p.any_factory_out ?? false,
+          all_site_in: p.all_site_in ?? false,
+          any_site_in: p.any_site_in ?? false,
+          is_multi_location: Boolean(p.is_multi_location),
+          has_site_items: Boolean(p.has_site_items),
+          locations: p.locations ?? [],
         }));
 
         if (targetPage === 1 || isRefresh) {
@@ -264,6 +273,38 @@ export default function ProjectsTabScreen() {
         project_id: String(scanProject.id),
         vendor_id: String(scanProject.vendor_id),
         scan_type: scanType,
+        ...(locationName ? { location_name: locationName } : {}),
+      },
+    });
+  };
+
+  const handleVerifyPress = (project: FormattedProject) => {
+    const readyLocs = (project.locations || [])
+      .filter((loc) => loc.all_site_in || loc.site_in_boxes > 0)
+      .map((loc) => loc.location_name);
+
+    if (project.is_multi_location && readyLocs.length > 1) {
+      setVerifyProject(project);
+      setVerifyLocations(readyLocs);
+      setShowVerifyLocationModal(true);
+      return;
+    }
+
+    const targetLoc = readyLocs.length === 1 ? readyLocs[0] : undefined;
+    navigateToBoxSiteIn(project, targetLoc);
+  };
+
+  const navigateToBoxSiteIn = (
+    project: FormattedProject,
+    locationName?: string
+  ) => {
+    setShowVerifyLocationModal(false);
+    router.push({
+      pathname: "/boxSiteInScreen",
+      params: {
+        project_id: String(project.id),
+        vendor_id: String(project.vendor_id),
+        project_name: project.projectName,
         ...(locationName ? { location_name: locationName } : {}),
       },
     });
@@ -402,6 +443,7 @@ export default function ProjectsTabScreen() {
                 setSelectedProject(item);
                 setShowConfirmModal(true);
               }}
+              onVerifyPress={() => handleVerifyPress(item)}
             />
           )}
         />
@@ -526,12 +568,25 @@ export default function ProjectsTabScreen() {
         </View>
       </Modal>
 
-      {/* ── Location Modal ── */}
+      {/* ── Location Modal for Factory Out ── */}
       <PackagingLocationModal
         visible={showLocationModal}
         locations={projectLocations}
         onSelect={(locationName) => navigateToScanner("OUT", locationName)}
         onClose={() => setShowLocationModal(false)}
+        hideWithoutLocationOption={true}
+      />
+
+      {/* ── Location Modal for Site In Verify ── */}
+      <PackagingLocationModal
+        visible={showVerifyLocationModal}
+        locations={verifyLocations}
+        onSelect={(locationName) => {
+          if (verifyProject) {
+            navigateToBoxSiteIn(verifyProject, locationName);
+          }
+        }}
+        onClose={() => setShowVerifyLocationModal(false)}
         hideWithoutLocationOption={true}
       />
 

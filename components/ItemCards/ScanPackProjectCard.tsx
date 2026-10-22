@@ -13,6 +13,16 @@ import {
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
+export interface LocationSiteStatus {
+  location_name: string;
+  total_boxes: number;
+  factory_out_boxes: number;
+  site_in_boxes: number;
+  all_factory_out: boolean;
+  all_site_in: boolean;
+  any_site_in: boolean;
+}
+
 export interface FormattedProject {
   id: number;
   vendor_id: number;
@@ -28,18 +38,25 @@ export interface FormattedProject {
   site_in_at: string | null;
   all_factory_out: boolean;
   any_factory_out: boolean;
+  all_site_in?: boolean;
+  any_site_in?: boolean;
+  is_multi_location?: boolean;
+  has_site_items?: boolean;
+  locations?: LocationSiteStatus[];
 }
 
 export interface ScanPackProjectCardProps {
   item: FormattedProject;
   onScanPress: () => void;
   onDownloadPress: () => void;
+  onVerifyPress?: (item: FormattedProject) => void;
 }
 
 export function getScanMode(p: FormattedProject): "OUT" | "IN" | "BOTH" | null {
   if (!p.any_factory_out) return "OUT";
-  if (p.all_factory_out && p.site_in_at === null) return "IN";
-  if (!p.all_factory_out && p.site_in_at === null) return "BOTH";
+  const isFullySitedIn = p.all_site_in ?? (p.site_in_at !== null);
+  if (p.all_factory_out && !isFullySitedIn) return "IN";
+  if (!p.all_factory_out && !isFullySitedIn) return "BOTH";
   return null;
 }
 
@@ -82,6 +99,7 @@ export function ScanPackProjectCard({
   item,
   onScanPress,
   onDownloadPress,
+  onVerifyPress,
 }: ScanPackProjectCardProps) {
   const statusInfo = getProjectStatusBadge(item);
   const pct = item.completionPercentage;
@@ -113,7 +131,21 @@ export function ScanPackProjectCard({
           }
     : null;
 
-  const hasSiteItems = item.site_in_at !== null;
+  const readyLocations = (item.locations || [])
+    .filter((loc) => loc.all_site_in || loc.site_in_boxes > 0)
+    .map((loc) => loc.location_name);
+
+  const hasSiteItems = Boolean(
+    item.has_site_items ||
+      readyLocations.length > 0 ||
+      item.any_site_in ||
+      item.site_in_at !== null
+  );
+
+  const verifyBtnLabel =
+    item.is_multi_location && readyLocations.length === 1
+      ? `Site Verify (${readyLocations[0]})`
+      : "Site Verify";
 
   return (
     <TouchableOpacity
@@ -141,6 +173,59 @@ export function ScanPackProjectCard({
           <Text style={styles.cardTitle}>
             {item.projectName}
           </Text>
+
+          {item.is_multi_location && item.locations && item.locations.length > 0 && (
+            <View style={styles.locationBadgesRow}>
+              {item.locations.map((loc) => {
+                const isAllIn = loc.all_site_in;
+                const hasSome = loc.site_in_boxes > 0;
+                return (
+                  <View
+                    key={loc.location_name}
+                    style={[
+                      styles.locPill,
+                      isAllIn
+                        ? styles.locPillSuccess
+                        : hasSome
+                          ? styles.locPillWarning
+                          : styles.locPillNeutral,
+                    ]}
+                  >
+                    <MapPin
+                      size={9}
+                      color={
+                        isAllIn
+                          ? "#047857"
+                          : hasSome
+                            ? "#B45309"
+                            : "#64748B"
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.locPillText,
+                        {
+                          color: isAllIn
+                            ? "#047857"
+                            : hasSome
+                              ? "#B45309"
+                              : "#64748B",
+                        },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {loc.location_name}
+                      {isAllIn
+                        ? " • At Site"
+                        : hasSome
+                          ? ` • ${loc.site_in_boxes}/${loc.total_boxes}`
+                          : " • In Transit"}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {/* Chevron Circle Action */}
@@ -224,19 +309,26 @@ export function ScanPackProjectCard({
               style={styles.verifyBtn}
               onPress={(e) => {
                 e.stopPropagation?.();
-                router.push({
-                  pathname: "/boxSiteInScreen",
-                  params: {
-                    project_id: String(item.id),
-                    vendor_id: String(item.vendor_id),
-                    project_name: item.projectName,
-                  },
-                });
+                if (onVerifyPress) {
+                  onVerifyPress(item);
+                } else {
+                  router.push({
+                    pathname: "/boxSiteInScreen",
+                    params: {
+                      project_id: String(item.id),
+                      vendor_id: String(item.vendor_id),
+                      project_name: item.projectName,
+                      ...(readyLocations.length === 1
+                        ? { location_name: readyLocations[0] }
+                        : {}),
+                    },
+                  });
+                }
               }}
               activeOpacity={0.82}
             >
               <MapPin size={13} color="#FFFFFF" />
-              <Text style={styles.verifyBtnText}>Site Verify</Text>
+              <Text style={styles.verifyBtnText}>{verifyBtnLabel}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -421,5 +513,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     color: "#FFFFFF",
+  },
+  locationBadgesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 5,
+    marginTop: 4,
+  },
+  locPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  locPillSuccess: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  locPillWarning: {
+    backgroundColor: "#FFFBEB",
+    borderColor: "#FDE68A",
+  },
+  locPillNeutral: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#E2E8F0",
+  },
+  locPillText: {
+    fontSize: 10,
+    fontWeight: "600",
   },
 });

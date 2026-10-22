@@ -13,10 +13,11 @@ import {
   ArrowLeft,
   CheckCircle2,
   ClipboardCheck,
+  MapPin,
   Package,
   ScanLine,
 } from "lucide-react-native";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   RefreshControl,
@@ -31,13 +32,23 @@ export default function BoxSiteInScreen() {
 
   const { showToast } = useToast();
 
-  const { project_id, vendor_id, project_name } = useLocalSearchParams<{
+  const { project_id, vendor_id, project_name, location_name } = useLocalSearchParams<{
     project_id: string;
     vendor_id: string;
     project_name: string;
+    location_name?: string;
   }>();
 
   const [boxes, setBoxes] = useState<BoxSiteInItem[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<string>(
+    location_name || "all"
+  );
+
+  useEffect(() => {
+    if (location_name) {
+      setSelectedLocation(location_name);
+    }
+  }, [location_name]);
 
   const [loading, setLoading] = useState(true);
 
@@ -76,6 +87,8 @@ export default function BoxSiteInScreen() {
 
                 box_status: box.box_status,
 
+                location_name: box.location_name ?? null,
+
                 site_in_at: box.site_in_at,
 
                 factory_out_at: box.factory_out_at,
@@ -111,6 +124,8 @@ export default function BoxSiteInScreen() {
                 box_name: box.box_name,
 
                 box_status: box.box_status,
+
+                location_name: box.location_name ?? null,
 
                 site_in_at: box.site_in_at,
 
@@ -212,6 +227,26 @@ export default function BoxSiteInScreen() {
     });
   };
 
+  const availableLocations = useMemo(() => {
+    return Array.from(
+      new Set(
+        boxes
+          .map((b) => b.location_name?.trim())
+          .filter((l): l is string => Boolean(l))
+      )
+    );
+  }, [boxes]);
+
+  const displayedBoxes = useMemo(() => {
+    if (!selectedLocation || selectedLocation === "all") {
+      return boxes;
+    }
+    const norm = selectedLocation.toLocaleLowerCase();
+    return boxes.filter((b) =>
+      b.location_name?.toLocaleLowerCase().includes(norm)
+    );
+  }, [boxes, selectedLocation]);
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -225,12 +260,64 @@ export default function BoxSiteInScreen() {
       {/* Navbar */}
       <Navbar
         title={String(project_name ?? "Project")}
-        subtitle="Boxes at Site"
+        subtitle={
+          selectedLocation && selectedLocation !== "all"
+            ? `Boxes at Site • ${selectedLocation}`
+            : "Boxes at Site"
+        }
         showBack={true}
       />
 
+      {/* Location Filter Chips when multi-location boxes exist */}
+      {availableLocations.length > 1 && (
+        <View style={styles.locationFilterWrap}>
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={["all", ...availableLocations]}
+            keyExtractor={(item) => item}
+            contentContainerStyle={styles.locationChipsList}
+            renderItem={({ item: loc }) => {
+              const isAll = loc === "all";
+              const isActive =
+                selectedLocation.toLocaleLowerCase() === loc.toLocaleLowerCase();
+              const count = isAll
+                ? boxes.length
+                : boxes.filter((b) =>
+                    b.location_name
+                      ?.toLocaleLowerCase()
+                      .includes(loc.toLocaleLowerCase())
+                  ).length;
+              return (
+                <TouchableOpacity
+                  style={[
+                    styles.locationChip,
+                    isActive && styles.locationChipActive,
+                  ]}
+                  onPress={() => setSelectedLocation(loc)}
+                  activeOpacity={0.8}
+                >
+                  <MapPin
+                    size={11}
+                    color={isActive ? "#FFFFFF" : "#6366F1"}
+                  />
+                  <Text
+                    style={[
+                      styles.locationChipText,
+                      isActive && styles.locationChipTextActive,
+                    ]}
+                  >
+                    {isAll ? "All" : loc} ({count})
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </View>
+      )}
+
       <FlatList
-        data={boxes}
+        data={displayedBoxes}
         keyExtractor={(item) => String(item.id)}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
@@ -241,7 +328,11 @@ export default function BoxSiteInScreen() {
           <View style={styles.emptyState}>
             <Package size={48} color="#D1D5DB" />
 
-            <Text style={styles.emptyTitle}>No boxes at site yet</Text>
+            <Text style={styles.emptyTitle}>
+              {selectedLocation !== "all"
+                ? `No boxes at site for ${selectedLocation}`
+                : "No boxes at site yet"}
+            </Text>
 
             <Text style={styles.emptySubtitle}>
               Boxes will appear here once marked as site in
@@ -270,6 +361,45 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+
+  locationFilterWrap: {
+    backgroundColor: "white",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    paddingVertical: 10,
+  },
+
+  locationChipsList: {
+    paddingHorizontal: 14,
+    gap: 8,
+  },
+
+  locationChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+
+  locationChipActive: {
+    backgroundColor: "#6366F1",
+    borderColor: "#4F46E5",
+  },
+
+  locationChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#475569",
+  },
+
+  locationChipTextActive: {
+    color: "#FFFFFF",
   },
 
   listContent: {

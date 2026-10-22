@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Clock,
+  MapPin,
   PackageCheck,
   ScanLine,
 } from "lucide-react-native";
@@ -13,6 +14,7 @@ export interface BoxSiteInItem {
   id: number;
   box_name: string;
   box_status: string;
+  location_name?: string | null;
 
   site_in_at: string | null;
   factory_out_at: string | null;
@@ -78,9 +80,19 @@ export function BoxSiteInCard({
         </View>
 
         <View style={styles.cardTitleBlock}>
-          <Text style={styles.cardTitle}>
-            {item.box_name}
-          </Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.cardTitle}>
+              {item.box_name}
+            </Text>
+            {Boolean(item.location_name) && (
+              <View style={styles.locationBadge}>
+                <MapPin size={10} color="#4338CA" />
+                <Text style={styles.locationBadgeText} numberOfLines={1}>
+                  {item.location_name}
+                </Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.cardSubTitle} numberOfLines={1}>
             {allReceived ? "Fully Verified at Site" : "Site Verification Pending"}
           </Text>
@@ -258,10 +270,32 @@ const styles = StyleSheet.create({
   cardTitleBlock: {
     flex: 1,
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
   cardTitle: {
     fontSize: 14,
     fontWeight: "700",
     color: "#0F172A",
+  },
+  locationBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+  },
+  locationBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#4338CA",
   },
   cardSubTitle: {
     fontSize: 12,
