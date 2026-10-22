@@ -10,12 +10,15 @@ import {
   useRouter,
 } from "expo-router";
 import {
+  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
   ClipboardCheck,
   Package,
+  RotateCcw,
   Save,
   Search,
+  SquarePen,
 } from "lucide-react-native";
 import {
   useCallback,
@@ -211,6 +214,87 @@ export default function ManualSiteInItemsScreen() {
     setSearch,
   ] =
     useState("");
+
+  const [
+    editMode,
+    setEditMode,
+  ] =
+    useState<
+      Record<
+        number,
+        boolean
+      >
+    >({});
+
+  const toggleEditTotal = (
+    item: ManualSiteInItem
+  ) => {
+    setEditMode(
+      (prev) => ({
+        ...prev,
+        [item.mapping_id]:
+          true,
+      })
+    );
+    setQtyInputs(
+      (prev) => ({
+        ...prev,
+        [item.mapping_id]:
+          String(
+            Number(
+              item.received_qty ??
+                0
+            )
+          ),
+      })
+    );
+  };
+
+  const cancelEditTotal = (
+    item: ManualSiteInItem
+  ) => {
+    setEditMode(
+      (prev) => ({
+        ...prev,
+        [item.mapping_id]:
+          false,
+      })
+    );
+    setQtyInputs(
+      (prev) => ({
+        ...prev,
+        [item.mapping_id]:
+          String(
+            item.pending_qty >
+              0
+              ? item.pending_qty
+              : item.packed_qty
+          ),
+      })
+    );
+  };
+
+  const switchToEditTotalWithValue = (
+    item: ManualSiteInItem,
+    targetValue: number
+  ) => {
+    setEditMode(
+      (prev) => ({
+        ...prev,
+        [item.mapping_id]:
+          true,
+      })
+    );
+    setQtyInputs(
+      (prev) => ({
+        ...prev,
+        [item.mapping_id]:
+          String(
+            targetValue
+          ),
+      })
+    );
+  };
 
   /*
   |--------------------------------------------------------------------------
@@ -454,42 +538,85 @@ export default function ManualSiteInItemsScreen() {
       ) {
         showToast(
           "error",
-          "Enter received quantity"
+          "Enter quantity"
         );
 
         return;
       }
 
-      const receivedQty =
+      const inputQty =
         Number(
           rawValue
         );
 
       if (
         !Number.isInteger(
-          receivedQty
+          inputQty
         ) ||
-        receivedQty <
+        inputQty <
           0
       ) {
         showToast(
           "error",
-          "Received quantity must be a whole number"
+          "Quantity must be a whole number greater than or equal to 0"
         );
 
         return;
       }
 
-      if (
-        receivedQty >
-        item.packed_qty
-      ) {
-        showToast(
-          "error",
-          `Received quantity cannot be greater than packed quantity (${item.packed_qty})`
+      const isEditing =
+        Boolean(
+          editMode[
+            item.mapping_id
+          ]
         );
 
-        return;
+      const isVerified =
+        item.is_verified;
+
+      const isAddMode =
+        isVerified &&
+        !isEditing &&
+        !item.is_fully_received;
+
+      if (
+        isAddMode
+      ) {
+        if (
+          inputQty ===
+          0
+        ) {
+          showToast(
+            "error",
+            "Enter quantity to receive (at least 1)"
+          );
+
+          return;
+        }
+
+        if (
+          inputQty >
+          item.pending_qty
+        ) {
+          showToast(
+            "error",
+            `Quantity (${inputQty}) exceeds pending units (${item.pending_qty}). Use 'Edit Total' if you want to set total received.`
+          );
+
+          return;
+        }
+      } else {
+        if (
+          inputQty >
+          item.packed_qty
+        ) {
+          showToast(
+            "error",
+            `Received quantity cannot be greater than packed quantity (${item.packed_qty})`
+          );
+
+          return;
+        }
       }
 
       try {
@@ -511,7 +638,12 @@ export default function ManualSiteInItemsScreen() {
                 userId,
 
               received_qty:
-                receivedQty,
+                inputQty,
+
+              mode:
+                isAddMode
+                  ? "add"
+                  : "set",
             }
           );
 
@@ -520,6 +652,16 @@ export default function ManualSiteInItemsScreen() {
           response.data
             ?.message ??
             "Hardware item verified"
+        );
+
+        setEditMode(
+          (
+            prev
+          ) => ({
+            ...prev,
+            [item.mapping_id]:
+              false,
+          })
         );
 
         await fetchItems();
@@ -880,6 +1022,30 @@ export default function ManualSiteInItemsScreen() {
         renderItem={({
           item,
         }) => {
+          const isEditing =
+            Boolean(
+              editMode[
+                item.mapping_id
+              ]
+            );
+
+          const isVerified =
+            item.is_verified;
+
+          const isComplete =
+            item.is_fully_received;
+
+          const savedReceived =
+            Number(
+              item.received_qty ??
+                0
+            );
+
+          const isAddMode =
+            isVerified &&
+            !isEditing &&
+            !isComplete;
+
           const inputValue =
             qtyInputs[
               item.mapping_id
@@ -894,28 +1060,48 @@ export default function ManualSiteInItemsScreen() {
                   inputValue
                 );
 
-          const inputPending =
-            Math.max(
-              item.packed_qty -
-                (
-                  Number.isFinite(
-                    inputNumber
-                  )
-                    ? inputNumber
-                    : 0
-                ),
-              0
-            );
-
           const saving =
             savingId ===
             item.mapping_id;
 
-          const savedReceived =
-            Number(
-              item.received_qty ??
+          let totalAfterSave = 0;
+          let pendingAfterSave = 0;
+          let exceedsAllowed = false;
+
+          if (isAddMode) {
+            totalAfterSave =
+              savedReceived +
+              (Number.isFinite(
+                inputNumber
+              )
+                ? inputNumber
+                : 0);
+            pendingAfterSave =
+              Math.max(
+                item.packed_qty -
+                  totalAfterSave,
                 0
-            );
+              );
+            exceedsAllowed =
+              inputNumber >
+              item.pending_qty;
+          } else {
+            totalAfterSave =
+              Number.isFinite(
+                inputNumber
+              )
+                ? inputNumber
+                : 0;
+            pendingAfterSave =
+              Math.max(
+                item.packed_qty -
+                  totalAfterSave,
+                0
+              );
+            exceedsAllowed =
+              inputNumber >
+              item.packed_qty;
+          }
 
           return (
             <View
@@ -1158,136 +1344,505 @@ export default function ManualSiteInItemsScreen() {
                 </View>
               </View>
 
-              {/* Verify quantity */}
-              <View
-                style={
-                  styles.verifySection
-                }
-              >
+              {/* If complete and not editing, show elegant complete banner */}
+              {isComplete &&
+              !isEditing ? (
                 <View
-                  style={{
-                    flex: 1,
-                  }}
+                  style={
+                    styles.completeBanner
+                  }
                 >
-                  <Text
+                  <View
                     style={
-                      styles.inputLabel
+                      styles.completeBannerContent
                     }
                   >
-                    Received
-                    Quantity
-                  </Text>
+                    <CheckCircle2
+                      size={
+                        18
+                      }
+                      color="#059669"
+                    />
 
-                  <Text
+                    <View
+                      style={{
+                        flex: 1,
+                      }}
+                    >
+                      <Text
+                        style={
+                          styles.completeBannerTitle
+                        }
+                      >
+                        Fully
+                        Verified
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.completeBannerSubtitle
+                        }
+                      >
+                        All{" "}
+                        {
+                          item.packed_qty
+                        }{" "}
+                        units
+                        received
+                        at site.
+                      </Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
                     style={
-                      styles.inputHint
+                      styles.editTotalBtn
+                    }
+                    onPress={() =>
+                      toggleEditTotal(
+                        item
+                      )
+                    }
+                    activeOpacity={
+                      0.8
                     }
                   >
-                    Max{" "}
-                    {
-                      item.packed_qty
-                    }
-                    . Decrease
-                    this if fewer
-                    units arrived.
-                  </Text>
+                    <SquarePen
+                      size={
+                        13
+                      }
+                      color="#4B5563"
+                    />
+
+                    <Text
+                      style={
+                        styles.editTotalBtnText
+                      }
+                    >
+                      Edit
+                      Total
+                    </Text>
+                  </TouchableOpacity>
                 </View>
+              ) : (
+                <>
+                  {/* Verify section input */}
+                  <View
+                    style={
+                      styles.verifySection
+                    }
+                  >
+                    <View
+                      style={{
+                        flex: 1,
+                      }}
+                    >
+                      <View
+                        style={
+                          styles.labelRow
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.inputLabel
+                          }
+                        >
+                          {isAddMode
+                            ? "Receiving Quantity"
+                            : isEditing
+                              ? "Edit Total Received"
+                              : "Received Quantity"}
+                        </Text>
 
-                <TextInput
-                  value={
-                    inputValue
-                  }
-                  onChangeText={(
-                    value
-                  ) =>
-                    updateQtyInput(
-                      item.mapping_id,
-                      value
-                    )
-                  }
-                  keyboardType="number-pad"
-                  selectTextOnFocus={
-                    true
-                  }
-                  maxLength={
-                    6
-                  }
-                  style={
-                    styles.qtyInput
-                  }
-                />
-              </View>
+                        {isEditing && (
+                          <View
+                            style={
+                              styles.editingTag
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.editingTagText
+                              }
+                            >
+                              Total
+                              Override
+                            </Text>
+                          </View>
+                        )}
+                      </View>
 
-              {/* Preview */}
-              <View
-                style={
-                  styles.previewRow
-                }
-              >
-                <Text
-                  style={
-                    styles.previewText
-                  }
-                >
-                  After save:
-                  received{" "}
-                  {Number.isFinite(
-                    inputNumber
-                  )
-                    ? inputNumber
-                    : 0}
-                  , pending{" "}
-                  {
-                    inputPending
-                  }
-                </Text>
-              </View>
+                      <Text
+                        style={
+                          styles.inputHint
+                        }
+                      >
+                        {isAddMode
+                          ? `Max ${item.pending_qty} remaining units. (${savedReceived} already saved)`
+                          : isEditing
+                            ? `Max ${item.packed_qty}. Set absolute total verified units.`
+                            : `Max ${item.packed_qty}. Decrease this if fewer units arrived.`}
+                      </Text>
+                    </View>
 
-              {/* Save */}
-              <TouchableOpacity
-                style={[
-                  styles.saveBtn,
-                  saving &&
-                    styles.saveBtnDisabled,
-                ]}
-                onPress={() =>
-                  saveItem(
-                    item
-                  )
-                }
-                disabled={
-                  saving
-                }
-                activeOpacity={
-                  0.85
-                }
-              >
-                {saving
-                  ? (
-                      <ActivityIndicator
-                        size="small"
-                        color="white"
-                      />
-                    )
-                  : (
-                      <Save
-                        size={15}
-                        color="white"
-                      />
+                    <TextInput
+                      value={
+                        inputValue
+                      }
+                      onChangeText={(
+                        value
+                      ) =>
+                        updateQtyInput(
+                          item.mapping_id,
+                          value
+                        )
+                      }
+                      keyboardType="number-pad"
+                      selectTextOnFocus={
+                        true
+                      }
+                      maxLength={
+                        6
+                      }
+                      style={[
+                        styles.qtyInput,
+                        exceedsAllowed &&
+                          styles.qtyInputError,
+                      ]}
+                    />
+                  </View>
+
+                  {/* Preview */}
+                  <View
+                    style={[
+                      styles.previewRow,
+                      exceedsAllowed &&
+                        styles.previewRowWarning,
+                    ]}
+                  >
+                    {isAddMode &&
+                    exceedsAllowed ? (
+                      <View
+                        style={
+                          styles.previewWarningBlock
+                        }
+                      >
+                        <View
+                          style={
+                            styles.previewWarningTextRow
+                          }
+                        >
+                          <AlertTriangle
+                            size={
+                              13
+                            }
+                            color="#D97706"
+                          />
+
+                          <Text
+                            style={
+                              styles.previewWarningText
+                            }
+                          >
+                            {
+                              inputNumber
+                            }{" "}
+                            exceeds
+                            pending
+                            (
+                            {
+                              item.pending_qty
+                            }
+                            ).
+                          </Text>
+                        </View>
+
+                        {inputNumber <=
+                          item.packed_qty && (
+                          <TouchableOpacity
+                            onPress={() =>
+                              switchToEditTotalWithValue(
+                                item,
+                                inputNumber
+                              )
+                            }
+                            style={
+                              styles.setTotalSuggestionBtn
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.setTotalSuggestionText
+                              }
+                            >
+                              Set
+                              Total
+                              to{" "}
+                              {
+                                inputNumber
+                              }{" "}
+                              instead
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ) : exceedsAllowed ? (
+                      <Text
+                        style={
+                          styles.previewWarningText
+                        }
+                      >
+                        ⚠️
+                        Quantity
+                        cannot
+                        exceed
+                        packed
+                        units
+                        (
+                        {
+                          item.packed_qty
+                        }
+                        )
+                      </Text>
+                    ) : isAddMode ? (
+                      <Text
+                        style={
+                          styles.previewText
+                        }
+                      >
+                        Saved:{" "}
+                        <Text
+                          style={
+                            styles.previewHighlight
+                          }
+                        >
+                          {
+                            savedReceived
+                          }
+                        </Text>{" "}
+                        +
+                        Receiving:{" "}
+                        <Text
+                          style={
+                            styles.previewHighlight
+                          }
+                        >
+                          {
+                            inputNumber
+                          }
+                        </Text>{" "}
+                        →
+                        Total:{" "}
+                        <Text
+                          style={
+                            styles.previewHighlightTotal
+                          }
+                        >
+                          {
+                            totalAfterSave
+                          }
+                        </Text>{" "}
+                        (
+                        {
+                          pendingAfterSave
+                        }{" "}
+                        pending)
+                      </Text>
+                    ) : isEditing ? (
+                      <Text
+                        style={
+                          styles.previewText
+                        }
+                      >
+                        New
+                        Total:{" "}
+                        <Text
+                          style={
+                            styles.previewHighlightTotal
+                          }
+                        >
+                          {
+                            totalAfterSave
+                          }
+                        </Text>{" "}
+                        (
+                        {
+                          pendingAfterSave
+                        }{" "}
+                        pending)
+                      </Text>
+                    ) : (
+                      <Text
+                        style={
+                          styles.previewText
+                        }
+                      >
+                        After
+                        save:
+                        received{" "}
+                        <Text
+                          style={
+                            styles.previewHighlightTotal
+                          }
+                        >
+                          {
+                            totalAfterSave
+                          }
+                        </Text>
+                        ,
+                        pending{" "}
+                        {
+                          pendingAfterSave
+                        }
+                      </Text>
                     )}
+                  </View>
 
-                <Text
-                  style={
-                    styles.saveBtnText
-                  }
-                >
-                  {saving
-                    ? "Saving..."
-                    : item.is_verified
-                      ? "Update Verification"
-                      : "Verify Item"}
-                </Text>
-              </TouchableOpacity>
+                  {/* Save */}
+                  <TouchableOpacity
+                    style={[
+                      styles.saveBtn,
+                      (saving ||
+                        exceedsAllowed) &&
+                        styles.saveBtnDisabled,
+                    ]}
+                    onPress={() =>
+                      saveItem(
+                        item
+                      )
+                    }
+                    disabled={
+                      saving ||
+                      exceedsAllowed
+                    }
+                    activeOpacity={
+                      0.85
+                    }
+                  >
+                    {saving
+                      ? (
+                          <ActivityIndicator
+                            size="small"
+                            color="white"
+                          />
+                        )
+                      : (
+                          <Save
+                            size={
+                              15
+                            }
+                            color="white"
+                          />
+                        )}
+
+                    <Text
+                      style={
+                        styles.saveBtnText
+                      }
+                    >
+                      {saving
+                        ? "Saving..."
+                        : isAddMode
+                          ? inputNumber >
+                            0
+                            ? `Verify +${inputNumber} Units`
+                            : "Verify Remaining"
+                          : isEditing
+                            ? `Update Total (${inputNumber})`
+                            : "Verify Item"}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Mode switch links */}
+                  {isAddMode && (
+                    <TouchableOpacity
+                      onPress={() =>
+                        toggleEditTotal(
+                          item
+                        )
+                      }
+                      style={
+                        styles.switchModeBtn
+                      }
+                      activeOpacity={
+                        0.7
+                      }
+                    >
+                      <SquarePen
+                        size={
+                          12
+                        }
+                        color="#6B7280"
+                      />
+
+                      <Text
+                        style={
+                          styles.switchModeText
+                        }
+                      >
+                        Need to
+                        correct
+                        total?{" "}
+                        <Text
+                          style={
+                            styles.switchModeHighlight
+                          }
+                        >
+                          Edit
+                          Total
+                          Saved
+                          (
+                          {
+                            savedReceived
+                          }
+                          )
+                        </Text>
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {isEditing && (
+                    <TouchableOpacity
+                      onPress={() =>
+                        cancelEditTotal(
+                          item
+                        )
+                      }
+                      style={
+                        styles.switchModeBtn
+                      }
+                      activeOpacity={
+                        0.7
+                      }
+                    >
+                      <RotateCcw
+                        size={
+                          12
+                        }
+                        color="#6B7280"
+                      />
+
+                      <Text
+                        style={
+                          styles.switchModeText
+                        }
+                      >
+                        Cancel ·{" "}
+                        <Text
+                          style={
+                            styles.switchModeHighlight
+                          }
+                        >
+                          Switch
+                          to
+                          Receive
+                          Remaining
+                        </Text>
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
 
               {item.site_in_at && (
                 <Text
@@ -1832,6 +2387,207 @@ const styles =
         "white",
       fontWeight:
         "800",
+    },
+
+    labelRow: {
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      gap: 6,
+    },
+
+    editingTag: {
+      backgroundColor:
+        "#FEF3C7",
+      paddingHorizontal:
+        6,
+      paddingVertical:
+        1,
+      borderRadius:
+        4,
+      borderWidth: 1,
+      borderColor:
+        "#FCD34D",
+    },
+
+    editingTagText: {
+      fontSize: 8,
+      fontWeight:
+        "700",
+      color:
+        "#92400E",
+    },
+
+    qtyInputError: {
+      borderColor:
+        "#F59E0B",
+      backgroundColor:
+        "#FFFBEB",
+      color:
+        "#B45309",
+    },
+
+    previewRowWarning: {
+      backgroundColor:
+        "#FFFBEB",
+      borderWidth: 1,
+      borderColor:
+        "#FDE68A",
+    },
+
+    previewHighlight: {
+      fontWeight:
+        "800",
+      color:
+        "#4B5563",
+    },
+
+    previewHighlightTotal: {
+      fontWeight:
+        "900",
+      color:
+        "#7C3AED",
+    },
+
+    previewWarningBlock: {
+      gap: 4,
+    },
+
+    previewWarningTextRow: {
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      gap: 5,
+    },
+
+    previewWarningText: {
+      fontSize: 10,
+      color:
+        "#B45309",
+      fontWeight:
+        "700",
+    },
+
+    setTotalSuggestionBtn: {
+      alignSelf:
+        "flex-start",
+      backgroundColor:
+        "#FEF3C7",
+      paddingHorizontal:
+        8,
+      paddingVertical:
+        3,
+      borderRadius:
+        5,
+      marginTop: 2,
+    },
+
+    setTotalSuggestionText: {
+      fontSize: 10,
+      fontWeight:
+        "800",
+      color:
+        "#92400E",
+      textDecorationLine:
+        "underline",
+    },
+
+    switchModeBtn: {
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
+      gap: 5,
+      paddingVertical:
+        4,
+    },
+
+    switchModeText: {
+      fontSize: 10,
+      color:
+        "#6B7280",
+    },
+
+    switchModeHighlight: {
+      fontWeight:
+        "700",
+      color:
+        "#7C3AED",
+      textDecorationLine:
+        "underline",
+    },
+
+    completeBanner: {
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "space-between",
+      backgroundColor:
+        "#ECFDF5",
+      borderWidth: 1,
+      borderColor:
+        "#A7F3D0",
+      borderRadius:
+        10,
+      padding: 10,
+      gap: 8,
+    },
+
+    completeBannerContent: {
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      gap: 8,
+      flex: 1,
+    },
+
+    completeBannerTitle: {
+      fontSize: 11,
+      fontWeight:
+        "800",
+      color:
+        "#065F46",
+    },
+
+    completeBannerSubtitle: {
+      fontSize: 9,
+      color:
+        "#047857",
+      marginTop: 1,
+    },
+
+    editTotalBtn: {
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      gap: 4,
+      backgroundColor:
+        "white",
+      paddingHorizontal:
+        9,
+      paddingVertical:
+        5,
+      borderRadius:
+        6,
+      borderWidth: 1,
+      borderColor:
+        "#D1D5DB",
+    },
+
+    editTotalBtnText: {
+      fontSize: 10,
+      fontWeight:
+        "700",
+      color:
+        "#374151",
     },
 
     verifiedAt: {
