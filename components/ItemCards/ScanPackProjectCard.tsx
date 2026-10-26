@@ -11,7 +11,7 @@ import {
   ScanLine,
 } from "lucide-react-native";
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export interface LocationSiteStatus {
   location_name: string;
@@ -101,6 +101,7 @@ export function ScanPackProjectCard({
   onDownloadPress,
   onVerifyPress,
 }: ScanPackProjectCardProps) {
+  const [locationsModalVisible, setLocationsModalVisible] = React.useState(false);
   const statusInfo = getProjectStatusBadge(item);
   const pct = item.completionPercentage;
   const scanMode = getScanMode(item);
@@ -146,6 +147,9 @@ export function ScanPackProjectCard({
     item.is_multi_location && readyLocations.length === 1
       ? `Site Verify (${readyLocations[0]})`
       : "Site Verify";
+  const locations = item.locations || [];
+  const previewLocations = locations.slice(0, 1);
+  const hiddenLocationCount = Math.max(0, locations.length - previewLocations.length);
 
   return (
     <TouchableOpacity
@@ -176,54 +180,64 @@ export function ScanPackProjectCard({
 
           {item.is_multi_location && item.locations && item.locations.length > 0 && (
             <View style={styles.locationBadgesRow}>
-              {item.locations.map((loc) => {
+              {previewLocations.map((loc) => {
                 const isAllIn = loc.all_site_in;
-                const hasSome = loc.site_in_boxes > 0;
+                const hasSomeSite = loc.site_in_boxes > 0;
+                const isAllDispatched = loc.all_factory_out;
+                const hasSomeDispatched = loc.factory_out_boxes > 0;
+                const locationState = isAllIn
+                  ? { label: "At Site", style: styles.locPillSuccess, color: "#047857" }
+                  : hasSomeSite
+                    ? {
+                        label: `${loc.site_in_boxes}/${loc.total_boxes} At Site`,
+                        style: styles.locPillWarning,
+                        color: "#B45309",
+                      }
+                  : isAllDispatched
+                    ? { label: "Dispatched", style: styles.locPillDispatched, color: "#1D4ED8" }
+                    : hasSomeDispatched
+                      ? {
+                          label: `${loc.factory_out_boxes}/${loc.total_boxes} Dispatched`,
+                          style: styles.locPillWarning,
+                          color: "#B45309",
+                        }
+                      : { label: "Not Dispatched", style: styles.locPillNeutral, color: "#64748B" };
                 return (
                   <View
                     key={loc.location_name}
                     style={[
                       styles.locPill,
-                      isAllIn
-                        ? styles.locPillSuccess
-                        : hasSome
-                          ? styles.locPillWarning
-                          : styles.locPillNeutral,
+                      locationState.style,
                     ]}
                   >
                     <MapPin
                       size={9}
-                      color={
-                        isAllIn
-                          ? "#047857"
-                          : hasSome
-                            ? "#B45309"
-                            : "#64748B"
-                      }
+                      color={locationState.color}
                     />
                     <Text
                       style={[
                         styles.locPillText,
-                        {
-                          color: isAllIn
-                            ? "#047857"
-                            : hasSome
-                              ? "#B45309"
-                              : "#64748B",
-                        },
+                        { color: locationState.color },
                       ]}
                       numberOfLines={1}
                     >
-                      {loc.location_name}
-                      {isAllIn
-                        ? " • At Site"
-                        : hasSome
-                          ? ` • ${loc.site_in_boxes}/${loc.total_boxes}`
-                          : " • In Transit"}
+                      {loc.location_name} • {locationState.label}
                     </Text>
                   </View>
                 );
               })}
+              {hiddenLocationCount > 0 && (
+                <TouchableOpacity
+                  style={styles.moreLocationsPill}
+                  onPress={(event) => {
+                    event.stopPropagation?.();
+                    setLocationsModalVisible(true);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.moreLocationsText}>+{hiddenLocationCount} more</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
@@ -345,6 +359,48 @@ export function ScanPackProjectCard({
           </Text>
         </View>
       </View>
+
+      <Modal
+        visible={locationsModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setLocationsModalVisible(false)}
+      >
+        <View style={styles.locationsModalBackdrop}>
+          <View style={styles.locationsModalCard}>
+            <View style={styles.locationsModalHeader}>
+              <View>
+                <Text style={styles.locationsModalTitle}>Project locations</Text>
+                <Text style={styles.locationsModalSubtitle}>{item.projectName}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.locationsModalClose}
+                onPress={() => setLocationsModalVisible(false)}
+              >
+                <Text style={styles.locationsModalCloseText}>×</Text>
+              </TouchableOpacity>
+            </View>
+            {locations.map((loc) => {
+              const label = loc.all_site_in
+                ? "At Site"
+                : loc.site_in_boxes > 0
+                  ? `${loc.site_in_boxes}/${loc.total_boxes} At Site`
+                  : loc.all_factory_out
+                    ? "Dispatched"
+                    : loc.factory_out_boxes > 0
+                      ? `${loc.factory_out_boxes}/${loc.total_boxes} Dispatched`
+                      : "Not Dispatched";
+              return (
+                <View key={loc.location_name} style={styles.locationModalRow}>
+                  <MapPin size={15} color="#64748B" />
+                  <Text style={styles.locationModalName}>{loc.location_name}</Text>
+                  <Text style={styles.locationModalStatus}>{label}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
     </TouchableOpacity>
   );
 }
@@ -516,14 +572,29 @@ const styles = StyleSheet.create({
   },
   locationBadgesRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: 5,
     marginTop: 4,
+    paddingRight: 4,
+    alignItems: "center",
+  },
+  moreLocationsPill: {
+    backgroundColor: "#F1F5F9",
+    borderColor: "#CBD5E1",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  moreLocationsText: {
+    color: "#475569",
+    fontSize: 10,
+    fontWeight: "800",
   },
   locPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
+    maxWidth: 180,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -537,12 +608,77 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFBEB",
     borderColor: "#FDE68A",
   },
+  locPillDispatched: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
+  },
   locPillNeutral: {
     backgroundColor: "#F8FAFC",
     borderColor: "#E2E8F0",
   },
   locPillText: {
+    flexShrink: 1,
     fontSize: 10,
     fontWeight: "600",
+  },
+  locationsModalBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(15, 23, 42, 0.4)",
+  },
+  locationsModalCard: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 18,
+    gap: 10,
+  },
+  locationsModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  locationsModalTitle: {
+    color: "#0F172A",
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  locationsModalSubtitle: {
+    color: "#64748B",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  locationsModalClose: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  locationsModalCloseText: {
+    color: "#475569",
+    fontSize: 22,
+    lineHeight: 24,
+  },
+  locationModalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    paddingVertical: 9,
+  },
+  locationModalName: {
+    flex: 1,
+    color: "#0F172A",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  locationModalStatus: {
+    color: "#475569",
+    fontSize: 12,
+    fontWeight: "700",
   },
 });
