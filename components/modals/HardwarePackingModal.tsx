@@ -449,6 +449,10 @@ const animateButton = (scale: Animated.Value) => {
             }
             renderItem={({ item }) => {
                 const isFullyPacked = item.packed_qty >= item.total_qty;
+                const isPendingQc =
+                  !qualityMachineId &&
+                  Boolean(item.is_qc_routed) &&
+                  (!item.qc_passed_qty || item.qc_passed_qty <= item.packed_qty);
                 const currentQty = getItemInputQty(item.id);
 
                 return (
@@ -461,6 +465,11 @@ const animateButton = (scale: Animated.Value) => {
                         <View style={styles.badgeSuccess}>
                           <CheckCircle2 size={12} color="#047857" />
                           <Text style={styles.badgeSuccessText}>{qualityMachineId ? "Checked" : "Packed"}</Text>
+                        </View>
+                      ) : isPendingQc ? (
+                        <View style={styles.badgeWarn}>
+                          <Clock3 size={12} color="#B45309" />
+                          <Text style={styles.badgeWarnText}>Pending QC</Text>
                         </View>
                       ) : item.packed_qty > 0 ? (
                         <View style={styles.badgeWarn}>
@@ -482,76 +491,82 @@ const animateButton = (scale: Animated.Value) => {
                     
                     <View style={styles.statsRow}>
                       <Text style={styles.statText}>Total: {item.total_qty}</Text>
-                      {!qualityMachineId && item.qc_passed_qty > 0 && (
-                        <Text style={styles.statText}>QC Passed: {item.qc_passed_qty}</Text>
+                      {!qualityMachineId && item.is_qc_routed && (
+                        <Text style={styles.statText}>QC Passed: {item.qc_passed_qty || 0}</Text>
                       )}
                       <Text style={styles.statText}>{qualityMachineId ? "Checked:" : "Packed:"} {item.packed_qty}</Text>
-                      {(!qualityMachineId && item.qc_passed_qty > 0) || qualityMachineId ? (
-                        <Text style={styles.statTextWarn}>{qualityMachineId ? "Pending:" : "Ready:"} {item.pending_qty}</Text>
-                      ) : null}
+                      <Text style={styles.statTextWarn}>{qualityMachineId ? "Pending:" : "Ready:"} {item.pending_qty}</Text>
                     </View>
 
                     {!isFullyPacked && (
-                      <View style={styles.stepperRow}>
-<Animated.View
-  style={{
-    transform: [{ scale: minusScale }],
-  }}
->
-  <TouchableOpacity
-    style={styles.stepBtn}
-    onPress={() => {
-      animateButton(minusScale);
-      handleQtyChange(
-        item.id,
-        currentQty - 1,
-        item.pending_qty
-      );
-    }}
-    disabled={currentQty <= 0}
-    activeOpacity={1}
-  >
-    <Minus size={16} color="#111827" />
-  </TouchableOpacity>
-</Animated.View>
-                        <TextInput
-                          value={String(currentQty)}
-                          onChangeText={(v) => handleQtyChange(item.id, parseInt(v) || 0, item.pending_qty)}
-                          keyboardType="numeric"
-                          style={styles.qtyInput}
-                        />
-<Animated.View
-  style={{
-    transform: [{ scale: plusScale }],
-  }}
->
-  <TouchableOpacity
-    style={styles.stepBtn}
-    onPress={() => {
-      animateButton(plusScale);
-      handleQtyChange(
-        item.id,
-        currentQty + 1,
-        item.pending_qty
-      );
-    }}
-    disabled={currentQty >= item.pending_qty}
-    activeOpacity={1}
-  >
-   
-    <Plus size={16} color="#111827" />
-  </TouchableOpacity>
-</Animated.View>
-                        
-                        {item.pending_qty > 0 && (
-                          <TouchableOpacity
-                            style={styles.maxBtn}
-                            onPress={() => handleQtyChange(item.id, item.pending_qty, item.pending_qty)}
+                      !qualityMachineId && item.is_qc_routed && item.pending_qty <= 0 ? (
+                        <View style={[styles.stepperRow, { backgroundColor: "#FFFBEB", borderWidth: 1, borderColor: "#FDE68A", paddingHorizontal: 10, paddingVertical: 6 }]}>
+                          <Text style={{ fontSize: 12, color: "#B45309", fontWeight: "600" }}>
+                            Awaiting QC check ({item.qc_passed_qty || 0}/{item.total_qty} passed)
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={styles.stepperRow}>
+                          <Animated.View
+                            style={{
+                              transform: [{ scale: minusScale }],
+                            }}
                           >
-                            <Text style={styles.maxBtnText}>Max</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
+                            <TouchableOpacity
+                              style={styles.stepBtn}
+                              onPress={() => {
+                                animateButton(minusScale);
+                                handleQtyChange(
+                                  item.id,
+                                  currentQty - 1,
+                                  item.pending_qty
+                                );
+                              }}
+                              disabled={currentQty <= 0}
+                              activeOpacity={1}
+                            >
+                              <Minus size={16} color="#111827" />
+                            </TouchableOpacity>
+                          </Animated.View>
+                          <TextInput
+                            value={String(currentQty)}
+                            onChangeText={(v) => handleQtyChange(item.id, parseInt(v) || 0, item.pending_qty)}
+                            keyboardType="numeric"
+                            style={styles.qtyInput}
+                          />
+                          <Animated.View
+                            style={{
+                              transform: [{ scale: plusScale }],
+                            }}
+                          >
+                            <TouchableOpacity
+                              style={styles.stepBtn}
+                              onPress={() => {
+                                animateButton(plusScale);
+                                handleQtyChange(
+                                  item.id,
+                                  currentQty + 1,
+                                  item.pending_qty
+                                );
+                              }}
+                              disabled={currentQty >= item.pending_qty}
+                              activeOpacity={1}
+                            >
+                             
+                              <Plus size={16} color="#111827" />
+                            </TouchableOpacity>
+                          </Animated.View>
+                          
+                          {item.pending_qty > 0 && (
+                            <TouchableOpacity
+                              style={styles.maxBtn}
+                              onPress={() => handleQtyChange(item.id, item.pending_qty, item.pending_qty)}
+                            >
+                              <Text style={styles.maxBtnText}>Max</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      )
                     )}
                   </View>
                 );
