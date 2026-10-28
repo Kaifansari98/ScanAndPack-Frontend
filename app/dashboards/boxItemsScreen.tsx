@@ -21,6 +21,8 @@ import { isProjectDeactivated } from "./boxes";
 import {
   AlertTriangle,
   ArrowLeft,
+  CheckCircle2,
+  Clock3,
   Download,
   ListPlus,
   Minus,
@@ -77,6 +79,9 @@ interface Box {
   machine_id: number | null;
   machine_name: string;
   project?: any;
+  packing_group_name?: string | null;
+  group_name?: string | null;
+  product_group_name?: string | null;
 }
 
 interface ScanItem {
@@ -131,6 +136,9 @@ interface ManualPackingItem {
   packed_qty: number;
   pending_qty: number;
   packing_status: "Pending" | "Partially Packed" | "Packed" | string;
+  qc_passed_qty?: number | null;
+  is_qc_routed?: boolean;
+  effective_max_qty?: number;
 }
 
 interface ManualPackingSummary {
@@ -461,6 +469,17 @@ export default function BoxItemsScreen() {
     projectData?.packing_type || box?.project?.packing_type,
   );
 
+  const boxGroupName = useMemo(() => {
+    if (packingType !== "GROUPWISE") return null;
+    const directGroup =
+      box?.packing_group_name?.trim() ||
+      box?.group_name?.trim() ||
+      box?.product_group_name?.trim();
+    if (directGroup) return directGroup;
+    const firstWithGroup = scanItems.find((item) => item.group?.trim());
+    return firstWithGroup?.group?.trim() || null;
+  }, [box, packingType, scanItems]);
+
   const animatedScanButtonStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scanButtonScale.value }],
   }));
@@ -600,6 +619,9 @@ export default function BoxItemsScreen() {
         .then((res) => {
           setStatus(res.data.box.box_status);
           setBoxName(res.data.box.box_name);
+          if (res.data.box) {
+            setBox((prev) => (prev ? { ...prev, ...res.data.box } : res.data.box));
+          }
           if (res.data.box?.project) {
             setProjectData(res.data.box.project);
           }
@@ -738,10 +760,37 @@ export default function BoxItemsScreen() {
   // ── Select product and enter qty ───────────────────────────────────────────
 
   const handleSelectManualItem = (item: ManualPackingItem) => {
+    const isFullyPacked = item.packed_qty >= item.total_qty;
     const pendingQty = Number(item.pending_qty ?? 0);
 
-    if (pendingQty <= 0) {
+    if (isFullyPacked) {
       showToast("warning", "This product is already fully packed");
+      return;
+    }
+
+    if (item.is_qc_routed && pendingQty <= 0) {
+      showToast(
+        "warning",
+        `Awaiting QC check (${item.qc_passed_qty || 0}/${item.total_qty} passed)`,
+      );
+      return;
+    }
+
+    if (pendingQty <= 0) {
+      showToast("warning", "This product has no pending quantity to pack");
+      return;
+    }
+
+    if (
+      packingType === "GROUPWISE" &&
+      boxGroupName &&
+      item.group_name &&
+      item.group_name.trim().toLowerCase() !== boxGroupName.toLowerCase()
+    ) {
+      showToast(
+        "warning",
+        `This box belongs to group "${boxGroupName}". Item from group "${item.group_name}" cannot be packed in this box.`,
+      );
       return;
     }
 
@@ -836,10 +885,20 @@ export default function BoxItemsScreen() {
     }
 
     if (qty > pendingQty) {
-      showToast(
-        "warning",
-        `Quantity cannot exceed pending quantity (${pendingQty})`,
-      );
+      if (
+        selectedManualItem.is_qc_routed &&
+        (selectedManualItem.qc_passed_qty || 0) < selectedManualItem.total_qty
+      ) {
+        showToast(
+          "warning",
+          `Only ${pendingQty} qty is available to pack (${selectedManualItem.qc_passed_qty || 0} passed QC check)`,
+        );
+      } else {
+        showToast(
+          "warning",
+          `Quantity cannot exceed pending quantity (${pendingQty})`,
+        );
+      }
       return;
     }
 
@@ -1333,13 +1392,24 @@ export default function BoxItemsScreen() {
                 }
                 renderItem={({ item }) => {
                   const pendingQty = Number(item.pending_qty ?? 0);
-                  const isFullyPacked = pendingQty <= 0;
+                  const isFullyPacked = item.packed_qty >= item.total_qty;
+                  const isPendingQc =
+                    Boolean(item.is_qc_routed) &&
+                    (!item.qc_passed_qty || item.qc_passed_qty <= item.packed_qty);
+                  const isWrongGroup = Boolean(
+                    packingType === "GROUPWISE" &&
+                      boxGroupName &&
+                      item.group_name &&
+                      item.group_name.trim().toLowerCase() !==
+                        boxGroupName.toLowerCase(),
+                  );
 
                   return (
                     <TouchableOpacity
                       style={[
                         styles.productCard,
                         isFullyPacked && styles.productCardDisabled,
+                        isWrongGroup && styles.productCardWrongGroup,
                       ]}
                       activeOpacity={isFullyPacked ? 1 : 0.8}
                       disabled={isFullyPacked}
@@ -1365,24 +1435,34 @@ export default function BoxItemsScreen() {
                         <View
                           style={[
                             styles.statusBadge,
-                            item.packing_status === "Packed"
+                            isFullyPacked
                               ? styles.statusBadgePacked
-                              : item.packing_status === "Partially Packed"
-                                ? styles.statusBadgePartial
-                                : styles.statusBadgePending,
+                              : isPendingQc
+                                ? styles.statusBadgePendingQc
+                                : item.packed_qty > 0
+                                  ? styles.statusBadgePartial
+                                  : styles.statusBadgePending,
                           ]}
                         >
                           <Text
                             style={[
                               styles.statusBadgeText,
-                              item.packing_status === "Packed"
+                              isFullyPacked
                                 ? styles.statusTextPacked
-                                : item.packing_status === "Partially Packed"
-                                  ? styles.statusTextPartial
-                                  : styles.statusTextPending,
+                                : isPendingQc
+                                  ? styles.statusTextPendingQc
+                                  : item.packed_qty > 0
+                                    ? styles.statusTextPartial
+                                    : styles.statusTextPending,
                             ]}
                           >
-                            {item.packing_status}
+                            {isFullyPacked
+                              ? "Packed"
+                              : isPendingQc
+                                ? "Pending QC"
+                                : item.packed_qty > 0
+                                  ? "Partially Packed"
+                                  : "Pending"}
                           </Text>
                         </View>
                       </View>
@@ -1398,10 +1478,14 @@ export default function BoxItemsScreen() {
                           <>
                             <View style={styles.metaDot} />
                             <Text
-                              style={[styles.productMeta, { flex: 1 }]}
+                              style={[
+                                styles.productMeta,
+                                isWrongGroup && styles.productMetaWrongGroup,
+                                { flex: 1 },
+                              ]}
                               numberOfLines={1}
                             >
-                              {item.group_name}
+                              Group: {item.group_name}
                             </Text>
                           </>
                         ) : null}
@@ -1415,6 +1499,18 @@ export default function BoxItemsScreen() {
                           </Text>
                         </View>
 
+                        {item.is_qc_routed ? (
+                          <>
+                            <View style={styles.qtyDivider} />
+                            <View style={styles.qtyStat}>
+                              <Text style={styles.qtyStatLabel}>QC Passed</Text>
+                              <Text style={styles.qtyStatValue}>
+                                {item.qc_passed_qty || 0}
+                              </Text>
+                            </View>
+                          </>
+                        ) : null}
+
                         <View style={styles.qtyDivider} />
 
                         <View style={styles.qtyStat}>
@@ -1427,7 +1523,9 @@ export default function BoxItemsScreen() {
                         <View style={styles.qtyDivider} />
 
                         <View style={styles.qtyStat}>
-                          <Text style={styles.qtyStatLabel}>Pending</Text>
+                          <Text style={styles.qtyStatLabel}>
+                            {item.is_qc_routed ? "Ready" : "Pending"}
+                          </Text>
                           <Text
                             style={[
                               styles.qtyStatValue,
@@ -1440,12 +1538,29 @@ export default function BoxItemsScreen() {
                           </Text>
                         </View>
 
-                        {!isFullyPacked ? (
+                        {!isFullyPacked && pendingQty > 0 && !isWrongGroup ? (
                           <View style={styles.selectIndicator}>
                             <Plus size={16} color="#fff" />
                           </View>
                         ) : null}
                       </View>
+
+                      {!isFullyPacked && item.is_qc_routed && pendingQty <= 0 && (
+                        <View style={styles.awaitingQcRow}>
+                          <Clock3 size={13} color="#B45309" />
+                          <Text style={styles.awaitingQcText}>
+                            Awaiting QC check ({item.qc_passed_qty || 0}/{item.total_qty} passed)
+                          </Text>
+                        </View>
+                      )}
+
+                      {isWrongGroup && (
+                        <View style={styles.wrongGroupRow}>
+                          <Text style={styles.wrongGroupText}>
+                            Belongs to group "{item.group_name}" (box is for "{boxGroupName}")
+                          </Text>
+                        </View>
+                      )}
                     </TouchableOpacity>
                   );
                 }}
@@ -1510,6 +1625,15 @@ export default function BoxItemsScreen() {
                       </Text>
                     </View>
 
+                    {selectedManualItem.is_qc_routed && (
+                      <View>
+                        <Text style={styles.selectedStatLabel}>QC Passed</Text>
+                        <Text style={styles.selectedStatValue}>
+                          {selectedManualItem.qc_passed_qty || 0}
+                        </Text>
+                      </View>
+                    )}
+
                     <View>
                       <Text style={styles.selectedStatLabel}>Packed</Text>
                       <Text style={styles.selectedStatValue}>
@@ -1518,7 +1642,9 @@ export default function BoxItemsScreen() {
                     </View>
 
                     <View>
-                      <Text style={styles.selectedStatLabel}>Pending</Text>
+                      <Text style={styles.selectedStatLabel}>
+                        {selectedManualItem.is_qc_routed ? "Ready" : "Pending"}
+                      </Text>
                       <Text
                         style={[
                           styles.selectedStatValue,
@@ -1529,6 +1655,17 @@ export default function BoxItemsScreen() {
                       </Text>
                     </View>
                   </View>
+
+                  {selectedManualItem.is_qc_routed &&
+                    (selectedManualItem.qc_passed_qty || 0) <
+                      selectedManualItem.total_qty && (
+                      <View style={[styles.awaitingQcRow, { marginTop: 12 }]}>
+                        <Clock3 size={13} color="#B45309" />
+                        <Text style={styles.awaitingQcText}>
+                          Awaiting QC check ({selectedManualItem.qc_passed_qty || 0}/{selectedManualItem.total_qty} passed)
+                        </Text>
+                      </View>
+                    )}
                 </View>
 
                 <Text style={styles.qtyLabel}>Quantity to add</Text>
@@ -2101,6 +2238,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#ECFDF5",
   },
 
+  statusBadgePendingQc: {
+    backgroundColor: "#FEF3C7",
+  },
+
   statusBadgeText: {
     fontSize: 9,
     fontWeight: "800",
@@ -2116,6 +2257,10 @@ const styles = StyleSheet.create({
 
   statusTextPacked: {
     color: "#047857",
+  },
+
+  statusTextPendingQc: {
+    color: "#B45309",
   },
 
   productMetaRow: {
@@ -2183,6 +2328,52 @@ const styles = StyleSheet.create({
     backgroundColor: "#111827",
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  awaitingQcRow: {
+    marginTop: 10,
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  awaitingQcText: {
+    fontSize: 12,
+    color: "#B45309",
+    fontWeight: "600",
+    flex: 1,
+  },
+
+  wrongGroupRow: {
+    marginTop: 8,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+
+  wrongGroupText: {
+    fontSize: 11,
+    color: "#B91C1C",
+    fontWeight: "600",
+  },
+
+  productCardWrongGroup: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FECACA",
+  },
+
+  productMetaWrongGroup: {
+    color: "#DC2626",
+    fontWeight: "700",
   },
 
   // Quantity sheet
