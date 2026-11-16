@@ -5,7 +5,7 @@ const AUTH_TOKEN_KEY = "auth_token";
 
 const instance = axios.create({
   // baseURL: "https://api.vloq.com/api",
-  baseURL: "http://192.168.1.101:7777/api", // local backend URL
+  baseURL: "http://192.168.1.106:7777/api", // local backend URL
   timeout: 15_000,
 });
 
