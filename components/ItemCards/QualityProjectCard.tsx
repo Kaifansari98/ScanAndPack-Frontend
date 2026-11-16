@@ -1,5 +1,5 @@
 import { colors } from "@/components/theme/colors";
-import { ChevronRight, Clock, FolderCheck } from "lucide-react-native";
+import { ChevronRight, Clock, FolderCheck, Wrench } from "lucide-react-native";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -17,6 +17,7 @@ export interface QualityProject {
 export interface QualityProjectCardProps {
   item: QualityProject;
   onPress: (item: QualityProject) => void;
+  onHardwarePress?: (item: QualityProject) => void;
 }
 
 export function getProjectStatusBadge(item: QualityProject) {
@@ -55,7 +56,7 @@ export function getProjectStatusBadge(item: QualityProject) {
   };
 }
 
-export function QualityProjectCard({ item, onPress }: QualityProjectCardProps) {
+export function QualityProjectCard({ item, onPress, onHardwarePress }: QualityProjectCardProps) {
   const statusInfo = getProjectStatusBadge(item);
 
   return (
@@ -98,12 +99,29 @@ export function QualityProjectCard({ item, onPress }: QualityProjectCardProps) {
 
       {/* Bottom Footer Row */}
       <View style={styles.cardBottomRow}>
-        {/* Pending Items Badge */}
-        <View style={styles.statChip}>
+        <View style={styles.bottomLeftGroup}>
+          {/* Pending Items Badge */}
+          <View style={styles.statChip}>
           <Clock size={12} color="#D97706" />
           <Text style={styles.statChipText}>
             {item.pending_count} pending item{item.pending_count === 1 ? "" : "s"}
           </Text>
+        </View>
+
+        {/* Hardware Action Button */}
+        {onHardwarePress && (
+          <TouchableOpacity
+            style={styles.hardwareBtn}
+            onPress={() => onHardwarePress(item)}
+            activeOpacity={0.7}
+          >
+            <Wrench size={12} color="#0369A1" />
+            <Text style={styles.hardwareBtnText}>Packed Hardware</Text>
+          </TouchableOpacity>
+        )}
+        
+        {/* Spacer to push status badge to the right if needed, but flex-between handles it mostly. Actually we can wrap the left side in a View */}
+
         </View>
 
         {/* Status Badge Pill - Bottom Right Aligned */}
@@ -187,6 +205,27 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: "#B45309",
+  },
+  bottomLeftGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  hardwareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 20,
+  },
+  hardwareBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#0369A1",
   },
   arrowCircle: {
     width: 26,

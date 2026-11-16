@@ -8,7 +8,7 @@ import { playErrorFeedback, playSuccessFeedback, preloadFeedbackSounds, unloadFe
 import { CameraView, useCameraPermissions, type BarcodeType } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { AlertTriangle, ArrowLeft, Camera, CheckCircle, Flashlight, FlashlightOff, Focus, ImagePlus, Keyboard, Send, X } from "lucide-react-native";
+import { AlertTriangle, ArrowLeft, Camera, CheckCircle, Flashlight, FlashlightOff, Focus, ImagePlus, Keyboard, Send, X, Zap } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -170,6 +170,8 @@ export default function TrackTraceBarcodeScanner() {
 
   // ── Mode toggle ──────────────────────────────────────────────────────────
   const [scanMode, setScanMode] = useState<ScanMode>("scan");
+  const [continuousMode, setContinuousMode] = useState<boolean>(false);
+  const [continuousScanCount, setContinuousScanCount] = useState<number>(0);
 
   // ── Manual entry ─────────────────────────────────────────────────────────
   const [showManualEntry, setShowManualEntry] = useState(false);
@@ -237,6 +239,24 @@ export default function TrackTraceBarcodeScanner() {
       void unloadFeedbackSounds();
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadScanPreference = async () => {
+      try {
+        if (vendor_id) {
+          const res = await axios.get(`/track-trace/scan-settings/${vendor_id}`);
+          if (isMounted && res.data?.success && res.data?.data) {
+            setContinuousMode(res.data.data.show_status_on_scan === "0");
+          }
+        }
+      } catch {}
+    };
+    void loadScanPreference();
+    return () => {
+      isMounted = false;
+    };
+  }, [vendor_id]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", nextState => {
@@ -375,7 +395,7 @@ export default function TrackTraceBarcodeScanner() {
 
   // ─── Shared helpers ───────────────────────────────────────────────────────
 
-  const buildPayload = (scannedCode: string) => ({    
+  const buildPayload = (scannedCode: string) => ({
     project_id: Number(project_id),
     vendor_id: Number(vendor_id),
     machine_id: Number(machine_id),
@@ -566,16 +586,55 @@ export default function TrackTraceBarcodeScanner() {
     scanRequestControllerRef.current = controller;
 
     try {
-      
       const res = await axios.post(
         "/track-trace/scan/check-item",
         buildPayload(scannedCode),
-        { signal: controller.signal }
+        { signal: controller.signal },
       );
       const apiResponse = res.data;
+
       if (apiResponse.success) {
-        if (apiResponse.message !== "") showToast("success", apiResponse.message);
+        const detailData = apiResponse.data?.mappedItem?.mappedItem
+          ? apiResponse.data.mappedItem
+          : apiResponse.data?.mappedItem ?? apiResponse.data;
+        const activeDefect =
+          detailData?.activeDefect ?? apiResponse.data?.activeDefect ?? null;
+        const isAutoCompleted = Boolean(
+          detailData?.auto_completed || apiResponse.data?.auto_completed,
+        );
+
+        // ⚡ If auto-completed by backend (SHOW_STATUS_ON_SCAN = 0) and no active defect:
+        if (
+          isAutoCompleted &&
+          (!activeDefect || activeDefect.defect_status === "Completed")
+        ) {
+          const isBoxCompleted = Boolean(
+            detailData?.box_completed || apiResponse.data?.box_completed,
+          );
+          const msg =
+            apiResponse.message ||
+            (isBoxCompleted
+              ? "Box completed and ready to print"
+              : "Item marked as completed");
+          showToast("success", msg);
+          void playSuccessFeedback();
+          setContinuousScanCount((c) => c + 1);
+
+          // 🖨️ Open ready to print for completed box (as in normal scanning):
+          queueCompletedBoxPrint(detailData);
+          queueCompletedBoxPrint(apiResponse);
+
+          // If box is completed, allow time for print dialog before re-arming camera
+          const resetDelay = isBoxCompleted ? 2500 : 1000;
+          setTimeout(() => resetScanner(), resetDelay);
+          return true;
+        }
+
+        // 📋 Normal Mode (SHOW_STATUS_ON_SCAN = 1 or defect found): show item detail modal
+        if (apiResponse.message !== "")
+          showToast("success", apiResponse.message);
         void playSuccessFeedback();
+
         if (apiResponse.data) {
           const openedItemDetail = showItemDetailSheet(apiResponse.data);
 
@@ -598,8 +657,11 @@ export default function TrackTraceBarcodeScanner() {
     } catch (err: any) {
       if (controller.signal.aborted) return false;
       playErrorFeedback();
-      showToast("error", err.response?.data?.message || err.message);
-      resetScanner(1000);
+      showToast(
+        "error",
+        err.response?.data?.message || err.message || "Scan failed",
+      );
+      resetScanner(1200);
       return false;
     } finally {
       if (scanRequestControllerRef.current === controller) {
@@ -1108,11 +1170,31 @@ export default function TrackTraceBarcodeScanner() {
 
       {/* Instructions + Manual Entry Button */}
       <View style={styles.instructionsContainer}>
-        <Focus size={24} color={isDefectMode ? "#E63946" : "white"} style={styles.focusIcon} />
+        {continuousMode && !isDefectMode && (
+          <View style={styles.continuousBanner}>
+            <Zap size={13} color="#10B981" />
+            <Text style={styles.continuousBannerText}>
+              Continuous Auto-Marking · {continuousScanCount} completed
+            </Text>
+          </View>
+        )}
+        <Focus
+          size={24}
+          color={isDefectMode ? "#E63946" : continuousMode ? "#10B981" : "white"}
+          style={styles.focusIcon}
+        />
         <Text style={styles.instructions}>
-          {isDefectMode ? "Scan item to mark a defect" : "Position the barcode or QR code within the frame"}
+          {isDefectMode
+            ? "Scan item to mark a defect"
+            : continuousMode
+            ? "Auto-marking pieces: no confirmation modal required"
+            : "Position the barcode or QR code within the frame"}
         </Text>
-        <Text style={styles.subInstructions}>The scan will happen automatically</Text>
+        <Text style={styles.subInstructions}>
+          {continuousMode && !isDefectMode
+            ? "Point at barcode, hear chime, move to next"
+            : "The scan will happen automatically"}
+        </Text>
 
         {/* Manual entry trigger */}
         <TouchableOpacity
@@ -2684,5 +2766,26 @@ const styles = StyleSheet.create({
     borderColor: "#86EFAC", padding: 12, marginBottom: 16,
   },
   completionInfoText: { fontSize: 13, color: "#166534", lineHeight: 18 },
+
+  // Continuous mode controls
+
+  continuousBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(16, 185, 129, 0.18)",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.5)",
+    marginBottom: 8,
+    gap: 6,
+  },
+  continuousBannerText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#10B981",
+  },
 
 });

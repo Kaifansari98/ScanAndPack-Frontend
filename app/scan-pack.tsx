@@ -1,11 +1,8 @@
 import Loader from "@/components/generic/Loader";
 import Navbar from "@/components/generic/Navbar";
-import {
-  FormattedProject,
-  getScanMode,
-  ScanPackProjectCard,
-} from "@/components/ItemCards/ScanPackProjectCard";
+import { FormattedProject, getScanMode, ScanPackProjectCard } from "@/components/ItemCards/ScanPackProjectCard";
 import { FilterModal, FilterOption } from "@/components/modals/FilterModal";
+import { PackagingLocationModal } from "@/components/modals/PackagingLocationModal";
 import { useToast } from "@/components/Notification/ToastProvider";
 import { colors } from "@/components/theme/colors";
 import { commonStyles } from "@/components/theme/commonStyles";
@@ -92,7 +89,15 @@ export default function ProjectsTabScreen() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalProjects, setTotalProjects] = useState(0);
+
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [loadingLocations, setLoadingLocations] = useState(false);
+  const [projectLocations, setProjectLocations] = useState<string[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  const [showVerifyLocationModal, setShowVerifyLocationModal] = useState(false);
+  const [verifyProject, setVerifyProject] = useState<FormattedProject | null>(null);
+  const [verifyLocations, setVerifyLocations] = useState<string[]>([]);
 
   const fetchProjects = useCallback(
     async (targetPage = 1, isRefresh = false) => {
@@ -165,6 +170,11 @@ export default function ProjectsTabScreen() {
           site_in_at: p.site_in_at ?? null,
           all_factory_out: p.all_factory_out ?? false,
           any_factory_out: p.any_factory_out ?? false,
+          all_site_in: p.all_site_in ?? false,
+          any_site_in: p.any_site_in ?? false,
+          is_multi_location: Boolean(p.is_multi_location),
+          has_site_items: Boolean(p.has_site_items),
+          locations: p.locations ?? [],
         }));
 
         if (targetPage === 1 || isRefresh) {
@@ -213,8 +223,49 @@ export default function ProjectsTabScreen() {
     }
   };
 
-  const handleScanOption = (scanType: "IN" | "OUT") => {
+  const handleScanOption = async (scanType: "IN" | "OUT") => {
     setShowScanModal(false);
+    if (!scanProject) return;
+
+    if (scanType === "OUT") {
+      setLoadingLocations(true);
+      try {
+        const response = await axios.get(
+          `/track-trace-project/onboard/${scanProject.vendor_id}/packaging-project/${scanProject.id}`
+        );
+        const locationRows = response.data?.data?.locations;
+        const uniqueLocations = Array.from(
+          new Map(
+            (Array.isArray(locationRows) ? locationRows : [])
+              .map((row: any) => String(row?.location_name ?? "").trim())
+              .filter(Boolean)
+              .map((locationName: string) => [
+                locationName.toLocaleLowerCase(),
+                locationName,
+              ])
+          ).values()
+        ) as string[];
+
+        if (uniqueLocations.length === 0) {
+          navigateToScanner("OUT");
+          return;
+        }
+
+        setProjectLocations(uniqueLocations);
+        setShowLocationModal(true);
+      } catch (error: any) {
+        showToast("error", "Failed to load project locations");
+        navigateToScanner("OUT");
+      } finally {
+        setLoadingLocations(false);
+      }
+    } else {
+      navigateToScanner("IN");
+    }
+  };
+
+  const navigateToScanner = (scanType: "IN" | "OUT", locationName?: string) => {
+    setShowLocationModal(false);
     if (!scanProject) return;
     router.push({
       pathname: "/scanner",
@@ -222,6 +273,39 @@ export default function ProjectsTabScreen() {
         project_id: String(scanProject.id),
         vendor_id: String(scanProject.vendor_id),
         scan_type: scanType,
+        ...(locationName ? { location_name: locationName } : {}),
+      },
+    });
+  };
+
+  const handleVerifyPress = (project: FormattedProject) => {
+    const readyLocs = (project.locations || [])
+      .filter((loc) => loc.all_site_in || loc.site_in_boxes > 0)
+      .map((loc) => loc.location_name);
+
+    if (project.is_multi_location && readyLocs.length > 1) {
+      setVerifyProject(project);
+      setVerifyLocations(readyLocs);
+      setShowVerifyLocationModal(true);
+      return;
+    }
+
+    const targetLoc = readyLocs.length === 1 ? readyLocs[0] : undefined;
+    navigateToBoxSiteIn(project, targetLoc);
+  };
+
+  const navigateToBoxSiteIn = (
+    project: FormattedProject,
+    locationName?: string
+  ) => {
+    setShowVerifyLocationModal(false);
+    router.push({
+      pathname: "/boxSiteInScreen",
+      params: {
+        project_id: String(project.id),
+        vendor_id: String(project.vendor_id),
+        project_name: project.projectName,
+        ...(locationName ? { location_name: locationName } : {}),
       },
     });
   };
@@ -359,6 +443,7 @@ export default function ProjectsTabScreen() {
                 setSelectedProject(item);
                 setShowConfirmModal(true);
               }}
+              onVerifyPress={() => handleVerifyPress(item)}
             />
           )}
         />
@@ -482,6 +567,35 @@ export default function ProjectsTabScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Location Modal for Factory Out ── */}
+      <PackagingLocationModal
+        visible={showLocationModal}
+        locations={projectLocations}
+        onSelect={(locationName) => navigateToScanner("OUT", locationName)}
+        onClose={() => setShowLocationModal(false)}
+        hideWithoutLocationOption={true}
+      />
+
+      {/* ── Location Modal for Site In Verify ── */}
+      <PackagingLocationModal
+        visible={showVerifyLocationModal}
+        locations={verifyLocations}
+        onSelect={(locationName) => {
+          if (verifyProject) {
+            navigateToBoxSiteIn(verifyProject, locationName);
+          }
+        }}
+        onClose={() => setShowVerifyLocationModal(false)}
+        hideWithoutLocationOption={true}
+      />
+
+      {/* ── Location Loading Overlay ── */}
+      {loadingLocations && (
+        <View style={screen.loaderOverlay}>
+          <Loader />
+        </View>
+      )}
     </View>
   );
 }
@@ -495,6 +609,17 @@ const screen = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#F8FAFC",
+  },
+  loaderOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9999,
   },
   list: { padding: 12, paddingBottom: 36, gap: 12 },
   empty: {
