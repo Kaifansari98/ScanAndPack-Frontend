@@ -1,11 +1,12 @@
 import { colors } from "@/components/theme/colors";
 import { RootState } from "@/redux/store";
 import DashboardTabScreen from "@/screens/Tabs/dashboard";
+import HrmsTabScreen from "@/screens/Tabs/hrms";
 import ProfileTabScreen from "@/screens/Tabs/profile";
 import ProjectsTabScreen from "@/screens/Tabs/projects";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Redirect } from "expo-router";
-import { FolderKanban, Home, Settings } from "lucide-react-native";
+import { Building2, FolderKanban, Home, Settings } from "lucide-react-native";
 import React from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -85,6 +86,14 @@ export default function DashboardScreen() {
         options={{
           headerShown: false,
           tabBarIcon: tabIcon(Home),
+        }}
+      />
+      <Tab.Screen
+        name="HRMS"
+        component={HrmsTabScreen}
+        options={{
+          headerShown: false,
+          tabBarIcon: tabIcon(Building2),
         }}
       />
       <Tab.Screen
