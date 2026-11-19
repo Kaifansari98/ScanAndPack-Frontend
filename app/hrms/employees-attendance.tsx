@@ -26,11 +26,18 @@ import {
   Check,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
+import { useSelector } from "react-redux";
+import { RootState } from "@/redux/store";
 import axios from "@/lib/axios";
 
 export default function EmployeesAttendanceNativeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+
+  const user = useSelector((state: RootState) => state.auth.user);
+  const rawRole = (user?.user_type as any)?.user_type || user?.user_type || "";
+  const roleStr = typeof rawRole === "string" ? rawRole.toLowerCase().trim() : "";
+  const isSuperAdmin = roleStr === "super-admin" || roleStr === "super_admin" || (user as any)?.is_super_admin;
 
   const [attendance, setAttendance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,8 +69,12 @@ export default function EmployeesAttendanceNativeScreen() {
       // 1. Try fetching from /attendance first with date range
       let list: any[] = [];
       try {
+        const queryParams: any = { from_date, to_date, limit: 100 };
+        if (!isSuperAdmin && user?.id) {
+          queryParams.user_id = user.id;
+        }
         const resList = await axios.get("/attendance", {
-          params: { from_date, to_date, limit: 100 },
+          params: queryParams,
         });
         const dataList = resList.data?.data?.items || resList.data?.data || [];
         if (Array.isArray(dataList) && dataList.length > 0) {
@@ -76,8 +87,12 @@ export default function EmployeesAttendanceNativeScreen() {
       // 2. If /attendance was empty or had error, try /attendance/logs
       if (list.length === 0) {
         try {
+          const logParams: any = { from: from_date, to: to_date, page_size: 100 };
+          if (!isSuperAdmin && user?.id) {
+            logParams.user_id = user.id;
+          }
           const resLogs = await axios.get("/attendance/logs", {
-            params: { from: from_date, to: to_date, page_size: 100 },
+            params: logParams,
           });
           const logData = resLogs.data?.data?.rows || resLogs.data?.data?.logs || resLogs.data?.data || [];
           if (Array.isArray(logData)) {
@@ -145,8 +160,12 @@ export default function EmployeesAttendanceNativeScreen() {
           <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2.2} />
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>Employees Attendance</Text>
-          <Text style={styles.headerSub}>Realtime Status & Check-ins</Text>
+          <Text style={styles.headerTitle}>
+            {isSuperAdmin ? "Employees Attendance" : "My Attendance"}
+          </Text>
+          <Text style={styles.headerSub}>
+            {isSuperAdmin ? "Realtime Status & Check-ins" : "Monthly Attendance History"}
+          </Text>
         </View>
 
         {/* Top-Right Month Picker Button */}

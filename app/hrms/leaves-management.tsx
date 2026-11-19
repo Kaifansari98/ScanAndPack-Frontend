@@ -10,11 +10,14 @@ import {
   Platform,
   StatusBar as RNStatusBar,
   Alert,
+  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ArrowLeft, CalendarDays, Check, X, Clock } from "lucide-react-native";
+import { ArrowLeft, CalendarDays, Check, X, Clock, Filter, CheckCircle2, XCircle, Clock4, Layers } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import axios from "@/lib/axios";
+
+type FilterStatus = "ALL" | "PENDING" | "APPROVED" | "REJECTED";
 
 export default function LeavesManagementNativeScreen() {
   const insets = useSafeAreaInsets();
@@ -23,6 +26,8 @@ export default function LeavesManagementNativeScreen() {
   const [leaves, setLeaves] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState<FilterStatus>("ALL");
+  const [filterMenuVisible, setFilterMenuVisible] = useState(false);
 
   const safeTop =
     insets.top > 0
@@ -31,11 +36,17 @@ export default function LeavesManagementNativeScreen() {
       ? 44
       : RNStatusBar.currentHeight ?? 24;
 
-  const fetchLeaves = async (isRefresh = false) => {
+  const fetchLeaves = async (isRefresh = false, statusToFetch?: FilterStatus) => {
     if (!isRefresh) setLoading(true);
+    const filter = statusToFetch ?? selectedFilter;
     try {
-      const res = await axios.get("/leaves/requests");
-      const list = res.data?.data?.requests || res.data?.data || res.data || [];
+      const params: any = { mode: "admin", page_size: 50 };
+      if (filter !== "ALL") {
+        params.status = filter;
+      }
+      const res = await axios.get("/leaves/requests", { params });
+      const dataObj = res.data?.data;
+      const list = dataObj?.items || dataObj?.requests || (Array.isArray(dataObj) ? dataObj : []);
       if (Array.isArray(list)) {
         setLeaves(list);
       }
@@ -48,12 +59,20 @@ export default function LeavesManagementNativeScreen() {
   };
 
   useEffect(() => {
-    fetchLeaves();
-  }, []);
+    fetchLeaves(false, selectedFilter);
+  }, [selectedFilter]);
 
-  const handleDecision = async (id: number, decision: "APPROVED" | "REJECTED") => {
+  const handleSelectFilter = (status: FilterStatus) => {
+    setSelectedFilter(status);
+    setFilterMenuVisible(false);
+  };
+
+  const handleDecision = async (id: number | string, decision: "APPROVED" | "REJECTED") => {
     try {
-      await axios.patch(`/leaves/requests/${id}/decision`, { decision });
+      await axios.patch(`/leaves/requests/${id}/decision`, {
+        status: decision,
+        decision,
+      });
       Alert.alert("Success", `Leave request ${decision.toLowerCase()} successfully.`);
       fetchLeaves(true);
     } catch (e: any) {
@@ -69,10 +88,133 @@ export default function LeavesManagementNativeScreen() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <Text style={styles.headerTitle}>Leaves Management</Text>
-          <Text style={styles.headerSub}>Approve & Review Requests</Text>
+          <Text style={styles.headerSub}>
+            {selectedFilter === "ALL" ? "All Requests" : `${selectedFilter} Requests`}
+          </Text>
         </View>
-        <View style={{ width: 40 }} />
+
+        {/* Top-Right Filter Menu Button */}
+        <TouchableOpacity
+          style={styles.filterBtn}
+          onPress={() => setFilterMenuVisible(true)}
+          activeOpacity={0.8}
+        >
+          <Filter size={18} color="#FFFFFF" strokeWidth={2.2} />
+          {selectedFilter !== "ALL" && <View style={styles.activeFilterDot} />}
+        </TouchableOpacity>
       </View>
+
+      {/* Filter Selection Modal / Dropdown */}
+      <Modal
+        visible={filterMenuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFilterMenuVisible(false)}
+        statusBarTranslucent
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setFilterMenuVisible(false)}
+        >
+          <View style={styles.filterMenuCard}>
+            <View style={styles.filterMenuHeader}>
+              <Text style={styles.filterMenuTitle}>Filter By Status</Text>
+              <TouchableOpacity onPress={() => setFilterMenuVisible(false)}>
+                <X size={18} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.filterOption,
+                selectedFilter === "ALL" && styles.filterOptionActive,
+              ]}
+              onPress={() => handleSelectFilter("ALL")}
+              activeOpacity={0.7}
+            >
+              <View style={styles.filterOptionLeft}>
+                <Layers size={18} color={selectedFilter === "ALL" ? "#4B3A34" : "#64748B"} />
+                <Text
+                  style={[
+                    styles.filterOptionText,
+                    selectedFilter === "ALL" && styles.filterOptionTextActive,
+                  ]}
+                >
+                  All Requests
+                </Text>
+              </View>
+              {selectedFilter === "ALL" && <Check size={16} color="#4B3A34" strokeWidth={2.5} />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.filterOption,
+                selectedFilter === "PENDING" && styles.filterOptionActive,
+              ]}
+              onPress={() => handleSelectFilter("PENDING")}
+              activeOpacity={0.7}
+            >
+              <View style={styles.filterOptionLeft}>
+                <Clock4 size={18} color={selectedFilter === "PENDING" ? "#D97706" : "#64748B"} />
+                <Text
+                  style={[
+                    styles.filterOptionText,
+                    selectedFilter === "PENDING" && styles.filterOptionTextActive,
+                  ]}
+                >
+                  Pending
+                </Text>
+              </View>
+              {selectedFilter === "PENDING" && <Check size={16} color="#4B3A34" strokeWidth={2.5} />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.filterOption,
+                selectedFilter === "APPROVED" && styles.filterOptionActive,
+              ]}
+              onPress={() => handleSelectFilter("APPROVED")}
+              activeOpacity={0.7}
+            >
+              <View style={styles.filterOptionLeft}>
+                <CheckCircle2 size={18} color={selectedFilter === "APPROVED" ? "#059669" : "#64748B"} />
+                <Text
+                  style={[
+                    styles.filterOptionText,
+                    selectedFilter === "APPROVED" && styles.filterOptionTextActive,
+                  ]}
+                >
+                  Approved
+                </Text>
+              </View>
+              {selectedFilter === "APPROVED" && <Check size={16} color="#4B3A34" strokeWidth={2.5} />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.filterOption,
+                selectedFilter === "REJECTED" && styles.filterOptionActive,
+              ]}
+              onPress={() => handleSelectFilter("REJECTED")}
+              activeOpacity={0.7}
+            >
+              <View style={styles.filterOptionLeft}>
+                <XCircle size={18} color={selectedFilter === "REJECTED" ? "#DC2626" : "#64748B"} />
+                <Text
+                  style={[
+                    styles.filterOptionText,
+                    selectedFilter === "REJECTED" && styles.filterOptionTextActive,
+                  ]}
+                >
+                  Rejected
+                </Text>
+              </View>
+              {selectedFilter === "REJECTED" && <Check size={16} color="#4B3A34" strokeWidth={2.5} />}
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {loading ? (
         <View style={styles.centerContainer}>
@@ -105,14 +247,22 @@ export default function LeavesManagementNativeScreen() {
           }
           renderItem={({ item }) => {
             const isPending = !item.status || item.status === "PENDING";
+            const employeeName =
+              item.employee ||
+              item.user?.user_name ||
+              item.employee_name ||
+              `Employee #${item.userId || item.user_id || item.id}`;
+            const leaveTypeStr = item.type || item.leave_type || item.title || "LEAVE";
+            const fromDateStr = item.startDate || item.start_date || item.from_date || item.date || "—";
+            const toDateStr = item.endDate || item.end_date || item.to_date || item.date || "—";
+            const reasonStr = item.remark || item.reason || item.title || "";
+
             return (
               <View style={styles.card}>
                 <View style={styles.topRow}>
                   <View>
-                    <Text style={styles.empName}>
-                      {item.user?.user_name || item.employee_name || `Employee #${item.user_id || item.id}`}
-                    </Text>
-                    <Text style={styles.leaveType}>{item.leave_type || "CASUAL LEAVE"}</Text>
+                    <Text style={styles.empName}>{employeeName}</Text>
+                    <Text style={styles.leaveType}>{leaveTypeStr}</Text>
                   </View>
                   <View
                     style={[
@@ -144,13 +294,13 @@ export default function LeavesManagementNativeScreen() {
                 <View style={styles.detailRow}>
                   <Clock size={13} color="#64748B" />
                   <Text style={styles.dateRange}>
-                    {item.from_date || item.start_date || "—"} to {item.to_date || item.end_date || "—"}
+                    {fromDateStr} to {toDateStr}
                   </Text>
                 </View>
 
-                {item.reason ? (
+                {reasonStr ? (
                   <Text style={styles.reasonText} numberOfLines={2}>
-                    Reason: {item.reason}
+                    Reason: {reasonStr}
                   </Text>
                 ) : null}
 
@@ -201,6 +351,89 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.14)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  filterBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  activeFilterDot: {
+    position: "absolute",
+    top: 9,
+    right: 9,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: "#F4A261",
+  },
+  // Modal / Dropdown
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    paddingTop: Platform.OS === "ios" ? 90 : 70,
+    paddingRight: 16,
+  },
+  filterMenuCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 12,
+    width: 220,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    gap: 4,
+  },
+  filterMenuHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    marginBottom: 4,
+  },
+  filterMenuTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#0F172A",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  filterOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+  },
+  filterOptionActive: {
+    backgroundColor: "#F5F3FF",
+  },
+  filterOptionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  filterOptionText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  filterOptionTextActive: {
+    color: "#4B3A34",
+    fontWeight: "700",
   },
   headerTitleWrap: { alignItems: "center" },
   headerTitle: { fontSize: 18, fontWeight: "800", color: "#FFFFFF" },

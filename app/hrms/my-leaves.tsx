@@ -15,17 +15,18 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArrowLeft, BookOpen, Plus, Clock, X } from "lucide-react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import axios from "@/lib/axios";
 
 export default function MyLeavesNativeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams();
 
   const [myLeaves, setMyLeaves] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
+  const [modalVisible, setModalVisible] = useState(params.openApply === "true");
 
   // Form states
   const [leaveType, setLeaveType] = useState("CASUAL");
@@ -69,10 +70,11 @@ export default function MyLeavesNativeScreen() {
     setSubmitting(true);
     try {
       await axios.post("/leaves/requests", {
-        leave_type: leaveType,
-        from_date: fromDate,
-        to_date: toDate,
-        reason,
+        title: `${leaveType.toUpperCase()} LEAVE`,
+        type: leaveType.toUpperCase(),
+        start_date: fromDate.trim(),
+        end_date: toDate.trim(),
+        remark: reason.trim(),
       });
       Alert.alert("Success", "Leave application submitted successfully.");
       setModalVisible(false);
@@ -81,7 +83,12 @@ export default function MyLeavesNativeScreen() {
       setReason("");
       fetchMyLeaves(true);
     } catch (e: any) {
-      Alert.alert("Error", e?.response?.data?.message || "Failed to submit leave application.");
+      console.log("Leave application error:", e?.response?.data || e?.message);
+      const errMsg =
+        e?.response?.data?.message ||
+        e?.message ||
+        "Failed to submit leave application.";
+      Alert.alert("Error", errMsg);
     } finally {
       setSubmitting(false);
     }
@@ -192,6 +199,32 @@ export default function MyLeavesNativeScreen() {
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <X size={20} color="#64748B" />
               </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>LEAVE TYPE</Text>
+              <View style={styles.typeSelectorRow}>
+                {["CASUAL", "SICK", "PAID"].map((t) => (
+                  <TouchableOpacity
+                    key={t}
+                    style={[
+                      styles.typeChip,
+                      leaveType === t && styles.typeChipActive,
+                    ]}
+                    onPress={() => setLeaveType(t)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.typeChipText,
+                        leaveType === t && styles.typeChipTextActive,
+                      ]}
+                    >
+                      {t}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
             <View style={styles.inputGroup}>
@@ -332,6 +365,22 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   modalTitle: { fontSize: 18, fontWeight: "800", color: "#0F172A" },
+  typeSelectorRow: { flexDirection: "row", gap: 8, marginTop: 4 },
+  typeChip: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 8,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+  },
+  typeChipActive: {
+    backgroundColor: "#4B3A34",
+    borderColor: "#4B3A34",
+  },
+  typeChipText: { fontSize: 12, fontWeight: "700", color: "#64748B" },
+  typeChipTextActive: { color: "#FFFFFF" },
   inputGroup: { gap: 6 },
   inputLabel: { fontSize: 11, fontWeight: "700", color: "#64748B", letterSpacing: 0.5 },
   input: {

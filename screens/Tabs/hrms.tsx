@@ -56,22 +56,31 @@ const HRMS_MENU_ITEMS: {
   roles: ("super-admin" | "all")[];
 }[] = [
   {
-    key: "employees-master",
-    title: "Employees Master",
-    subtitle: "Manage employee profiles, designations & records",
-    icon: Users,
-    iconColor: "#4B3A34",
-    iconBg: "#FFF5ED",
-    roles: ["super-admin"],
-  },
-  {
     key: "employees-attendance",
-    title: "Employees Attendance",
+    title: "Attendance Records",
     subtitle: "Realtime staff presence, check-in & check-out times",
     icon: CalendarCheck,
     iconColor: "#2563EB",
     iconBg: "#EFF6FF",
-    roles: ["super-admin"],
+    roles: ["all"],
+  },
+  {
+    key: "apply-leave",
+    title: "Apply for Leave",
+    subtitle: "Submit a new leave application for approval",
+    icon: CalendarDays,
+    iconColor: "#D97706",
+    iconBg: "#FFFBEB",
+    roles: ["all"],
+  },
+  {
+    key: "my-leaves",
+    title: "My Leaves",
+    subtitle: "Check leave balances & approval status",
+    icon: BookOpen,
+    iconColor: "#0891B2",
+    iconBg: "#F0F9FF",
+    roles: ["all"],
   },
   {
     key: "attendance-logs",
@@ -80,6 +89,15 @@ const HRMS_MENU_ITEMS: {
     icon: FileClock,
     iconColor: "#7C3AED",
     iconBg: "#F5F3FF",
+    roles: ["super-admin"],
+  },
+  {
+    key: "employees-master",
+    title: "Employees Master",
+    subtitle: "Manage employee profiles, designations & records",
+    icon: Users,
+    iconColor: "#4B3A34",
+    iconBg: "#FFF5ED",
     roles: ["super-admin"],
   },
   {
@@ -108,15 +126,6 @@ const HRMS_MENU_ITEMS: {
     iconColor: "#D97706",
     iconBg: "#FFFBEB",
     roles: ["super-admin"],
-  },
-  {
-    key: "my-leaves",
-    title: "My Leaves",
-    subtitle: "Check leave balances & submit new leave requests",
-    icon: BookOpen,
-    iconColor: "#0891B2",
-    iconBg: "#F0F9FF",
-    roles: ["all"],
   },
 ];
 
@@ -183,7 +192,7 @@ export default function HrmsTabScreen() {
         const [empRes, locRes, leaveRes, compRes] = await Promise.allSettled([
           vendorId ? axios.get(`/users/vendor/${vendorId}`) : Promise.resolve({ data: [] }),
           axios.get("/attendance/locations"),
-          axios.get("/leaves/requests"),
+          axios.get("/leaves/requests", { params: { mode: "admin" } }),
           axios.get("/complaints"),
         ]);
 
@@ -196,8 +205,17 @@ export default function HrmsTabScreen() {
           if (Array.isArray(list)) setLocationsCount(list.length);
         }
         if (leaveRes.status === "fulfilled") {
-          const list = leaveRes.value.data?.data?.requests || leaveRes.value.data?.data || [];
-          if (Array.isArray(list)) setLeavesCount(list.length);
+          const resData = leaveRes.value.data?.data;
+          const pendingCount = resData?.counts?.PENDING;
+          const totalCount = resData?.total;
+          const list = resData?.items || resData?.requests || resData || [];
+          if (typeof pendingCount === "number") {
+            setLeavesCount(pendingCount);
+          } else if (typeof totalCount === "number") {
+            setLeavesCount(totalCount);
+          } else if (Array.isArray(list)) {
+            setLeavesCount(list.length);
+          }
         }
         if (compRes.status === "fulfilled") {
           const list = compRes.value.data?.data?.complaints || compRes.value.data?.data || [];
@@ -240,6 +258,9 @@ export default function HrmsTabScreen() {
           break;
         case "employees-attendance":
           router.push("/hrms/employees-attendance" as any);
+          break;
+        case "apply-leave":
+          router.push({ pathname: "/hrms/my-leaves", params: { openApply: "true" } } as any);
           break;
         case "attendance-logs":
           router.push("/hrms/attendance-logs" as any);
@@ -325,8 +346,10 @@ export default function HrmsTabScreen() {
   };
 
   const currentRecord = workspace?.current || workspace?.today || workspace?.today_attendance;
-  const isCheckedIn = !!currentRecord?.check_in || !!currentRecord?.check_in_time || !!currentRecord?.punch_in;
-  const isCheckedOut = !!currentRecord?.check_out || !!currentRecord?.check_out_time || !!currentRecord?.punch_out;
+  // If current session is open (check_in exists and check_out is null), employee is currently IN.
+  // If check_out exists, that session is completed, so employee is NOT in (can check in again).
+  const isCheckedIn = !!currentRecord?.check_in && !currentRecord?.check_out;
+  const isCheckedOut = !isCheckedIn;
 
   const visibleMenuItems = HRMS_MENU_ITEMS.filter(
     (item) => item.roles.includes("all") || isSuperAdmin
@@ -530,7 +553,7 @@ export default function HrmsTabScreen() {
                       { color: isCheckedIn ? "#059669" : "#DC2626", fontWeight: "800" },
                     ]}
                   >
-                    {isCheckedOut ? "COMPLETED" : isCheckedIn ? "PRESENT" : "NOT IN"}
+                    {isCheckedIn ? "PRESENT" : currentRecord?.check_out ? "COMPLETED" : "NOT IN"}
                   </Text>
                 </View>
               </View>
@@ -593,7 +616,7 @@ export default function HrmsTabScreen() {
 
               <TouchableOpacity
                 style={styles.summaryBox}
-                onPress={() => navigateToSection("attendance-logs")}
+                onPress={() => navigateToSection("employees-attendance")}
                 activeOpacity={0.85}
               >
                 <CalendarCheck size={20} color="#059669" />
@@ -656,6 +679,19 @@ export default function HrmsTabScreen() {
         >
           {visibleMenuItems.map((item) => {
             const Icon = item.icon;
+            const itemTitle =
+              item.key === "employees-attendance"
+                ? isSuperAdmin
+                  ? "Employees Attendance"
+                  : "My Attendance"
+                : item.title;
+            const itemSubtitle =
+              item.key === "employees-attendance"
+                ? isSuperAdmin
+                  ? "Realtime staff presence, check-in & check-out times"
+                  : "View your attendance records by date & month"
+                : item.subtitle;
+
             return (
               <TouchableOpacity
                 key={item.key}
@@ -668,9 +704,9 @@ export default function HrmsTabScreen() {
                 </View>
 
                 <View style={styles.menuItemContent}>
-                  <Text style={styles.menuItemTitle}>{item.title}</Text>
+                  <Text style={styles.menuItemTitle}>{itemTitle}</Text>
                   <Text style={styles.menuItemSubtitle} numberOfLines={2}>
-                    {item.subtitle}
+                    {itemSubtitle}
                   </Text>
                 </View>
 

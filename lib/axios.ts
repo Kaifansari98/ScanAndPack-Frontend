@@ -4,9 +4,9 @@ import * as SecureStore from "expo-secure-store";
 const AUTH_TOKEN_KEY = "auth_token";
 
 // Backend API URL
-export const BACKEND_BASE = "http://192.168.1.100:7777";
+export const BACKEND_BASE = "http://192.168.1.106:7777";
 // CRM Frontend URL (same host, port 3000)
-export const CRM_BASE_URL = "http://192.168.1.100:3000";
+export const CRM_BASE_URL = "http://192.168.1.106:3000";
 
 const instance = axios.create({
   // baseURL: "https://api.vloq.com/api",
