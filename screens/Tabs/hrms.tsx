@@ -125,7 +125,7 @@ const HRMS_MENU_ITEMS: {
     icon: AlertCircle,
     iconColor: "#D97706",
     iconBg: "#FFFBEB",
-    roles: ["super-admin"],
+    roles: ["all"],
   },
 ];
 
@@ -288,19 +288,39 @@ export default function HrmsTabScreen() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === "granted") {
-          // Promise race with timeout so it doesn't hang indefinitely on device GPS
-          const locPromise = Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("Location request timed out. Please check your GPS signal.")), 10000)
-          );
-          const loc = await Promise.race([locPromise, timeoutPromise]);
-          coords = {
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-            accuracy: loc.coords.accuracy ?? undefined,
-          };
+          let loc: Location.LocationObject | null = null;
+          try {
+            // First try fresh current position with 12s timeout and Lowest/Balanced accuracy for quick satellite fix
+            const locPromise = Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+            });
+            const timeoutPromise = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("Timeout")), 12000)
+            );
+            loc = await Promise.race([locPromise, timeoutPromise]);
+          } catch {
+            // Fallback immediately to last known position so punch never fails if GPS fix takes too long indoors
+            loc = await Location.getLastKnownPositionAsync({
+              maxAge: 300000, // within last 5 minutes
+            });
+          }
+
+          if (!loc) {
+            // Final attempt with Lowest accuracy (cell tower / wifi) if satellite still not responding
+            loc = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Lowest,
+            });
+          }
+
+          if (loc?.coords) {
+            coords = {
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+              accuracy: loc.coords.accuracy ?? undefined,
+            };
+          } else {
+            throw new Error("Unable to retrieve coordinates. Please turn on device GPS and ensure location services are enabled.");
+          }
         } else {
           Alert.alert(
             "Location Permission Required",
@@ -351,9 +371,15 @@ export default function HrmsTabScreen() {
   const isCheckedIn = !!currentRecord?.check_in && !currentRecord?.check_out;
   const isCheckedOut = !isCheckedIn;
 
-  const visibleMenuItems = HRMS_MENU_ITEMS.filter(
-    (item) => item.roles.includes("all") || isSuperAdmin
-  );
+  const visibleMenuItems = HRMS_MENU_ITEMS.filter((item) => {
+    if (isSuperAdmin) {
+      // Super Admin manages leaves via "Leaves Management", doesn't need "My Leaves" or "Apply for Leave"
+      if (item.key === "my-leaves" || item.key === "apply-leave") return false;
+      return true;
+    }
+    // Normal employees only see items configured for 'all'
+    return item.roles.includes("all");
+  });
 
   return (
     <View style={styles.root}>
@@ -684,12 +710,20 @@ export default function HrmsTabScreen() {
                 ? isSuperAdmin
                   ? "Employees Attendance"
                   : "My Attendance"
+                : item.key === "complaints"
+                ? isSuperAdmin
+                  ? "Employee Complaints"
+                  : "Raise Complaint / Grievance"
                 : item.title;
             const itemSubtitle =
               item.key === "employees-attendance"
                 ? isSuperAdmin
                   ? "Realtime staff presence, check-in & check-out times"
                   : "View your attendance records by date & month"
+                : item.key === "complaints"
+                ? isSuperAdmin
+                  ? "Track, inspect & resolve workplace grievances"
+                  : "Report issues, workplace grievances & requests"
                 : item.subtitle;
 
             return (

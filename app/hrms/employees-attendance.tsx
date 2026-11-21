@@ -66,25 +66,50 @@ export default function EmployeesAttendanceNativeScreen() {
     const to_date = `${targetMonth}-${String(lastDay).padStart(2, "0")}`;
 
     try {
-      // 1. Try fetching from /attendance first with date range
       let list: any[] = [];
-      try {
-        const queryParams: any = { from_date, to_date, limit: 100 };
-        if (!isSuperAdmin && user?.id) {
-          queryParams.user_id = user.id;
+
+      // 1. If employee (non-super-admin), /attendance/workspace gives the exact user's monthly entries & punches
+      if (!isSuperAdmin) {
+        try {
+          const resWorkspace = await axios.get("/attendance/workspace", {
+            params: { month: targetMonth },
+          });
+          const entries =
+            resWorkspace.data?.data?.entries ||
+            resWorkspace.data?.entries ||
+            [];
+          if (Array.isArray(entries) && entries.length > 0) {
+            list = entries;
+          }
+        } catch (errWs) {
+          console.log("Error fetching workspace entries:", errWs);
         }
-        const resList = await axios.get("/attendance", {
-          params: queryParams,
-        });
-        const dataList = resList.data?.data?.items || resList.data?.data || [];
-        if (Array.isArray(dataList) && dataList.length > 0) {
-          list = dataList;
-        }
-      } catch (errList) {
-        // Fallback to /attendance/logs
       }
 
-      // 2. If /attendance was empty or had error, try /attendance/logs
+      // 2. Fetch from /attendance (standard attendance list with date range)
+      if (list.length === 0) {
+        try {
+          const queryParams: any = { from_date, to_date, limit: 100 };
+          if (!isSuperAdmin && user?.id) {
+            queryParams.user_id = user.id;
+          }
+          const resList = await axios.get("/attendance", {
+            params: queryParams,
+          });
+          const dataList =
+            resList.data?.data?.items ||
+            resList.data?.items ||
+            resList.data?.data ||
+            [];
+          if (Array.isArray(dataList) && dataList.length > 0) {
+            list = dataList;
+          }
+        } catch (errList) {
+          console.log("Error fetching /attendance:", errList);
+        }
+      }
+
+      // 3. Fallback to /attendance/logs if still empty
       if (list.length === 0) {
         try {
           const logParams: any = { from: from_date, to: to_date, page_size: 100 };
@@ -94,7 +119,11 @@ export default function EmployeesAttendanceNativeScreen() {
           const resLogs = await axios.get("/attendance/logs", {
             params: logParams,
           });
-          const logData = resLogs.data?.data?.rows || resLogs.data?.data?.logs || resLogs.data?.data || [];
+          const logData =
+            resLogs.data?.data?.rows ||
+            resLogs.data?.data?.logs ||
+            resLogs.data?.data ||
+            [];
           if (Array.isArray(logData)) {
             list = logData;
           }
@@ -209,11 +238,21 @@ export default function EmployeesAttendanceNativeScreen() {
             </View>
           }
           renderItem={({ item }) => {
+            const loggedInName =
+              (user as any)?.user_name ||
+              (user as any)?.name ||
+              (user as any)?.full_name ||
+              (user as any)?.username;
+
             const empName =
-              item.employee?.name ||
-              item.user?.user_name ||
-              item.employee_name ||
-              `Employee #${item.user_id || item.employee?.id || item.id}`;
+              (!isSuperAdmin && loggedInName)
+                ? loggedInName
+                : (item.employee?.name ||
+                   item.user?.user_name ||
+                   item.user?.name ||
+                   item.employee_name ||
+                   (user?.id && item.user_id && user.id === item.user_id ? loggedInName : null) ||
+                   `Employee #${item.user_id || item.employee?.id || item.id}`);
 
             const checkInVal = item.check_in || item.check_in_time || item.punch_in;
             const checkOutVal = item.check_out || item.check_out_time || item.punch_out;
@@ -322,7 +361,7 @@ export default function EmployeesAttendanceNativeScreen() {
                       <Text style={styles.timeValue}>
                         {checkInVal
                           ? new Date(checkInVal).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                          : "--:--"}
+                          : "00:00"}
                       </Text>
                     </View>
                   </View>
@@ -334,7 +373,7 @@ export default function EmployeesAttendanceNativeScreen() {
                       <Text style={styles.timeValue}>
                         {checkOutVal
                           ? new Date(checkOutVal).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                          : "--:--"}
+                          : "00:00"}
                       </Text>
                     </View>
                   </View>
